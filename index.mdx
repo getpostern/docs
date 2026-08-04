@@ -1,0 +1,32 @@
+---
+title: "Postern"
+description: "Self-hosted personal context gateway: one MCP surface over the sectors of your life, with per-agent default-deny grants and an append-only audit ledger."
+---
+
+Postern is a self-hosted personal context gateway: one MCP surface over the
+sectors of a person's life — finance, mail, calendar, contacts, health, home —
+with per-agent default-deny grants, an append-only audit ledger, and actions
+where the source allows. It runs on the owner's hardware; agents connect to the
+owner's gate, not to a Postern cloud. AGPL-3.0.
+
+## Bring one up
+
+```bash
+git clone https://github.com/getpostern/postern.git && cd postern
+echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
+docker compose up -d
+```
+
+The gate, its database, and the Console come up together.
+
+## Where things are
+
+- **Source** — [github.com/getpostern/postern](https://github.com/getpostern/postern)
+- **Image** — `ghcr.io/getpostern/postern` (multi-arch, amd64 + arm64)
+- **Field guides** — per-provider setup, screen by screen, at [getpostern.com/guides](https://getpostern.com/guides)
+
+<Note>
+  These docs are being built. The per-provider field guides currently live on
+  getpostern.com and are moving here; reference documentation for configuration,
+  the REST API, grants, and the audit log is being written.
+</Note>
