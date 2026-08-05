@@ -1,0 +1,248 @@
+---
+title: "Connect Google & Gmail"
+description: "Calendar and contacts come through your own Google Cloud app — one consent, two connections. Gmail comes separately, through an app password over IMAP. Two small setups, deliberately different, and this page does both."
+---
+
+**FIELD GUIDE · CONNECTING A SOURCE · № 05**
+
+<Frame caption="mail · Epistola volans">
+  <img
+    src="/images/specimen-mail.svg"
+    alt="Field-guide specimen: a winged envelope drawn over a sprig — the mail specimen, Epistola volans."
+    width="113"
+    height="159"
+  />
+</Frame>
+
+*your own Google Cloud app + one app password · about 20 minutes · weekly re-consent until you publish to production*
+
+<Note>
+  **BEFORE YOU BEGIN** — Gmail never rides the OAuth app — by design, not
+  omission. Moving Gmail onto the Gmail API would trigger Google's annual CASA
+  security assessment for every self-hosted deployment, so mail is IMAP on
+  purpose: the Google app below requests no Gmail scope, ever, and a test
+  enforces it.
+</Note>
+
+## Where to start {#fork}
+
+| If your situation is… | Then |
+| --- | --- |
+| you want mail | [**Part A**](#part-a) — 2-Step Verification, then one app password over IMAP. |
+| you want calendar and contacts | [**Part B**](#part-b) — your own Google Cloud app: one consent, two connections. |
+| you want all three | [Part A](#part-a) and [Part B](#part-b). This page does both. |
+| your Google account belongs to a Workspace organization | The [Audience page](#consent-screen) also offers **Internal** — Internal is only offered to Workspace organizations. This page takes the **External** path throughout. |
+
+<div id="gmail" />
+
+## Part A · Gmail {#part-a}
+
+### 1 · Turn on 2-Step Verification first {#two-step-verification}
+
+The App-passwords page does not exist until 2-Step Verification is on — no
+amount of searching the Security page will surface it before that.
+[myaccount.google.com](https://myaccount.google.com) → Security → 2-Step
+Verification → turn it on. Then come back here.
+
+### 2 · Create the app password, paste it with your address {#app-password}
+
+Go directly to the address below, create a password named "Postern", then
+Console → Sources → Gmail → your address + the 16 characters. Paste them however
+you like — the whitespace is stripped before sealing. Mail bodies are never
+stored; only envelopes are cached, and content is fetched on demand.
+
+```
+myaccount.google.com/apppasswords
+```
+
+<Frame caption="Google’s App passwords page: the app named ‘postern’, and the generated sixteen characters — redacted in this capture.">
+  <img
+    src="/images/google-console-gmail-redacted.png"
+    alt="Google’s App passwords page, with a password named Postern being created — the Generated app password dialog shows the sixteen-character code, redacted in this capture."
+    width="1400"
+    height="790"
+  />
+</Frame>
+
+<Frame caption="The Console’s Gmail card — the address and the sixteen characters go here. Captured on a gate where Gmail is already connected, so this card reads Reconnect Gmail; on a fresh gate it reads Connect.">
+  <img
+    src="/images/google-apppasswords.png"
+    alt="The Console’s Gmail card: an address and the sixteen-character app password."
+    width="1210"
+    height="900"
+  />
+</Frame>
+
+## Part B · Calendar & contacts — the consent screen comes first {#part-b}
+
+### 1 · Create one project, and stay in it {#project}
+
+At [console.cloud.google.com](https://console.cloud.google.com) open the project
+picker at the top of the page → New project — everything in this Part happens
+inside that ONE project.
+
+### 2 · Enable the two data APIs {#enable-apis}
+
+First enable the two data APIs: APIs & Services → Library → search "Google
+Calendar API" → Enable, then "People API" → Enable.
+
+<Warning>
+  **TRAP** — A 403 on calendar or contacts right after a successful sign-in
+  means the APIs are not enabled in the project that owns your client — the most
+  common post-consent failure, and the error will not say so. And mind the
+  Library search: contacts data comes through the People API — the
+  similarly-named legacy "Contacts API" is deprecated, appears first when you
+  search "contacts", and enabling it does nothing. Enable the right two in that
+  project's Library, give Google a minute or two to start honouring it, then
+  Reconnect in the Console.
+</Warning>
+
+<Frame caption="The decoy in the Library. Google’s own page says: “This API is no longer being developed further. Please consider migrating to the People API instead.” If your screen says this, you are on the wrong page.">
+  <img
+    src="/images/google-contacts-decoy.png"
+    alt="The deprecated Contacts API — the decoy that appears first and does nothing. Google's product page carries its own migration notice: this API is no longer being developed further, migrate to the People API instead. Service name contacts.googleapis.com."
+    width="1500"
+    height="840"
+  />
+</Frame>
+
+<Frame caption="The same decoy, enabled: service name contacts.googleapis.com. Read the service name before you trust the title — contacts.googleapis.com is the deprecated Contacts API, not the People API.">
+  <img
+    src="/images/google-people-api.png"
+    alt="A Google Cloud API/Service details page for the Contacts API — service name contacts.googleapis.com, status Enabled."
+    width="1400"
+    height="790"
+  />
+</Frame>
+
+### 3 · Configure the consent screen {#consent-screen}
+
+Then configure the consent screen — the modern console names it Google Auth
+Platform → Audience — audience External, app name and contact emails. Internal
+is only offered to Workspace organizations.
+
+<Frame caption="The Google Auth Platform → Audience page: publishing status Testing with its Publish app button, user type External with Make internal, Google’s own OAuth user cap note, and Test users → Add users. Clients — where step 5 sends you — is in the left nav.">
+  <img
+    src="/images/google-audience.png"
+    alt="The Google Auth Platform Audience page: Testing status, External, Test users — with Google's own note that while publishing status is set to 'Testing,' only test users are able to access the app."
+    width="1500"
+    height="840"
+  />
+</Frame>
+
+### 4 · Add yourself as a test user {#test-users}
+
+Test users → add your own address. This is the step that blocks the whole flow
+if skipped.
+
+```
+console.cloud.google.com → Google Auth Platform → Audience → Test users → Add users
+```
+
+<Warning>
+  **TRAP** — Skip the test-users step and Google refuses your own consent with:
+  "OAuth access is restricted to the test users listed on your OAuth consent
+  screen." While the app's status is Testing, only listed accounts may consent —
+  and a fresh app starts with nobody listed, not even you.
+</Warning>
+
+### 5 · Create the OAuth client — type Web application {#oauth-client}
+
+Google Auth Platform → Clients → Create client → application type Web
+application. Under "Authorized redirect URIs" — not the JavaScript-origins list
+above it — add the URI pasted from your own Console's Google card. Never typed,
+and never copied from this page: Google exact-matches the string, and the
+Console's copy follows your gateway's own port. On a stock install it reads as
+below. Then copy both the client ID and the client secret: Google is a
+confidential client here, and the token exchange fails without both.
+
+```
+http://localhost:8787/api/oauth/google/callback
+```
+
+<Warning>
+  **TRAP** — Google shows the client secret once, at creation. Copy the client
+  ID and the secret from the confirmation dialog before you close it: a lost
+  secret cannot be re-revealed. The only way back is deleting the client and
+  creating a new one — and the old client id dies with it.
+</Warning>
+
+### 6 · Paste both into the Console, sign in — and expect the warning {#console-card}
+
+Console → Sources → Google → client ID + client secret → "Save & sign in with
+Google" — and sign in as the account you listed under Test users; any other
+account is refused.
+
+<Note>
+  One more clock: the consent window is 10 minutes and single-use — wander off
+  mid-flow (say, to go add your test user) and the stale tab fails; start again
+  from the Console card, nothing is lost.
+</Note>
+
+<Frame caption="The Console’s Google card, where the client ID and client secret go. Captured on a gate where Google is already connected, so this card reads Reconnect Google and carries a replace-and-re-run-consent checkbox; on a fresh gate the button reads Save & sign in with Google.">
+  <img
+    src="/images/google-console-card.png"
+    alt="The Console’s Google card with the client ID and secret pasted in."
+    width="1210"
+    height="900"
+  />
+</Frame>
+
+### 7 · Continue past the warning, then tick "Select all" {#consent-run}
+
+A Testing-status app shows Google's "unverified app" interstitial — Continue is
+the small link on the left; the prominent blue button is "Back to safety" and it
+aborts. On the scopes screen the checkboxes start EMPTY: tick "Select all", or
+continuing will "succeed" while granting nothing. Approve, and the one consent
+fans out into two connections: calendar and contacts.
+
+<Frame caption="“Google hasn’t verified this app.” Continue is the small link, not the blue button.">
+  <img
+    src="/images/google-unverified.png"
+    alt="Google’s unverified-app interstitial — Continue is the small link, not the blue button."
+    width="1036"
+    height="400"
+  />
+</Frame>
+
+<Frame caption="The scopes screen — the checkboxes start empty. Tick Select all.">
+  <img
+    src="/images/google-scopes.png"
+    alt="The Google scopes screen with the checkboxes starting empty — 'Select what Postern can access', a Select all box, then 'See and download your contacts.' and 'See and download any calendar that you can access using your Google Calendar.'"
+    width="1020"
+    height="700"
+  />
+</Frame>
+
+## Confirm before you move on {#confirm}
+
+- 2-Step Verification is on — without it the App-passwords page does not exist.
+- The Console's Gmail card holds your address and the sixteen characters.
+- In the one project that owns your client: Google Calendar API and People API
+  both read Enabled — and the service name is not `contacts.googleapis.com`.
+- On Google Auth Platform → Audience: your own address is listed under Test
+  users.
+- On Google Auth Platform → Clients: a Web application client whose Authorized
+  redirect URIs — not JavaScript origins — holds the URI copied from your
+  Console's Google card.
+- Both the client ID and the client secret sit in the Console's Google card.
+  Google is a confidential client; one without the other fails the exchange.
+- Every scope box was ticked before you approved.
+- Three connections: Gmail, calendar, contacts.
+
+<div id="publish" />
+
+## What stands when you finish {#what-stands}
+
+Three connections in all — Gmail over IMAP from Part A, calendar and contacts
+from Part B — and any agent granted those sectors answers from them after the
+first sync. One standing cost until you act on it: while the Cloud project's
+publishing status stays "Testing", Google expires Part B's refresh tokens every
+7 days and you re-consent weekly. Setting the status to "In production" — the
+Publish app button on the same Google Auth Platform → Audience page where you
+added Test users; a form, not a review, for a single-user app you own — ends it.
+
+---
+
+[← all sources](https://getpostern.com/guides/) ·
+[next guide: Microsoft — mail, calendar & contacts →](https://getpostern.com/guides/microsoft/)

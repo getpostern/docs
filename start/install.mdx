@@ -1,0 +1,90 @@
+---
+title: "Set up Postern"
+description: "One password, one command, and a gate of your own answers on localhost — measured cold, healthy in about twenty seconds. Then mint the first key and let an agent in. Nothing is granted until you grant it."
+---
+
+<svg width="26" height="33" viewBox="0 0 32 40" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M4 38 L4 16 Q4 4 16 4 Q28 4 28 16 L28 38 Z" fill="currentColor" /><path d="M18 38 L18 13 Q18 8.5 22.5 7.6 L22.5 38 Z" fill="#E7A42A" /></svg>
+
+**FIELD GUIDE · RAISING YOUR GATE · № 01 · THE GATE**
+
+*docker + a terminal · about ten minutes · no cloud account, because there is no cloud*
+
+## Before you begin
+
+You need a machine that stays on, plus Docker. Keeping it patched is yours, the
+same as anything else you run — and while it is down, your agents reach nothing.
+
+<Steps>
+
+<Step title="Clone, seed a password, come up">
+
+Clone the repository and cd in. Give Postgres a password and start the stack:
+
+```bash
+printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)" > .env
+docker compose up -d
+```
+
+</Step>
+
+<Step title="Open the Console">
+
+http://localhost:8787 — the Gatehouse greets you with "Your gate is new."
+Nothing else is required.
+
+<Frame>
+  <img src="/images/gate-console-new.png" alt='The Postern Console on a fresh install: the Gatehouse reading "Your gate is new."' />
+</Frame>
+
+<Warning>
+**TRAP** · The vault master key is born inside the Docker volume the first time
+a secret is sealed. `docker compose down -v` deletes that volume, and every
+stored credential becomes permanently unopenable. Never run it.
+</Warning>
+
+</Step>
+
+<Step title="Mint the first key">
+
+Console → Agents & keys → new. Name the agent, tick the sectors it may reach —
+default-deny: nothing is granted until picked — set an expiry, and Mint.
+
+<Frame>
+  <img src="/images/gate-mint-key.png" alt="The Console’s mint-a-key panel: an agent name, the sector checkboxes, and an expiry." />
+</Frame>
+
+<Warning>
+**TRAP** · The key is shown once — only a hash is stored. Copy it before you
+leave the screen; there is nothing to re-reveal later, only re-mint.
+</Warning>
+
+</Step>
+
+<Step title="Connect an agent">
+
+A local agent pairs with one command — the same screen that minted the key shows
+the MCP endpoint:
+
+```bash
+claude mcp add --transport http postern http://127.0.0.1:8788/mcp \
+  --header "Authorization: Bearer <your key>"
+```
+
+A hosted agent (claude.ai) follows the Console's "Connect a hosted client"
+walkthrough — the URL to paste is your published origin plus /mcp.
+
+</Step>
+
+</Steps>
+
+## What stands when you finish
+
+A running gate, one agent inside, every visit on the record. No key gets a 401;
+the minted key gets a full handshake and sector-scoped answers. The Console’s
+ledger shows the first visit the moment it lands — and from here every source
+you connect is reachable by every agent you admit, with no further setup on
+either side.
+
+---
+
+[← all sources](https://getpostern.com/guides/) · [next guide: SimpleFIN — finance, the default →](https://getpostern.com/guides/simplefin/)

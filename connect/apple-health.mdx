@@ -1,0 +1,136 @@
+---
+title: "Connect Apple Health"
+description: "Nothing can read Apple Health from off your phone, so this source inverts: the Console mints a private ingest endpoint and a secret, and your iPhone pushes your metrics to it on a schedule — through the Health Auto Export app, the path that runs in production. Postern keeps what your phone chooses to send, from the day it starts sending."
+"og:title": "Connect Apple Health — Postern field guide"
+"og:type": "article"
+"og:description": "Nothing can read Apple Health from off your phone, so this source inverts: the Console mints a private ingest endpoint and a secret, and your iPhone pushes your metrics to it on a schedule — through the Health Auto Export app, the path that runs in production. Postern keeps what your phone chooses to send, from the day it starts sending."
+"og:image": "https://getpostern.com/og.png"
+"twitter:card": "summary_large_image"
+---
+
+**FIELD GUIDE · CONNECTING A SOURCE · № 09**
+
+<Frame caption="health · Lamprocapnos salutis">
+  <img
+    src="/images/specimen-health.svg"
+    alt="Field-guide specimen plate: the bleeding-heart, drawn for the health source."
+    width="113"
+    height="143"
+  />
+</Frame>
+
+Health Auto Export on your iPhone · about 10 minutes · push, not pull
+
+<span id="before-you-begin" />
+
+## BEFORE YOU BEGIN
+
+Your phone needs a route to the gateway. A quickstart box binds loopback —
+unreachable from a phone — so this is the one connection that usually wants the
+remote-access setup first: Tailscale on the phone, and `tailscale serve` for the
+ingest port on the box — [guide № 10, "Reach your gate from anywhere"](https://getpostern.com/guides/remote-access/),
+walks both. The ingest route itself is gated by its per-connection secret,
+verified in constant time.
+
+<span id="mint-endpoint" />
+
+## 1 · Mint the ingest endpoint in the Console
+
+Console → Add a source → Apple Health → Create your ingest endpoint. The card
+renders two credentials: the ingest path — `/api/ingest/<connection-id>` — and
+the device secret, shown once. The path is not the full URL: Postern is never
+told your remote-access host, so you compose the URL yourself — the address
+`tailscale serve` gave the ingest port, plus the path, as in the box below. Copy
+the full URL and the secret; steps 3 and 4 paste them into your phone.
+
+```
+https://your-mac.tailnet.ts.net:8443/api/ingest/<connection-id>
+```
+
+<Frame>
+  <img
+    src="/images/apple-health-endpoint.png"
+    alt="The Console’s Apple Health connect card: Create your ingest endpoint — the path and its one-time device secret are minted here."
+    width="410"
+    height="145"
+  />
+</Frame>
+
+<span id="install-app" />
+
+## 2 · Install Health Auto Export on the iPhone
+
+From the App Store. Its REST-API automations may require the app's paid tier.
+
+```
+App Store → Health Auto Export
+```
+
+<span id="automation-metrics" />
+
+## 3 · Automation one — health metrics
+
+Health Auto Export → Automations → new. These are the production gateway's own
+settings, copied from its running automation — set every field exactly. For the
+metric selection: production selects essentially the full list; start with
+everything and prune later, since each day's file is small.
+
+```
+Export Data Type Health Metrics
+Destination REST API
+URL                   the full URL you composed in step 1
+Headers Authorization: Bearer <your secret>
+        (the connect card's X-PCI-Webhook-Secret: <your secret> also works)
+Export Format JSON · Export Version v2
+Export File Length day · Batch Requests OFF
+Export Aggregation Default · Export Period Default
+Aggregate Data ON · Aggregate Sleep ON
+Include cycle tracking ON · medications ON
+                      · ECG OFF · heart-rate notifications OFF
+                      · state of mind OFF · symptoms OFF
+```
+
+<span id="trap-exported-automation-json" />
+
+<Warning>
+
+**TRAP**
+
+An exported Health Auto Export automation JSON contains your live secret and
+ingest URL in plain text. Scrub both before sharing a config with anyone as a
+sample.
+
+</Warning>
+
+<span id="automation-workouts" />
+
+## 4 · Automation two — workouts
+
+A second automation, identical in every field above, with three changes: Export
+Data Type is Workouts, Include Workout Metadata is ON, and Include Routes is ON
+(Include Health Metrics is OFF — the metrics automation already carries them).
+Two automations split by data type keeps each payload small and each failure
+legible.
+
+<span id="first-run" />
+
+## 5 · Run one manually, watch the first rows land
+
+Set each automation's schedule — production pushes every hour (sync cadence: 1
+hour), and hourly is a good default — then run one by hand and watch the
+connection's first samples arrive in the Console. From then on your phone pushes
+on its own cadence — sleep, workouts, and every metric you selected, queryable
+by any agent you have granted health.
+
+---
+
+<span id="what-stands" />
+
+## WHAT STANDS WHEN YOU FINISH
+
+A health connection fed by your own phone, on your own schedule, with no cloud
+in between. The ingest endpoint accepts nothing without its secret, and the
+connection reports an honest freshness state — an agent asking about your sleep
+can see exactly how current the answer is.
+
+[← all sources](https://getpostern.com/guides/)

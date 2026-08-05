@@ -3,17 +3,80 @@
   "theme": "sequoia",
   "name": "Postern",
   "colors": {
-    "primary": "#B83E15",
+    "primary": "#E7A42A",
     "light": "#E7A42A",
-    "dark": "#2A2118"
+    "dark": "#B83E15"
+  },
+  "background": {
+    "color": {
+      "light": "#F5EDDA",
+      "dark": "#151F19"
+    }
+  },
+  "appearance": {
+    "default": "light",
+    "strict": false
+  },
+  "styling": {
+    "codeblocks": "system"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Cormorant Garamond",
+      "source": "/fonts/cormorant-garamond-var.woff2",
+      "format": "woff2"
+    },
+    "body": {
+      "family": "EB Garamond",
+      "source": "/fonts/eb-garamond-var.woff2",
+      "format": "woff2"
+    }
   },
   "favicon": "/favicon.svg",
   "navigation": {
     "groups": [
       {
         "group": "Start here",
-        "pages": ["index"]
+        "pages": [
+          "index",
+          "start/install"
+        ]
+      },
+      {
+        "group": "Connect a source",
+        "pages": [
+          {
+            "group": "Health",
+            "pages": [
+              "connect/apple-health"
+            ]
+          },
+          {
+            "group": "Mail, calendar & contacts",
+            "pages": [
+              "connect/google"
+            ]
+          }
+        ]
       }
     ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "getpostern.com",
+        "href": "https://getpostern.com"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/getpostern/postern"
+    }
+  },
+  "footer": {
+    "socials": {
+      "website": "https://getpostern.com",
+      "github": "https://github.com/getpostern/postern"
+    }
   }
 }
