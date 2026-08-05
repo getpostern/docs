@@ -1,0 +1,213 @@
+---
+title: "Connect Microsoft"
+description: "Outlook mail, calendar and contacts — three connections from one consent, through an app you register yourself. No secret is stored anywhere."
+---
+
+<Info>
+  **Before you start**
+
+  - **A Microsoft account** — personal, work or school. The app you register below is set up to
+    accept all three, and the account you sign in with is the one whose mail, calendar and contacts
+    Postern reads.
+  - **About 15 minutes**, in two browser tabs: Microsoft's Entra portal in one, Postern's Console in
+    the other. You move between them twice.
+  - **Your own app registration at Entra, and no secret to keep.** Microsoft is a public client here.
+    The only value you carry back to the Console is the Application (client) ID, and nothing on this
+    page is shown to you once and then hidden — there is no password manager step.
+  - **Postern installed and running, with the Console in front of you.** The Console binds loopback,
+    so if Postern is on a NAS, a home server or anything headless, reach it over SSH before you start:
+    [Set up remote access](/start/remote-access).
+  - **A free Azure or Microsoft developer account, if this Microsoft account has never had one.**
+    entra.microsoft.com walks you through creating it before App registrations appears. It is free,
+    takes about five minutes, and is expected rather than a wrong turn.
+  - **Ten uninterrupted minutes for the last step.** The sign-in Postern holds open lasts ten minutes
+    and can be spent once. There is no way to pause it halfway.
+</Info>
+
+<Steps>
+
+<Step title="Start a new app registration and name it" titleSize="h2" id="register">
+
+At [entra.microsoft.com](https://entra.microsoft.com), sign in with the Microsoft account whose mail,
+calendar and contacts you want, then open App registrations → New registration. Name it anything —
+Postern is a fine name for it. Leave the form on screen rather than submitting it: it asks for three
+things, and the next two steps fill in the other two.
+
+<Note>
+  App registrations does not appear, and the portal offers to create an account instead. A Microsoft
+  account that has never used Azure has no directory behind it yet, so entra.microsoft.com walks you
+  through creating a free Azure — or Microsoft developer — account first. It costs nothing and takes
+  about five minutes. Finish it, and App registrations is there.
+</Note>
+
+</Step>
+
+<Step title="Choose the account type that covers personal accounts" titleSize="h2" id="account-types">
+
+In the same form, under "Supported account types", open the dropdown and take this option:
+
+```text
+Any Entra ID Tenant + Personal Microsoft accounts
+```
+
+The dropdown does not open on it. It opens on "Single tenant only - Default Directory", which is the
+one setting that cannot serve a personal Outlook or Hotmail address. Postern begins every sign-in at
+Microsoft's `common` endpoint — the one address that serves personal and organisational accounts
+alike — and an app registered for a single tenant refuses a sign-in that arrives there. Once you take
+the right row, the closed dropdown reads it back to you.
+
+<Frame caption="The dropdown opens on Single tenant only - Default Directory. The row you want is Any Entra ID Tenant + Personal Microsoft accounts.">
+  <img src="/images/microsoft-account-types.png" alt="The Entra New registration form: a Name field holding 'postern', and the Supported account types dropdown open — Single tenant only - Default Directory as the current value, then Multiple Entra ID tenants, then Any Entra ID Tenant + Personal Microsoft accounts." />
+</Frame>
+
+</Step>
+
+<Step title="Add the redirect URI under the desktop platform" titleSize="h2" id="redirect-uri">
+
+Still in the same form, the platform selector decides how long a sign-in survives, and it is the one
+choice on this page that nothing in Postern can repair afterwards.
+
+<Warning>
+  Microsoft asks you to sign in again every single day. The platform was set to Single-page
+  application (SPA), which caps refresh tokens at 24 hours — no setting in Postern changes that.
+  Take Public client/native (mobile & desktop) instead, which gets the 90-day rolling refresh.
+</Warning>
+
+Open "Select a platform" and take Public client/native (mobile & desktop). Entra's own platform page
+calls the same thing "Mobile and desktop applications" — two names, one thing.
+
+<Frame caption="Public client/native (mobile & desktop) is the row to take. Single-page application (SPA) is the row that costs you a sign-in every day.">
+  <img src="/images/microsoft-redirect.png" alt="The Entra platform dropdown, open, reading 'Select a platform' with three choices beneath it: Public client/native (mobile & desktop), Web, and Single-page application (SPA)." />
+</Frame>
+
+Then fill the redirect URI. Open Console → Add a source → Microsoft in your second tab and copy the
+URI from the card there. Never type it, and never copy it from this page: Microsoft matches the string
+character for character, and a registration that does not hold the exact string Postern sends fails
+the sign-in at Microsoft's end, before the browser ever comes back. The Console prints the one value
+this gateway will actually send. On a stock install it reads:
+
+```text
+http://localhost:8787/api/oauth/microsoft/callback
+```
+
+It is `localhost` rather than `127.0.0.1` deliberately — Microsoft's portal refuses an http-scheme IP
+loopback in that box. And if you moved the gateway's REST port because something else on the machine
+held 8787, the Console's value follows the move, which is the reason the string you paste comes from
+your own Console instead of from here. When the field takes it, that platform holds one redirect URI,
+ending `/api/oauth/microsoft/callback`.
+
+</Step>
+
+<Step title="Submit the form and copy the client ID" titleSize="h2" id="client-id">
+
+With the name, the account type and the redirect URI all set, press Register. Entra creates the app
+and lands you on its Overview page, where the Application (client) ID — a GUID — is the one value you
+carry back to the Console.
+
+Nothing else on that app registration needs touching. There is no client secret to create: Microsoft
+is a public client here, and Postern proves itself with PKCE rather than with a stored secret. And
+unlike Google there is no API to switch on and nothing to add under API permissions — Postern asks for
+its read scopes at sign-in, and Microsoft's consent page is where you grant them.
+
+</Step>
+
+<Step title="Paste the client ID into the Console and approve the sign-in" titleSize="h2" id="console-consent">
+
+Console → Add a source → Microsoft — and from a Sources page with nothing connected yet, the Add a
+source link goes to the same screen. Paste the Application (client) ID into the field of that name and
+press Save & sign in with Microsoft. The Client secret field beside it stays disabled and reads
+`not required — public client (PKCE)`; the gateway refuses a secret for a public client, so there is
+nothing to put there. Do this when you have ten uninterrupted minutes in front of you: the button
+hands you to Microsoft, and what Postern is holding open behind you cannot be paused.
+
+<Frame caption="Console → Add a source → Microsoft. Captured on an install where Microsoft is already connected, so this card reads Reconnect Microsoft and carries a replace-and-re-run-consent checkbox; on a first run the button reads Save & sign in with Microsoft and neither the notice nor the checkbox is there.">
+  <img src="/images/microsoft-console-card.png" alt="The Console's Microsoft card. On the left, the three registration steps and the copyable redirect URI http://localhost:8787/api/oauth/microsoft/callback, under the note that Microsoft is a public client — no secret is stored. On the right, an Application (client) ID field showing its placeholder GUID, a disabled Client secret field reading 'not required — public client (PKCE)', and a footer with mail, calendar and contacts chips reading 'from this one consent'." />
+</Frame>
+
+Microsoft's consent page lists four things: read your mail, read your calendars, read your contacts,
+and maintain access. Those four are the whole of what Postern requests — `Mail.Read`,
+`Calendars.Read`, `Contacts.Read` and `offline_access` — and it asks for nothing else, on this or any
+later sign-in. Approve, and Microsoft hands you back to the Console's Sources page, where the one
+consent has become three connections — mail, calendar and contacts — each carrying a `Syncing…` badge
+while its first sync runs.
+
+<Note>
+  The browser shows `{"error":"invalid or expired state"}` and no connection appears. Postern keeps
+  the pending sign-in in memory, for ten minutes, and spends it on first use — so wandering off
+  mid-consent, restarting the gateway, or reloading the callback address all end it. Nothing was
+  stored and nothing is broken. Go back to Console → Add a source → Microsoft and press Save & sign in
+  with Microsoft again.
+</Note>
+
+<Note>
+  The Console's Microsoft card says "Microsoft did not complete the sign-in." with Microsoft's own
+  code printed verbatim beneath it. Microsoft refused the sign-in rather than Postern failing it —
+  declining consent lands here, and so does a registration Microsoft would not accept. A failed
+  consent stores nothing at all, so read the code, correct the registration at Entra, and press Save &
+  sign in with Microsoft again.
+</Note>
+
+</Step>
+
+</Steps>
+
+## Confirm it works
+
+Five things, each one visible on a screen you can open right now.
+
+- **Entra → your app → the platform page**: one platform, listed there as Mobile and desktop
+  applications, holding one redirect URI — the string your own Console prints. Not Single-page
+  application.
+- **Entra → your app → Overview**: the Application (client) ID, and the same value sitting in the
+  Console's Microsoft card.
+- **Console → Sources**: three Microsoft connections — mail, calendar and contacts. Fewer than three
+  means the consent granted fewer scopes than Postern asked for; sign in again and approve the whole
+  consent.
+- **The same three rows, a few minutes later**: the `Syncing…` badge gone, replaced by a
+  `Last synced` time. Until that lands, an agent asking for mail gets an empty answer rather than an
+  error, which looks the same from the outside and is not.
+- **The Console's Client secret field**: still empty, still reading
+  `not required — public client (PKCE)`. If you have found somewhere to put a secret, you are on the
+  wrong provider's card.
+
+## If something went wrong
+
+| What you see | Where it is answered |
+|---|---|
+| Microsoft asks you to sign in again every day | [Add the redirect URI under the desktop platform](#add-the-redirect-uri-under-the-desktop-platform) |
+| Microsoft shows an error of its own and the browser never comes back to the Console | [Add the redirect URI under the desktop platform](#add-the-redirect-uri-under-the-desktop-platform) |
+| `{"error":"invalid or expired state"}` in the browser after you approve | [Paste the client ID into the Console and approve the sign-in](#paste-the-client-id-into-the-console-and-approve-the-sign-in) |
+| The Console reads "Microsoft did not complete the sign-in." with a code beneath it | [Paste the client ID into the Console and approve the sign-in](#paste-the-client-id-into-the-console-and-approve-the-sign-in) |
+| Fewer than three connections after a consent that looked successful | [Paste the client ID into the Console and approve the sign-in](#paste-the-client-id-into-the-console-and-approve-the-sign-in) |
+| App registrations does not appear at entra.microsoft.com | [Start a new app registration and name it](#start-a-new-app-registration-and-name-it) |
+| The sign-in is refused for a personal Outlook or Hotmail address | [Choose the account type that covers personal accounts](#choose-the-account-type-that-covers-personal-accounts) |
+| Nowhere to put a client secret, and the field will not take one | [Submit the form and copy the client ID](#submit-the-form-and-copy-the-client-id) |
+
+## What you have now
+
+Three read-only connections out of one consent, each polling Microsoft Graph on a five-minute cadence
+by default. Mail covers Inbox and Sent and caches the envelope only — sender, subject, snippet, dates
+and flags; a message body is fetched from Microsoft when something asks for it and is stored nowhere.
+Calendar covers a year back and a year forward. Contacts cover your default contacts folder. None of
+the three can write: the connector carries no actions at all.
+
+Any agent you have granted mail, calendar or contacts answers from these the moment the first sync
+lands — and the first mail it reads will be Microsoft's own "New app(s) connected to your Microsoft
+account."
+
+What you are carrying from here is an app registration at Entra that stays yours to keep, and a
+sign-in that renews itself silently on Microsoft's 90-day rolling refresh for as long as it is used.
+Revoking an agent, or disconnecting Microsoft in the Console, never touches your Microsoft password —
+there is not one here to touch, because none was ever pasted.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    Point a client at the MCP endpoint with a key you minted. Local clients paste one config block;
+    claude.ai and ChatGPT need a public address first.
+  </Card>
+  <Card title="Connect WHOOP" href="/connect/whoop">
+    a WHOOP membership + a free dev app · about ten minutes · confidential client
+  </Card>
+</Columns>

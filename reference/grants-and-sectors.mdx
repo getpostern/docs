@@ -1,0 +1,385 @@
+---
+title: "Grants and sectors"
+description: "How Postern decides what an agent may reach: six sectors, default-deny, read and act granted together, and the check that runs before any query."
+---
+
+<Info>
+  **Before you start**
+
+  - **A running Postern, and the Console in front of you** — every control this
+    page describes is at Console → Agents & keys.
+  - **An agent key.** A grant is not an object of its own: it is the sector list
+    attached to one named agent's key, in one row, and it comes into existence
+    when that key is minted.
+  - **The sector is the smallest thing there is to grant.** No per-source,
+    per-object, per-field or per-action grant exists, and there is no read-only
+    version of a sector. If what you need is narrower than a sector, Postern
+    cannot express it today.
+  - **None of this constrains you at the Console.** Whatever reaches Postern
+    over loopback is the operator: it holds every sector, carries no key, and
+    is never asked for one. The gateway is not a guard against you on your own
+    machine. Grants constrain agents.
+  - **Editing a grant ends that agent's live sessions.** The change lands at the
+    agent's next session, not inside the one it is holding. If an agent is
+    working, expect to watch it stop.
+</Info>
+
+## The six sectors
+
+Postern sorts everything it holds into six sectors: **finance**, **health**,
+**mail**, **contacts**, **calendar** and **home**. They are not a list somebody
+typed into a permission screen. They are derived from the schema registry — one
+sector per leading segment of every object key — so an object cannot exist
+outside a sector, and a sector cannot exist without an object in it.
+
+| Sector | What an agent reads in it |
+|---|---|
+| `finance` | `finance.account`, `finance.transaction`, `finance.holding` |
+| `health` | `health.sample`, `health.workout`, `health.sleep_session` |
+| `mail` | `mail` — message envelopes; bodies and attachments are never cached |
+| `contacts` | `contacts` — one address-book entry per source |
+| `calendar` | `calendar` — event occurrences, one row per instance |
+| `home` | `home` — the last known state of each device or entity |
+
+Which sources fill a sector is a different question from which sectors a key
+opens, and the two are never joined. Each connector declares the sector it
+writes into: Plaid and SimpleFIN write finance; WHOOP and Apple Health write
+health; Gmail, Microsoft and iCloud write mail; Google, Microsoft and iCloud
+write calendar and contacts; Home Assistant writes home. Granting `mail` grants
+every mail source connected now and every mail source connected later. There is
+no way to grant one and withhold another inside the same sector.
+
+A granted sector with no connection behind it is still granted, and answers
+nothing. `describe_context` returns the sectors the key was **granted**, not the
+sectors that have data — the tool says so itself, because an agent that reads
+the two as the same thing concludes a source exists when none does. A `query`
+against a granted, unconnected sector comes back empty rather than refused;
+`fetch_live` answers `no active connection for sector '<name>'`. Neither is a
+permission problem, and neither looks like one in the ledger.
+
+## What a grant covers
+
+A grant is domain-level: the same sector list gates reads and actions, with no
+finer per-action, per-tier or per-confirmation gating anywhere beneath it.
+Postern tells every agent so in the instructions it sends at connection time —
+*"`list_actions` / `invoke_action` act on a source; a granted sector covers both
+reading and acting"* — and the Console says the same thing under the sector
+toggles: `Each granted sector covers read and act across every provider in it.`
+
+The grant reaches all seven tools, though not in the same way in each.
+
+| Tool | What the grant decides |
+|---|---|
+| `describe_context` | Answers with the granted sector list, and with connections only inside those sectors |
+| `get_schema` | Objects in ungranted sectors are **absent** from the answer rather than refused, so nothing leaks about what exists |
+| `query` | Denied before any SQL is composed |
+| `get_record` | Denied before any SQL is composed |
+| `fetch_live` | Denied before any SQL is composed, and before anything upstream is touched |
+| `list_actions` | Enumerates the granted sectors; naming an ungranted one is denied |
+| `invoke_action` | Action ids are sector-namespaced (`home.light.turn_on`), and that sector decides the call |
+
+The act half of a grant is real in one sector today. Home Assistant serves a
+live action catalogue built from its own entity-and-service registry; every
+other connector that ships declares an empty action list, so a key granted
+finance, health, mail, contacts or calendar can act on nothing there. The
+permission is conferred and there is nothing to spend it on. The Console states
+this on the mint form rather than leaving it to be discovered: `A grant covers
+read and act, but only Home has a catalogue to act on today; Finance, Mail,
+Calendar, Contacts, Health are read-only.`
+
+Read that as a statement about connectors, not about the permission model. A
+connector that grows an action surface later is covered by grants that already
+exist — nothing in a grant names an action, so nothing is re-issued and nobody
+is asked again.
+
+To read what a key holds today, open Console → Agents & keys and pick the agent.
+The granted sectors are the lit toggles; the same page carries the key's
+deadline and its recent passage through the ledger. From the agent's own side,
+`describe_context` answers the same question.
+
+One agent name holds one grant. The name you give an agent is its identity
+everywhere else — it is what the ledger records against every call it makes —
+and the table is unique on the pair of user and agent name. Minting is an
+upsert, so minting under a name that already exists replaces that agent's key
+hash, its sector list and its deadline, and clears its revocation. That is the
+rotate path, and the Console offers it under that name.
+
+<Warning>
+  Minting under an agent name that already exists replaces that agent's key. The
+  previous secret stops being accepted at once, every OAuth-bridge code and token
+  derived from it is deleted in the same transaction, and the sessions it was
+  holding are ended. Only a hash of the old key was ever stored, so there is no
+  copy of it anywhere and no way back to it: every client still holding the old
+  secret has to be handed the new one.
+</Warning>
+
+## Default-deny
+
+The sector column defaults to the empty array, and the schema states what the
+empty array means: nothing. A key resolves, authenticates and connects with an
+empty grant, and then every sector check denies it.
+
+Postern does not treat that as an error, and the Console does not block it — the
+mint button needs a name and nothing else. The form says so before you mint:
+`Nothing is granted until you pick it. Tap a sector to toggle it.`, with
+`no sectors — this key is denied everything` beside the recap, and after minting,
+`No sectors granted yet — this key would be denied everything until you edit its
+grants.` That is the intended shape rather than a defect, and it is why a
+connection that succeeds can still answer nothing at all.
+
+Two further behaviours of the stored list are worth knowing before you write one
+through the API:
+
+- **A sector name Postern does not recognise is dropped, silently.** The stored
+  list is intersected with the six real sectors when the key resolves, so a
+  grant of `finance` and `bogus` grants finance and raises nothing. The mint
+  endpoint validates the field as an array of strings and does not check the
+  strings against the sector list; the intersection at resolve time is what makes
+  a typo harmless rather than dangerous.
+- **`*` expands to every sector.** A stored grant of `["*"]` resolves to all six
+  at connection time. The Console cannot write one — its toggles are built from
+  the six named sectors — so a wildcard grant can only arrive through the
+  loopback API.
+
+## Where the check happens
+
+One function is the chokepoint. Every read primitive calls it as its **first**
+statement: it maps the target to its coarse sector and requires a grant before
+any SQL is composed, before any connection is looked up, and before anything
+upstream is touched. A denial therefore costs no database work and leaves no
+partial read.
+
+Four properties of that check matter to anyone reasoning about it.
+
+- **It is an in-memory set membership test, not a database read.** The sector
+  list is resolved once per session into a set and every later call tests
+  against that set. A per-call database read was considered and rejected;
+  keeping the check free is what allows it to sit in front of everything.
+- **It is fail-closed on an unknown target.** A target whose leading segment is
+  not one of the six raises the same access denial as an ungranted sector, so a
+  typo'd or invented object name can never be mapped onto a real grant.
+- **The presented key is never compared as itself.** Postern stores a sha256
+  hash of the key and looks the grant up by that hash. The raw key is not
+  stored, not logged, and not part of any lookup.
+- **Every read is scoped to the owning user as well as the sector.** The
+  generated SELECT always carries a user clause, so a row belonging to another
+  user comes back as absent rather than as a refusal.
+
+On the REST agent mirror the refusals are two distinct answers, and the
+difference is worth reading carefully when you are debugging a client: a missing
+or malformed bearer is `401` with the body `{"error":"unauthorized"}`, while an
+unknown, revoked or expired key — and an ungranted sector — is `403` with
+`{"error":"access denied"}`. The first means the request never presented a
+credential Postern could parse. The second means it did, and the answer is no.
+
+Inside Postern the two kinds of "no" stay separate on purpose. A denial carries
+either a **sector**, when a real credential was refused a real sector, or a
+**reason** from a fixed vocabulary — `unknown agent`, `revoked`, `expired` —
+when the credential itself failed. They are never conflated, which is what keeps
+the ledger's sector column meaning a sector on both paths.
+
+The loopback operator sits outside all of it. A request that arrives over
+loopback on an operator route resolves to the seeded user with every sector and
+the agent name `operator`, with no key and no database round-trip. Those routes
+never consult an `Authorization` header, and the agent routes are never
+satisfied by arriving on loopback: two disjoint resolvers on two disjoint path
+spaces, so neither can become an escalation path into the other.
+
+## Expiry
+
+A grant carries a deadline, and its default is none. Stored as null, the key
+never expires. Through the loopback API the deadline is set as a whole number of
+days from now, between 1 and 3650; sent absent at mint time, the key is
+never-expiring. The Console offers a small set of day presets plus **Never**, and
+which one the form starts on depends on whether this gateway has been published
+to the public internet — a key that will leave the machine should not sit at
+Never.
+
+Four behaviours follow the deadline once it exists.
+
+- **A key is dead at its expiry instant, not after it.** The comparison is
+  inclusive: a deadline one millisecond in the past refuses.
+- **Revocation wins over expiry.** A key that is both revoked and lapsed reports
+  `revoked`, because the revocation check runs first. The deny reason stays
+  honest about which thing actually stopped the key.
+- **The deadline rides on the resolved session and is re-checked on every call.**
+  A key that lapses inside a live session stops there, at its deadline, rather
+  than lasting until the client happens to disconnect.
+- **Tokens derived from a grant cannot outlive it.** A hosted client holds a
+  rotating token issued by Postern's own OAuth bridge against this same grant
+  row; its effective deadline is the earlier of its own and the grant's.
+
+Moving the deadline of a dead key is refused by the gateway itself, not only by
+the Console: the update carries a liveness clause that is the exact complement of
+the resolve-time check, so a revoked or lapsed key cannot have its expiry
+extended back into life. The Console explains the refusal where it happens —
+`This key is revoked, so its deadline is fixed where it stopped — moving it
+would let the old key back in. Rotate to mint a fresh key with a new deadline.`
+
+Editing **sectors** on a dead key is a different case, and the two surfaces
+differ. The gateway accepts a sectors-only edit on a revoked or lapsed grant —
+the sectors of a key that cannot resolve are inert — while the Console disables
+the toggles once a key is revoked and says so. Either way there is no next
+session for new sectors to apply in, and rotation is the only route back.
+
+<Note>
+  An agent that worked yesterday and is refused today, with nothing changed on
+  either side, has usually met its deadline. The refusal is `403`, and on the MCP
+  edge the ledger records the deny reason `expired`. Rotating the agent mints a
+  fresh secret under the same name with a new deadline, and the client has to be
+  handed that secret; moving the deadline on the lapsed key is refused.
+</Note>
+
+## Revoking, rotating, and removing
+
+Four operator verbs act on a grant. All four are on the loopback admin surface
+and none of them is available to an agent.
+
+| What you do | What changes in the row | What the agent gets |
+|---|---|---|
+| **Revoke** | A revocation stamp is written, idempotently | The key stops being accepted; live sessions are cut |
+| **Rotate** — mint again under the same name | New key hash, new sectors, new deadline, revocation cleared | The old secret stops at once; derived tokens are deleted |
+| **Edit grants** | The sector array is replaced | The current session ends; the next one carries the new sectors |
+| **Remove** | The row is deleted, and only after a revoke | Nothing further; the ledger history survives |
+
+Postern has two agent-facing edges and they learn about a revocation
+differently. That is why the revoke path does two things instead of one.
+
+The **REST agent mirror** re-resolves the presented bearer on every single
+request. A revoked key fails on the next request, and there is nothing to sweep.
+
+The **MCP edge** resolves the key once, at session initialize, and caches the
+resulting context against the session id — deliberately, because the grant check
+is meant to be an in-memory test rather than a per-call database read. A
+revocation written after that point would never be seen by a session already
+open. So it is delivered as a push instead of waited for as a read: the revoke
+route writes the row **first**, then sweeps the session registry and evicts every
+cached session belonging to that agent, across every mounted edge, closing each
+session's transport as it goes.
+
+The order is load-bearing. A sweep before the write would leave a window in
+which a fresh initialize legitimately re-resolves a not-yet-revoked row and
+binds afterwards. Write-then-sweep closes that direction, and a session that is
+midway through initializing at the instant of the sweep is refused its binding
+rather than allowed to outlive it. The route reports how many live sessions it
+ended.
+
+The sentence to carry away: **a revoked key stops working immediately on both
+edges, and the sessions the agent was holding are cut in the same act.** The
+Console says as much when it is done — `<agent> revoked — every token derived
+from it died too.`
+
+What the code settles is that the session is gone and that no further call on it
+resolves. It does not settle what becomes of a call already executing inside the
+gateway at the instant of the sweep, and this page will not guess at it.
+
+Derived tokens are covered by the same row rather than by a second rule. A
+hosted client never holds the agent key; it holds a rotating token from
+Postern's OAuth bridge. Resolving one of those tokens joins the grant row every
+time, so a revoked or expired grant refuses the derived token whatever life the
+token has left of its own. Rotation goes further and deletes the derived codes
+and tokens outright, in the same transaction that writes the new key hash,
+because rotation is the response to a compromise and derived credentials must
+not outlive the key they came from.
+
+Removing an agent is gated on having revoked it first, so a live agent is never
+deleted out from under an in-flight session. The audit history survives the
+removal: the ledger's agent column is plain text with no foreign key to the
+grant, so deleting the grant does not delete the trail.
+
+<Warning>
+  A key cannot be un-revoked. The revocation stamp is written once and no path
+  clears it except minting a fresh key under the same name, which is a different
+  secret that every client has to be given. Revoking is the right move when a key
+  may be loose; understand before you press it that nothing any client currently
+  holds survives it.
+</Warning>
+
+## What the ledger records
+
+Every core call appends one row — reads and actions, allowed and denied alike.
+Each row carries the tool, the sector, the decision, a deny reason where there
+was one, the validated arguments with sensitive values redacted, the number of
+rows returned, an outcome, and a request id. The table is append-only in
+practice: the only statement Postern's own code runs against it is an insert.
+Nothing in the source updates a row, nothing deletes one, and there is no
+retention job — and the operator's data-destruction verb, which hard-deletes
+domain rows, deliberately leaves the ledger standing, because the ledger records
+the act rather than the values.
+
+The write is asynchronous and off the response path, never awaited. That is a
+deliberate posture rather than an optimisation detail, and it has a consequence
+worth stating plainly: **the ledger is detective, not preventive.** It records
+what happened; it decides nothing. And because the write is fire-and-forget and
+droppable by design, the ledger is a lower bound on activity rather than a
+guarantee of completeness.
+
+A denial appears as an ordinary row with the decision reading `deny`, the sector
+that was refused, and the reason. A key that is presented to the MCP edge and
+refused at connection time is recorded too, against the `initialize` tool, with
+the reason and no agent name — throttled per minute so that an edge exposed to
+the internet cannot have its bot traffic flood the table, and with a
+single coalesced line standing in for whatever the cap swallowed. An anonymous
+probe carrying no bearer at all stays silent while the OAuth bridge is off.
+
+One asymmetry to know when you are reading the ledger rather than a client's
+error message: on the REST agent mirror the audit entry is written by the
+handler **after** the bearer has resolved, so a bearer that never resolves there
+leaves no row, while an ungranted sector — which is refused after the key
+resolved — does.
+
+## What Postern cannot express
+
+The grant row is short, and its shortness is the model. It holds a user, an
+agent name, a hash of the key, an array of sectors, a creation stamp, a
+revocation stamp and a deadline. There is nothing else in it, and so there is:
+
+- no grant of one source inside a sector while another in the same sector is
+  withheld;
+- no per-object, per-field or per-row grant;
+- no read-only grant — read and act travel together, and the only thing limiting
+  action today is that five of the six sectors have no action catalogue behind
+  them;
+- no per-call approval, no confirmation tier, no rate limit, no budget, no
+  time-of-day window;
+- no per-sector deadline — one deadline covers the whole key;
+- one grant per agent name, so two policies mean two agents.
+
+The audit ledger is the compensating control for all of that, and it is
+detective by construction: it tells you what an agent did, after it did it.
+
+Per-user separation is real in the code — every read is scoped to a user id, and
+a key belonging to one user cannot reach another's rows — but the self-hosted
+gateway seeds a single operator user and treats its id as a constant. The source
+names multi-user as future work rather than shipped behaviour, and this page
+describes the single-user shape you actually have.
+
+## If something went wrong
+
+| What you see | Where it is answered |
+|---|---|
+| The client connected, and every read comes back denied | [Default-deny](#default-deny) |
+| `{"error":"access denied"}`, or HTTP `403` | [Where the check happens](#where-the-check-happens) |
+| `{"error":"unauthorized"}`, or HTTP `401` | [Where the check happens](#where-the-check-happens) |
+| A ledger row reading `deny` with reason `expired` | [Expiry](#expiry) |
+| A ledger row reading `deny` with reason `unknown agent` | [Revoking, rotating, and removing](#revoking-rotating-and-removing) |
+| The agent worked yesterday and is refused today, with nothing changed | [Expiry](#expiry) |
+| A sector is granted and every query comes back empty | [The six sectors](#the-six-sectors) |
+| `no active connection for sector '<name>'` | [The six sectors](#the-six-sectors) |
+| You changed the grants and the agent still behaves the old way | [Revoking, rotating, and removing](#revoking-rotating-and-removing) |
+| You asked an agent to act and it reports there is nothing to act on | [What a grant covers](#what-a-grant-covers) |
+| A revoked agent is still listed in the Console | [Revoking, rotating, and removing](#revoking-rotating-and-removing) |
+| A sector you granted through the API does not appear on the key | [Default-deny](#default-deny) |
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    a running Postern and a key you minted · a few minutes, plus a restart of
+    whatever client you are connecting
+  </Card>
+  <Card title="Install Postern" href="/start/install">
+    Docker and a terminal · about ten minutes · no cloud account, because there
+    is no cloud
+  </Card>
+</Columns>

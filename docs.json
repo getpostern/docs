@@ -39,24 +39,70 @@
         "group": "Start here",
         "pages": [
           "index",
-          "start/install"
+          "start/install",
+          "start/remote-access",
+          "start/first-key",
+          "start/connect-an-agent"
         ]
       },
       {
         "group": "Connect a source",
         "pages": [
           {
+            "group": "Money",
+            "pages": [
+              "connect/simplefin",
+              "connect/plaid"
+            ]
+          },
+          {
             "group": "Health",
             "pages": [
-              "connect/apple-health"
+              "connect/apple-health",
+              "connect/whoop"
             ]
           },
           {
             "group": "Mail, calendar & contacts",
             "pages": [
-              "connect/google"
+              "connect/google",
+              "connect/microsoft",
+              "connect/icloud"
+            ]
+          },
+          {
+            "group": "Home",
+            "pages": [
+              "connect/home-assistant"
+            ]
+          },
+          {
+            "group": "Agents",
+            "pages": [
+              "connect/chatgpt"
             ]
           }
+        ]
+      },
+      {
+        "group": "Operate",
+        "pages": [
+          "operate/backup-and-export"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "reference/security-model",
+          "reference/grants-and-sectors",
+          "reference/mcp-primitives",
+          "reference/audit-log"
+        ]
+      },
+      {
+        "group": "About",
+        "pages": [
+          "about/faq"
         ]
       }
     ]

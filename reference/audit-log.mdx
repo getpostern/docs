@@ -1,0 +1,469 @@
+---
+title: "The audit log"
+description: "What a row holds, what gets one, what deliberately does not, and the honest limits of a record the database does not enforce."
+---
+
+<Info>
+  **Before you start**
+
+  - **A running Postern.** The `audit_log` table is created by the migrations at
+    first boot and the writer starts with the gateway. There is nothing to switch
+    on, and no setting that turns it off.
+  - **The machine Postern runs on.** Both ways of reading the log — the Console
+    and `GET /api/audit` — sit behind the same loopback guard, so neither is
+    reachable from another box until you forward the Console's port over SSH.
+    [Open the Console from where you are](/start/install#open-the-console-from-where-you-are)
+    is that procedure.
+  - **No credential.** Reading your own log needs no agent key. Reaching the
+    gateway over loopback is the whole of the authorization, which is why the
+    guard exists.
+  - **Something to have recorded.** On a gateway no agent has called yet the
+    Console prints `Nothing has come through the gate yet. Every read and action
+    will be recorded here.` That is the correct empty state, not a failure.
+  - **Disk that grows.** Nothing in Postern deletes an audit row and there is no
+    retention job anywhere in it. Trimming, rotating and backing up the table are
+    yours.
+</Info>
+
+The Console's sidebar calls this The ledger. It is one table, `audit_log`, and it
+is detective rather than preventive: nothing recorded in it blocked anything at
+the door. Everything below is read off the schema and the writer, and where the
+code cannot answer a question this page says so rather than filling the gap.
+
+## What one row holds
+
+One row is one recorded call. It is written by a single multi-row `INSERT` with a
+fixed column order, every value bound as a parameter — no argument an agent sent
+is ever interpolated into SQL.
+
+| Column | Type | What it holds |
+|---|---|---|
+| `id` | `bigserial` | The primary key. It is also the tiebreak that makes paging exact: the writer inserts in batches, so every row in one flush shares a `created_at` to the microsecond. |
+| `user_id` | `uuid` | References `users(id)`. Null on a call where no user was resolved — a refused handshake, for instance. |
+| `agent_id` | `text` | The agent's own name for an agent call; `operator` for something you did from the Console; null for a refused handshake and for a device push. Plain text, no foreign key. |
+| `tool` | `text` | The verb. Not null. Free text — see the vocabulary below. |
+| `sector` | `text` | The sector the call happened in, or null for a call that happened in no sector. |
+| `decision` | `text` | `allow` or `deny`, and only ever those two. Not null. |
+| `deny_reason` | `text` | The reason a refusal carries. `unknown agent`, `revoked` or `expired` when the credential was refused; `access denied: <sector>` when the credential was good and the grant was not. |
+| `args` | `jsonb` | The call's own parameters, redacted and size-capped before they were queued. |
+| `result_count` | `int` | Rows returned on a read; records upserted plus deleted on a device push. |
+| `outcome` | `text` | `ok` or `error`. Actions record what the connector reported; reads record `ok`. |
+| `request_id` | `text` | The MCP request id, for lining a row up against a client's own log. |
+| `created_at` | `timestamptz` | Defaulted by the database at insert time. |
+
+There is one index: `(user_id, created_at desc)`.
+
+`created_at` is when the row was **inserted**, not when the call happened. The
+writer flushes on a timer whose default is one second, so a row's stamp normally
+trails its call by up to about that, and every row in one flush carries the same
+instant. The gap widens under load. Nothing in the row records the call's own
+time.
+
+## What gets a row
+
+The `tool` column is free text. What is written into it today falls into three
+families.
+
+**Agent calls — all seven primitives, allowed and denied alike.**
+`describe_context`, `get_schema`, `query`, `get_record`, `fetch_live`,
+`list_actions`, `invoke_action`. It makes no difference whether the call arrived
+over the MCP edge or the bearer-gated REST mirror; both write the same row. The
+bearer itself is never part of any field, on any branch.
+
+A refusal records `decision: deny` with the reason. A call that was allowed and
+then failed doing the work records `decision: allow` with `outcome: error` — a
+third state, which the Console names Errored and paints separately, because
+painting it green would be a lie.
+
+**What you do from the Console**, recorded with `agent_id` of `operator`:
+`pause`, `resume`, `revoke`, `sync_now`, `disconnect`, `set_plaid_app`,
+`delete_plaid_app`, `set_sync_interval`, `set_exposure`, `clear_exposure`,
+`finance.dedup.confirm`, `finance.dedup.unconfirm`, `export`, `erase`. These
+always record `decision: allow` — loopback reachability is the authorization, so
+there is no denial to record — and carry `outcome: ok` or `error`. A failed
+erase is recorded as well as a successful one.
+
+**The handshake and the bridge.**
+
+- `initialize` — recorded **only on a refusal**. A bearer that was presented and
+  refused is always recorded. An anonymous probe carrying no bearer at all is
+  recorded only when the OAuth bridge is on. A successful session start writes
+  nothing; the first tool call is what appears.
+- `oauth_token` — the OAuth bridge issuing or refreshing a token for a hosted
+  client. An allowed row carries `{ grant: "authorization_code" | "refresh_token", clientId }`.
+- `ingest` — a device pushing records in over a webhook. `agent_id` is null; an
+  unauthorized push records `deny` with `unauthorized`.
+
+Both `initialize` denials and `oauth_token` denials are throttled at the source,
+at a cap per window — 30 per minute on the MCP edge. When a window's cap is
+exceeded, one summary row carrying the count is written instead of the rest:
+`throttled: <n> initialize denials coalesced`. The fact of a flood survives even
+when the individual rows do not.
+
+## What does not get a row
+
+The log covers agent calls and the state-changing things you do from the Console.
+It does **not** cover reads that only touch the local cache and are made by you,
+over loopback:
+
+- `POST /api/data/:sector` and `GET /api/data/:sector/:id` — the Console's data
+  inspector. It runs the same core query engine an agent runs, as the operator
+  with every sector granted, and returns the rows. It writes nothing to the log.
+- `GET /api/operator/context` and `GET /api/operator/schema` — the Console's own
+  `describe_context` and `get_schema`. Same posture, for the same reason.
+- Reading the log itself, and the Console's **Export CSV** button. Neither writes
+  a row.
+
+The reasons the source gives for the split: loopback reachability already implies
+operator trust, and the operator's own page loads would crowd the agent rows out
+of the view.
+
+The line is drawn at touching upstream or changing state, not at reading. An
+operator `fetch_live` **is** recorded, because it reaches a source and mutates
+the cache. So is `export`, which returns the whole store.
+
+<Warning>
+  The log is not a record of everything that has read your data. You can read
+  every row of every sector through the Console's inspector and leave no trace in
+  the log at all, and so can anything else running on that machine that can reach
+  the loopback port. What the log answers completely is which agent came through
+  and what it asked for. What it cannot answer is who has seen this data — and
+  nothing on the screen marks that boundary, which is why it is drawn here.
+</Warning>
+
+## What the arguments hold
+
+`args` is the call's own parameters — the query, the action target and its
+values — stored as JSON. Two defences run before the entry is ever queued, on the
+calling thread:
+
+- **A key denylist.** Any key whose name contains `pass`, `secret`, `token`,
+  `key`, `authorization` or `cookie`, matched case-insensitively, has its value
+  replaced with `[redacted]`. It recurses through nested objects and arrays.
+- **A size cap.** The whole payload is measured serialized; past roughly 4 KB it
+  collapses to `[truncated]`. A cyclic or non-serializable value becomes
+  `[truncated]` too.
+
+The honest bound on that: **redaction matches key names, never values.** A secret
+sitting in a value under a name the pattern does not match is recorded as it
+arrived. The design position is that secrets do not travel in tool arguments —
+those are validated query and action parameters — and the denylist is a second
+line on top of that, not the first one.
+
+The log records the act, never the row values. `result_count` is a count; what a
+read actually returned is not in the table.
+
+The Console renders `args` two ways, deliberately. The table drops keys whose
+value is null, because a key with nothing in it tells a reader nothing. The
+one-row drill prints them whole, under **Args (redacted, verbatim)**, and the CSV
+export carries them exactly as recorded.
+
+## Read it in the Console
+
+Console → The ledger. The table has six columns: **Time** (local date and clock),
+**Who**, **Tool**, **Sector**, **Args**, **Decision**. Clicking a row opens a
+drill carrying Time, Agent, Tool, Sector, Decision, Deny reason, Outcome, Result
+count, Request id and the full arguments.
+
+The Decision column prints only the exceptions — the refusals and the errors.
+Ordinary allowed calls are the bulk of any active log, and marking every one of
+them buries the ones that are not ordinary. The drill prints the state in full
+for the row you opened, where the word is a field rather than a repeated column.
+
+Four filters sit above the table — agent, tool, sector, and a since-preset of Any
+date, Last 24 hours, Last 7 days or Last 30 days — plus a decision toggle with
+three segments: all rows, the allowed, the denied. There is no fourth segment for
+the errored state, and that absence is deliberate. `outcome` is not something the
+API accepts a filter on, so a fourth segment could only narrow the page already
+loaded while looking like a query against the whole log.
+
+**A sector filter is not a narrower view of the whole log.** The filter is an
+equality match on the `sector` column, and SQL equality never matches null, so
+every call that happened in no sector leaves the view entirely — an agent asking
+what the gateway holds, a refused handshake. Those calls are still recorded; they
+cannot match a sector. The Console says so underneath the control the moment you
+set one.
+
+One page is 100 rows, and **Load more** walks older pages using the cursor the
+gateway mints. The view can reach the true end of history, and when it has, it
+says so rather than implying it.
+
+**Export CSV** takes the rows currently loaded and nothing else — not a fresh
+unfiltered read behind your back. Its columns are the wire field names, not the
+table's headers, because the person opening that file is reconciling it against a
+log or an issue. A value that a spreadsheet would execute rather than display
+gets a leading apostrophe first: `args` is agent-authored, and an agent that put
+a formula in a query parameter would otherwise have it run the moment you opened
+your own audit trail.
+
+## Read it over HTTP
+
+`GET /api/audit` serves the same pages as JSON, on the Console's port, behind the
+same loopback guard.
+
+```bash
+curl -sD - "http://localhost:8787/api/audit?limit=5"
+```
+
+`8787` is the Console port on a stock install; `REST_PORT` in `.env` moves it and
+this endpoint follows. `-D -` is there because the paging facts are in the
+response headers, not the body.
+
+Rows come back newest first, as a bare JSON array — there is no envelope and no
+total. No response body is printed here, because none has been captured from a
+running gateway; the served fields are listed below instead.
+
+### Filters
+
+Every filter is optional, and every value is a bind parameter.
+
+<ParamField query="agent" type="string">
+  Exact match on `agent_id`.
+</ParamField>
+
+<ParamField query="tool" type="string">
+  Exact match on `tool`.
+</ParamField>
+
+<ParamField query="decision" type="string">
+  `allow` or `deny`.
+</ParamField>
+
+<ParamField query="sector" type="string">
+  Exact match on the `sector` column. Matched verbatim and never validated
+  against the registry — the log is history, so a sector that no longer exists
+  returns the rows it has rather than an error. Excludes every row whose sector
+  is null.
+</ParamField>
+
+<ParamField query="since" type="string">
+  An ISO timestamp; rows with `created_at` at or after it. A value that does not
+  parse is a 400.
+</ParamField>
+
+<ParamField query="before" type="string">
+  The keyset cursor for the next page: the previous response's
+  `x-postern-audit-next` header, handed back byte for byte. **Never rebuild it
+  from a row's `created_at`** — the timestamp on the wire has already lost the
+  microseconds the cursor is anchored to, and a cursor rebuilt from it silently
+  drops every row inside a sub-millisecond window. Batch inserts make those
+  neighbours routine. A value that does not match the grammar is a 400:
+  `invalid 'before' cursor: echo the previous page's x-postern-audit-next header value unmodified`.
+</ParamField>
+
+<ParamField query="limit" type="number" default="100">
+  Silently capped at 1000 — a larger request is not an error, it returns the
+  ceiling. It bounds one page, not what is reachable.
+</ParamField>
+
+### The served row
+
+<ResponseField name="id" type="string" required>
+  The row's primary key. A `bigserial` in the database; a string on the wire.
+</ResponseField>
+
+<ResponseField name="agent_id" type="string | null">
+  The agent's name, `operator`, or null.
+</ResponseField>
+
+<ResponseField name="tool" type="string" required>
+  The verb.
+</ResponseField>
+
+<ResponseField name="sector" type="string | null">
+  The sector, or null for a call that happened in none.
+</ResponseField>
+
+<ResponseField name="decision" type="string" required>
+  `allow` or `deny`.
+</ResponseField>
+
+<ResponseField name="deny_reason" type="string | null">
+  Present on a denial.
+</ResponseField>
+
+<ResponseField name="args" type="object | null">
+  The redacted, size-capped arguments.
+</ResponseField>
+
+<ResponseField name="result_count" type="number | null">
+  Rows returned on a read.
+</ResponseField>
+
+<ResponseField name="outcome" type="string | null">
+  `ok` or `error`.
+</ResponseField>
+
+<ResponseField name="request_id" type="string | null">
+  The MCP request id.
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  The insert instant, as ISO text. Note that this value has millisecond
+  precision — the cursor's microseconds are not in it.
+</ResponseField>
+
+`user_id` is not served. There is one user on a self-hosted gateway and the route
+scopes every query to them.
+
+### Paging headers
+
+- `x-postern-audit-has-more` — `true` or `false` on every 200. It comes from a
+  probe row the route fetches and trims, not from counting the page: an exactly
+  full final page reports end-of-history rather than offering a cursor to
+  nothing.
+- `x-postern-audit-next` — the cursor for the next page, present when has-more is
+  `true`.
+
+<Note>
+  The has-more header is **absent** rather than `false`. Absent means the gateway
+  did not answer the question — it predates paging, or something between it and
+  you dropped the header. Reading that as an end tells someone they have reached
+  the bottom of their own accountability record when nobody knows that. The
+  Console prints it as a reason instead of a claim, and anything else reading this
+  endpoint should too.
+</Note>
+
+## How durable the record is
+
+`audit()` redacts the arguments, puts the entry on an in-memory queue, and
+returns. It never awaits I/O and never throws, so a call's response never waits
+on the log and a dead database cannot break a read. A background writer drains
+the queue and runs one insert at a time, so the log never contends with reads for
+a database connection.
+
+The defaults: flush every 1000 ms, or as soon as 100 entries are buffered; 100
+entries per insert; a queue holding 10,000; at most one insert in flight.
+
+There are three ways an entry never reaches the table.
+
+- **Overflow.** When the queue is full, the *incoming* entry is refused and a
+  counter increments. Not the oldest — that direction is deliberate. A flood is
+  by definition the newest traffic, and evicting queued history would let a
+  denial flood erase the record of what was already happening. A throttled line
+  goes to the container log: `[audit] queue overflow — dropped` followed by the
+  running total.
+- **A failed insert.** The batch has already been taken off the queue, so on
+  error it is dropped rather than retried, with `[audit] flush failed, dropped
+  batch:` and the reason on stderr. The process does not crash.
+- **A hard crash.** Whatever was buffered goes with it. A clean shutdown drains
+  the remainder first, best-effort.
+
+<Warning>
+  Every count you take off this log is a **lower bound**, and the entries it lost
+  are gone — there is no retry, no spool, and no gap marker in the table saying
+  something was dropped. The direction is safe for the question the Console asks
+  ("is this key quiet enough to revoke?", where a dropped line can only make a key
+  look quieter) and unsafe for the opposite one. An empty result is not evidence
+  that an agent never read a sector. Under a sustained flood the log goes blind
+  going forward rather than losing its past; the per-handler denial throttles are
+  what keep that out of reach of an anonymous caller, and both halves are needed.
+</Warning>
+
+## Nothing enforces immutability
+
+The gateway only ever appends. There is exactly one statement in the codebase
+that writes to `audit_log` and it is an `INSERT`; nothing in Postern updates a
+row or deletes one. Three consequences worth knowing:
+
+- **Erasing your data keeps the log.** Erase is a real hard delete and it touches
+  domain rows only. The record of the act survives the act.
+- **Revoking an agent keeps its rows.** `agent_id` is plain text with no foreign
+  key, so the history does not go with the grant.
+- **Nothing ages out.** There is no retention job in the repository.
+
+<Warning>
+  The database does not prevent a row from being changed or deleted. There is no
+  `REVOKE` anywhere in this repository's SQL, and on the shipped compose file the
+  gateway connects with the role that created the database — the owner of the
+  table. Anyone who can reach Postgres can rewrite the log, and the log cannot
+  tell you that they did.
+
+  `db/schema.sql` carries a comment saying the app role has `UPDATE` and `DELETE`
+  revoked. No such grant change exists in the schema or in any migration. Read
+  that comment as intent, not as a control.
+</Warning>
+
+So immutability here is an operational property you provide, with your Postgres
+roles, your backups and your disk — not one the gateway enforces. Postern ships
+one database role and the app uses it. A writer role that is not the table owner,
+an append-only replica, shipping rows off the box as they land: all of that is
+yours to build, and nothing in Postern does any of it for you today.
+
+## What the log cannot tell you
+
+- **Whether it is complete.** Nothing in a row says an entry is missing.
+- **How many entries exist.** The route serves a bare array with no total and
+  there is no count endpoint, so a filtered-empty view cannot honestly say "the
+  log holds *n* entries." What it can say is whether older pages exist.
+- **Which key made a call, after a rotation.** `agent_id` is a name, not a key
+  identity. Re-minting under the same name inherits the earlier key's history.
+- **Exactly when a call happened**, to any better than the flush interval.
+- **What a read returned.** Only how many rows.
+- **Anything about a call that was never made.** That cuts the useful way too: a
+  hosted client can narrate work at length and send nothing, and the log is the
+  witness that settles it.
+
+## Confirm it works
+
+This proves the writer is running and that what you are looking at is this
+gateway's own record.
+
+- Console → The ledger shows at least one row. On a gateway nothing has called
+  yet, the empty state quoted at the top of this page is the correct answer.
+- Ask a connected agent to describe its context, then look again. A row lands
+  with the agent's own name under **Who** and `describe_context` under **Tool** —
+  a moment after the call rather than instantly, because the writer flushes on a
+  timer. Do not set a sector filter while you look: `describe_context` happens in
+  no sector, and the filter drops exactly those rows.
+- Do something yourself from the Console — pause a connection, run a sync. It
+  lands under **Who** as `operator`.
+- Point a client at Postern with a key this gateway does not know. The refusal is
+  recorded with `deny` in Decision and the reason in the drill: over the MCP edge
+  as `initialize`, over the REST mirror as whichever call was attempted.
+
+## If something went wrong
+
+| What you see | Where it is answered |
+|---|---|
+| The log is empty on a gateway agents are using | [How durable the record is](#how-durable-the-record-is) |
+| A row you expected is missing, or arrived a second late | [How durable the record is](#how-durable-the-record-is) |
+| `[audit] queue overflow — dropped` in the container log | [How durable the record is](#how-durable-the-record-is) |
+| `[audit] flush failed, dropped batch:` in the container log | [How durable the record is](#how-durable-the-record-is) |
+| `[redacted]` or `[truncated]` where you expected an argument | [What the arguments hold](#what-the-arguments-hold) |
+| A sector filter hides calls you know happened | [Read it in the Console](#read-it-in-the-console) |
+| You read your own data from the Console and no row appeared | [What does not get a row](#what-does-not-get-a-row) |
+| An agent describes work that has no row | [What the log cannot tell you](#what-the-log-cannot-tell-you) |
+| `invalid 'before' cursor: echo the previous page's x-postern-audit-next header value unmodified` | [Read it over HTTP](#read-it-over-http) |
+| The Console will not offer older entries and gives a reason instead | [Read it over HTTP](#read-it-over-http) |
+| A row's time does not match when you know the call happened | [What one row holds](#what-one-row-holds) |
+| An agent connected successfully and every read came back denied | [What gets a row](#what-gets-a-row) |
+
+## What you have now
+
+A record of every agent call — reads, actions and refusals alike — and of every
+state-changing thing you do from the Console, written off the response path into
+a table that only grows.
+
+Three standing costs come with it. It grows without bound: erase keeps it, revoke
+keeps it, no retention job trims it, and rotation and backup are yours. Its
+completeness is best-effort by design, so every figure taken from it is a floor
+rather than a total. And its immutability is whatever your Postgres roles and
+your backups provide, because the gateway appends but the database does not
+refuse anything else.
+
+What it buys is the one question a self-hosted gateway has to be able to answer:
+which agent came through, what it asked for, what it was allowed, and what it was
+refused.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    a running Postern and an agent key · a few minutes, plus a restart of your
+    client · a bearer shown once
+  </Card>
+  <Card title="Set up remote access" href="/start/remote-access">
+    Tailscale + optional Funnel · about 20 minutes, once · off by default
+  </Card>
+</Columns>

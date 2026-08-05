@@ -1,0 +1,410 @@
+---
+title: "Security model"
+description: "What Postern encrypts, what it does not, and why the address a port is published on is the whole of the Console's authentication."
+---
+
+<Info>
+  **Before you start**
+
+  - **The trust boundary is one line.** You and the machine Postern runs on are
+    trusted. Everything else is not — the network that machine sits on, the other
+    devices in the house, the pages your browser has open, and every agent
+    holding a key.
+  - **Two ports, two different answers.** 8787 carries the Console and the admin
+    API and has no authentication at all. 8788 carries the agent edge and
+    authenticates every call.
+  - **Your credentials are encrypted. Your data is not.** The vault seals
+    provider tokens and passwords. The rows Postern syncs are ordinary Postgres
+    columns.
+  - **Nothing rate-limits or locks out a wrong agent key.** What stands between a
+    stranger and your data is the 256 bits of randomness in the key.
+  - **No external security review has been done.** Nobody outside the project has
+    audited this code, and there has been no penetration test.
+  - **Every statement here is read out of the source.** Where the code cannot
+    answer a question a reader needs, this page says so rather than guessing.
+</Info>
+
+## The trust boundary
+
+Postern is single-tenant software running on hardware you own, and every decision
+below follows from where that line is drawn.
+
+**Trusted:** you, and the machine Postern runs on. Anyone with an interactive
+session on that machine already holds the database, the vault key file and your
+browser, so there is nothing left for the gateway to defend against them.
+
+**Not trusted:** everything else.
+
+The line sits there because Postern is personal software you host, not a
+multi-tenant service somebody operates for you. A service has to defend its
+operators from each other; a gateway on your own box does not, and pretending
+otherwise would buy nothing and cost the simplicity that makes the rest of it
+auditable.
+
+## The Console has no authentication
+
+Port 8787 serves the Console and the admin API together: onboarding, credential
+paste, the audit read, the full export, erase, and the route that mints an agent
+key. That group carries no bearer, no password and no session. The compose file
+publishes it as `127.0.0.1:8787`, and that prefix is the authentication.
+
+What sits in front of those routes is a `Host`-header allowlist — `localhost`,
+`127.0.0.1`, `::1`, plus anything you add in `REST_ALLOWED_HOSTS`. It is a
+DNS-rebinding guard, and its job is to stop a page on someone else's site from
+reaching your gateway through your own browser. The `Host` header is a string the
+client chooses, so it identifies nobody. Anyone who can open a connection to that
+port can send `Host: localhost:8787` and mint a key in one request, with no
+credential, and the key comes back in the response.
+
+So the boundary is the address the port is published on, and nothing else.
+
+```text
+SAFE      127.0.0.1:8787:8787     reachable only from the machine Postern runs on
+UNSAFE    8787:8787               reachable from your whole network
+```
+
+<Warning>
+  The bare form is not a shorter way of writing the safe one — it means
+  `0.0.0.0`, every interface. On Linux, Docker's publish rules sit ahead of most
+  host firewall rules, so a `ufw deny 8787` does not close it again. Widening
+  `REST_ALLOWED_HOSTS` widens which `Host` values are *accepted* and adds no
+  identity check anywhere, so it cannot make the port safe to publish; adding a
+  tailnet hostname to it opens every one of those routes to every peer on your
+  tailnet. There is no supported configuration in which that port is safe on a
+  network, which is why the compose file carries no recipe for putting it there.
+</Warning>
+
+To reach the Console from another machine, leave the publish address where it is
+and put something that authenticates in front of it, terminating on loopback: an
+SSH tunnel, `tailscale serve`, or a reverse proxy that authenticates before it
+forwards. The port stays local and the tunnel carries the identity.
+[Set up remote access](/start/remote-access) is the procedure, and it also
+carries the probes that prove from outside that the admin surface did not come
+with it.
+
+One clarification, because the heading over-generalises if you stop here: the
+rule is per route, not per port. Port 8787 also serves the agent read-mirror,
+which requires a key on every request; the health probe, which is deliberately
+bare so a container probe can reach it and which returns nothing but a status;
+and the push-ingest route, which carries its own secret and is covered below.
+What has no authentication is the admin, OAuth and Plaid group specifically, and
+that group is what the loopback publish address is standing in front of.
+
+## The agent edge authenticates every call
+
+Port 8788 carries the MCP edge, the surface built for remote agents. Every call
+on it carries a per-agent key in an `Authorization: Bearer` header, resolved to a
+grant before anything runs, and a missing, unknown or revoked key is refused at
+the opening handshake, before any tool exists to call. It is published on loopback
+as well; reaching it from elsewhere is a decision made in Console → Settings →
+Remote access, not by editing a publish address.
+
+A grant is a set of sectors — finance, health, mail, contacts, calendar, home —
+and the sector is the smallest unit of permission there is. Granting one covers
+reading **and** acting across every provider in it. There is nothing
+per-connector, nothing per-record and nothing per-call, and no confirmation
+prompt in front of an action.
+
+Grants are default-deny. The sectors array starts empty, a key with an empty
+array authenticates successfully and is then refused on every read, and that is
+the intended shape rather than a bug. The check runs ahead of the data: every
+data-returning function takes the resolved identity as its first argument and
+denies an ungranted sector before any SQL is issued, and a query target whose
+prefix is not a known sector is refused outright rather than mapped onto a sector
+you did grant.
+
+## Agent keys
+
+A key is 32 random bytes from Node's cryptographic random source, base64url-encoded.
+What Postern stores is the SHA-256 of it, in `agent_grants.key_hash`. The key
+itself is returned exactly once — in the response to the request that mints it —
+and no route returns it again, including the route that lists your agents. There
+is nothing to re-reveal later, only re-mint.
+
+A presented key is hashed the same way and the digest is looked up. Three states
+refuse it, and the reason is recorded in the ledger rather than told to the
+caller: the key is unknown, the key is revoked, or the key is past its expiry. An
+expiry is a hard deadline — a key is dead at the instant it expires, including
+inside a session that was already open. Keys carry no expiry unless one was set
+when they were minted, and no expiry means never.
+
+One place tightens that: a hosted client signing in through Postern's OAuth
+bridge is refused if its key never expires, and told so in plain words rather
+than with the same wording used for a bad key. A key used from someone else's
+cloud has to carry a deadline.
+
+## Revoking and rotating a key
+
+Revoking stamps `revoked_at` on the grant and then ends every live session that
+key is holding. The order matters and is deliberate: the row is written first and
+the sweep runs second, because a sweep that ran first would leave a window in
+which a fresh connection re-read a not-yet-revoked row and bound to it.
+
+The two agent surfaces reach the same result by different routes. The REST agent
+routes re-resolve the key on every single request, so a revoked key fails on the
+next call with nothing else needed. The MCP edge resolves a key once per session
+and caches the result, which is what makes revocation a *push* there: the revoke
+route evicts every session belonging to that agent across the edges in the
+process, tears down their transports so the client sees the connection end rather
+than a silently dead session, and raises a five-minute fence so a session that
+was initializing at that moment cannot bind afterwards. The effect on both is the
+same. The key stops working, and any session the agent was still holding is cut.
+
+Editing a grant or shortening an expiry runs the same sweep, unconditionally,
+because the session's cached identity carries both the sectors and the deadline.
+The cost is one reconnection.
+
+Rotating a key replaces the stored hash and, in the same transaction, deletes
+every OAuth-bridge code and token derived from it. Rotation is the compromise
+response, so the derived credentials die with the key rather than outliving it.
+
+## There is no rate limit and no lockout
+
+Presenting a wrong key to either agent edge costs the sender nothing. Nothing
+counts failures, nothing locks an agent or an address out, and nothing slows the
+next attempt down. The defence is the 256 bits of randomness in the key, and
+there is no second layer behind it.
+
+Refused keys are recorded rather than ignored: the MCP edge writes a deny line
+for every key that was presented and refused, capped at thirty a minute with one
+coalesced line standing in for whatever the cap swallowed, so a flood cannot bury
+the signal by filling the ledger with itself.
+
+There is exactly one rate limiter in the codebase, and it does not sit here. It
+sits on the OAuth bridge's own endpoints — registration, authorize, token — at
+120 requests a minute, and the project is explicit that it is sized for
+availability rather than defence. Behind a Tailscale Funnel there is no
+recoverable client address, because the tunnel terminates locally and Docker
+translates every connection to one source, so a per-caller limit is necessarily a
+single global one for the whole internet. Setting `MCP_TRUSTED_PROXIES` does not
+change that; it helps only when you front the gateway with a proxy of your own
+that genuinely supplies a client address. The cost of that is narrow and the
+project states it rather than papering over it: a stranger who finds your address
+can disrupt connection *setup*. No data is exposed by it, no key is at risk, and
+the reads and actions behind the endpoint stay key-gated throughout.
+
+## The credential vault
+
+Sealed in the vault: OAuth access and refresh tokens, app-specific passwords,
+SimpleFIN access URLs, Home Assistant tokens, Plaid item tokens, and the client
+secrets of the provider apps you register yourself. They live in one `secrets`
+table and are referenced from credential rows only by an opaque `sec_<uuid>` — a
+token is never written into a data row and never comes back out of a route.
+
+The cipher is AES-256-GCM. Every seal draws a fresh 12-byte nonce, and the
+16-byte authentication tag is appended to the ciphertext. The additional
+authenticated data is the owning context — user, provider, purpose — bound into
+the tag, and it is checked twice on the way out: the stored context string must
+equal the one re-derived by whoever is asking, and then GCM verifies the tag over
+it. A reference sealed for one purpose cannot be opened as another, and a swapped
+reference fails rather than decrypting.
+
+**There is no key derivation, and that is deliberate.** The master key is 32 raw
+bytes. Either the gateway generates them on first use, or you supply them
+yourself in `PCI_MASTER_KEY` as base64 of exactly 32 bytes — a value that decodes
+to any other length is refused outright rather than padded or truncated. There is
+no passphrase, no KDF and no escrow. The consequence is worth saying plainly: the
+key file *is* the secret, and anything that can read it can open the vault.
+
+Where it comes from, in order:
+
+```text
+PCI_MASTER_KEY          a value you manage yourself: base64 of exactly 32 bytes
+the persisted key file  PCI_MASTER_KEY_PATH, default .pci/master.key
+first run               generated, written to that path, mode 0600 under a 0700 directory
+```
+
+Under Docker the `pci_master_key` volume mounts at `/app/.pci`, so a generated key
+lives inside that volume and never in your checkout.
+
+<Note>
+  Sealed rows are looked up by the *label* of the key that sealed them, not by the
+  key. So if the gateway refuses to start over the vault, check
+  `PCI_MASTER_KEY_ID` before you reach for a backup: the key can be perfectly
+  intact and only its label diverged — set, unset, or changed — and setting it
+  back is the whole repair. Nothing needs restoring. The refusal message names the
+  label it was looking for.
+</Note>
+
+Rotating the master key is supported and offline: back up, stop the gateway,
+re-seal every row under the new key, swap the active key, verify. Rows are
+re-sealed in place under the same references, so nothing that points at a secret
+has to be repointed, and a run interrupted halfway resumes rather than leaving
+anything torn. `docs/runbooks/key-rotation.md` in the repository is the procedure.
+
+## What the vault does not cover
+
+This distinction is the one most often read backwards, so it is worth stating in
+both directions.
+
+**Encrypted by Postern:** the credentials above, and nothing else.
+
+**Not encrypted by Postern:** everything it syncs. Your transactions, mail
+envelopes, calendar events, contacts and health samples are ordinary columns in
+your Postgres, readable by anything that can read the database. What protects them
+is database access control and whatever disk encryption the machine provides —
+and nothing else this project supplies. If you want them encrypted at rest,
+encrypt the volume.
+
+*Your credentials are encrypted* is true. *Your data is encrypted* is not, and no
+page on this site will say it.
+
+One narrower fact sits in the same area and cuts the other way: the mail table has
+no column for a message body or an attachment. Postern caches envelopes and a
+preview snippet, and a body is fetched from the provider when an agent asks for
+that specific message rather than being stored on the box.
+
+## Losing the vault key
+
+<Warning>
+  `docker compose down -v` deletes the named volumes, and `pci_master_key` is one
+  of them. Every credential sealed under that key becomes permanently unopenable:
+  the ciphertext is all that survives, and there is no recovery path in this
+  project or anywhere else. `docker compose down` without the `-v` removes the
+  containers and leaves the volumes alone.
+</Warning>
+
+Boot is fail-closed rather than optimistic. After the migrations run and before
+any port is served, the gateway takes one sealed row per distinct key label among
+the credentials its live connectors depend on and tries to open it. If any fails
+it refuses to start, names the label, the count and the first failing reference,
+and reports that nothing was modified. No environment variable, flag or
+configuration skips that check.
+
+The refusal is the design working rather than breaking. What it replaces is a
+gateway that boots green, serves a healthy Console, and fails weeks later at the
+first sync — one connector at a time, with an error that names cryptography
+rather than the restore that caused it.
+
+While a generated key exists and you have not recorded that you hold a copy of
+it, the gateway prints a banner on its own log at **every** boot, headed
+`VAULT KEY IS NOT BACKED UP`, naming the path and the volume. Every boot rather
+than once, because an un-backed-up key is a standing risk rather than a moment
+that passes. Acknowledging it in the Console writes a timestamp beside the key and
+stops the banner; it stores nothing about the key itself, not even a fingerprint.
+`docs/runbooks/backup-restore.md` in the repository is the procedure for taking
+the copy.
+
+## The push-ingest route
+
+`POST /api/ingest/:connectionId` sits deliberately outside the `Host` allowlist,
+because the device pushing to it is a phone and a phone cannot be on your
+loopback. Three route groups on 8787 are registered without that guard — this
+one, the health probe, and the bearer-gated read-mirror — and this is the only
+one of the three that carries neither the guard nor a bearer.
+
+What stands in for both is a per-connection secret: 32 random bytes generated the
+same way an agent key is, stored only as its SHA-256, presented in either an
+`Authorization: Bearer` header or an `X-PCI-Webhook-Secret` header, and shown once
+when the Console mints it. Rotating it mints a fresh one and stops every device
+still sending the old one.
+
+Four properties are what make an internet-reachable route acceptable here:
+
+- **The secret is checked before the body is read.** A request with a bad secret
+  and a huge or malformed payload is refused without that payload ever being
+  buffered or parsed.
+- **The comparison is constant-time** — `timingSafeEqual` over two 32-byte
+  digests, never a string equality. A stored hash of the wrong length fails closed
+  rather than throwing.
+- **Every failure answers identically.** An unknown connection id, a paused
+  connection, a connection with no secret set, a wrong secret and a malformed id
+  all return the same `401` and the same body, `{"error":"unauthorized"}`. The
+  route is not an oracle for which connection ids exist — which is also why a
+  stuck device tells you nothing, and the ledger on the box is where the answer
+  is.
+- **Ownership comes from the connection row, never from the payload.** The user,
+  the sector and the destination table are read from the database against the id
+  in the path. A pusher cannot choose whose account its records land in, or which
+  table.
+
+Exempting this one route unguards nothing else: the admin, OAuth and Plaid routes
+stay behind the `Host` allowlist.
+
+## Where comparisons are constant-time
+
+One place, and it is the one above: the push-ingest secret.
+
+Agent keys and OAuth-bridge tokens are hashed with SHA-256 and the digest is
+looked up in Postgres by equality. That is not a constant-time comparison. What
+the database compares is a digest of the presented value rather than the value
+itself, and the project has published no analysis of whether the difference is
+reachable across a network. It is written down here rather than left implicit
+because it is exactly the kind of question an external review would ask, and no
+external review has been done.
+
+## The ledger records; it does not prevent
+
+Every agent read and every action is written to a log — insert-only in practice,
+since the only statement Postern's code runs against it is an insert — carrying the
+agent, the sector, the decision, the deny reason where there is one, and how many
+rows came back. The arguments go through a redaction pass on the way in: any
+field whose name contains `pass`, `secret`, `token`, `key`, `authorization` or
+`cookie` is replaced with `[redacted]`, and the serialised payload is capped at
+roughly four kilobytes. Credentials are not supposed to travel through tool
+arguments in the first place; the denylist is there because "supposed to" is not
+a control.
+
+It is written asynchronously, off the response path, and it is never awaited, so a
+write that fails is dropped rather than failing the call it describes. That makes
+it detective rather than preventive: it denies nothing, no flow depends on a line
+having landed, and its counts are a lower bound on activity. The direction of that
+error is safe for the question the ledger is usually asked — *is this key still in
+use?* — because a dropped line can only make a key look quieter than it really
+was.
+
+The gateway only ever inserts into that log; it issues no update and no delete
+against it. The shipped schema does not additionally revoke those privileges from
+the database role the gateway connects as, so the log's integrity rests on the
+application rather than on a database grant. Anything with direct access to your
+Postgres is inside the trust boundary already, which is why that gap is stated
+here rather than treated as a finding.
+
+## What the code enforces by shape
+
+Three properties hold by structure rather than by vigilance, which is what makes
+them worth knowing when you read a patch:
+
+- **The resolved identity is the first argument** of every data-returning
+  function, and the sector check runs before any SQL. Every read is scoped to the
+  user on that identity — there is no path that reads without one.
+- **A secret never lives in a row.** A credential row carries an opaque reference
+  into the vault and nothing more; a domain row carries no reference at all.
+- **An unknown sector fails closed.** A query target whose prefix is not a known
+  sector is refused, so a typo can never be silently mapped onto a grant you did
+  give.
+
+`SECURITY.md` in the repository carries the project's full list, including
+structural properties this page has not verified line by line.
+
+## What has not been reviewed
+
+No external security review has been done. Nobody outside the project has audited
+this code, and there has been no penetration test. The security review recorded in
+the repository's own history is internal — the same people who wrote the code,
+reviewing it.
+
+Postern is pre-1.0. The supported version is the latest release, and fixes land on
+`main` and in the next tag rather than being backported.
+
+If you find something, use GitHub's private vulnerability reporting on the
+repository: the **Security** tab, then **Report a vulnerability**, which opens an
+advisory visible only to the maintainers. There is no security mailbox, and an
+exploitable finding should not go in a public issue. Read the scope section of
+`SECURITY.md` first — several of the properties on this page are on its
+out-of-scope list on purpose, including the admin API having no per-request
+authentication when reached from loopback and the cached data not being encrypted
+at rest.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Set up remote access" href="/start/remote-access">
+    The Console stays on the box and you reach it over SSH. Agents reach Postern
+    over your tailnet, and hosted clients over one public port. Both are opt-in.
+  </Card>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    Point a client at the MCP endpoint with a key you minted. Local clients paste
+    one config block; claude.ai and ChatGPT need a public address first.
+  </Card>
+</Columns>

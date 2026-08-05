@@ -1,0 +1,772 @@
+---
+title: "MCP tools"
+description: "Every tool an agent can call, its exact parameters and what it returns, the endpoint it calls them on, and how it authenticates."
+---
+
+<Info>
+  **Before you start**
+
+  - **A running Postern of your own** — every address on this page belongs to one
+    installed gateway. There is no shared endpoint and no hosted Postern.
+    [Install Postern](/start/install) is that procedure.
+  - **An agent key, and the sectors it was granted** — the grant is settled when
+    the key is minted, and it decides what every tool below answers.
+    [Connect an agent](/start/connect-an-agent) covers minting one and pasting it in.
+  - **A client that speaks MCP over Streamable HTTP** — that is the one transport
+    a running gateway offers an agent.
+  - **The endpoint address, taken from the Console** — the agent edge is a
+    separate server from the Console's, on its own port, and the Console prints
+    the address the gateway is actually serving.
+  - **A granted sector covers reading and acting** — there is nothing narrower to
+    grant, and the same grant gates every tool below.
+</Info>
+
+This page is transcribed from the gateway's own source: the tool definitions in
+`src/mcp/server.ts`, the HTTP edge in `src/mcp/http.ts`, the bearer resolution in
+`src/auth/`, and the functions each tool calls in `src/core/`. Where the source
+does not answer a question a reader would ask, this page says so instead of
+filling the gap.
+
+No response body on this page is an example. Nothing here was captured from a
+run, so nothing here is a value your gateway will return — the shapes are the
+declared types, and the strings are the gateway's own literals.
+
+## The endpoint
+
+The agent edge is an MCP server over Streamable HTTP, served by the gateway
+process on its own port. It answers `POST`, `GET` and `DELETE` on the path
+`/mcp`. Unless the OAuth bridge below has been turned on, that is the only path
+it serves and every other one answers 404. The port is
+a knob — `MCP_HTTP_PORT` in `.env` moves it — so take the address from
+Console → Agents & keys → **Connect an agent**, which prints what the gateway
+told it rather than a value composed at build time. The Console also hands you
+the config block whole; [Connect an agent](/start/connect-an-agent) walks it.
+
+A session starts with a `POST` carrying an `initialize` request and no session
+header. The edge reads the bearer, resolves it once, and hands back an
+`Mcp-Session-Id`; every request after that carries that header and is routed to
+the session it names, reading the identity that was cached at initialize rather
+than the database. `DELETE` on the same path ends the session.
+
+What the edge answers, as its own source defines it:
+
+| Request | Answer |
+|---|---|
+| `POST /mcp`, `initialize`, no bearer or a bearer it refuses | 401, JSON-RPC code `-32001`, message `Unauthorized` |
+| `POST /mcp`, `initialize`, past 512 concurrent sessions | 503, code `-32000`, message `Too many sessions` |
+| `POST /mcp` with no session header and no `initialize` | 400, code `-32000`, message `Missing or invalid Mcp-Session-Id` |
+| `GET /mcp` with no session header | the same 400 |
+| `DELETE /mcp` naming a session the edge does not hold | 404, code `-32001`, message `Unknown session` |
+| Any path but `/mcp` | 404, code `-32601`, message `Not found` |
+
+The session cap refuses a new session rather than evicting a live one: an MCP
+client legitimately holds one session for days, so evicting the oldest would kill
+a working connection to serve a new one. Only an already-authenticated caller can
+reach that check.
+
+**There is no stdio transport a client can attach to.** The gateway process does
+connect one, on its own stdin, and that session resolves as the local operator
+with every sector granted and no key involved — which is exactly why it is not
+offered to agents. Under the Docker quickstart that process is PID 1 in a
+container, and a client that wants stdio has to launch the server itself. The
+supported answer for a client that only speaks stdio is a bridge in front of the
+same URL; [Connect an agent](/start/connect-an-agent) has it.
+
+## How a client authenticates
+
+The credential is a bearer key, presented on the `initialize` request:
+
+```text
+Authorization: Bearer <your-agent-key>
+```
+
+The header name is matched case-insensitively and so is the `Bearer` scheme; a
+scheme with no token behind it counts as no credential at all. Postern compares
+the SHA-256 of what you present against the hash stored with the grant. The key
+itself is never stored, never logged, and never part of any ledger field, so
+there is nothing to re-reveal — a lost key is re-minted, not recovered.
+
+Resolution happens **once**, at initialize, and the result is cached against the
+session id. Tool calls after that do not re-read the database, which is what
+makes the grant check an in-memory set test rather than a round trip.
+
+Three things end a credential, and Postern names which one in the refusal:
+
+- `access denied: unknown agent` — no grant carries that hash.
+- `access denied: revoked` — the grant was revoked.
+- `access denied: expired` — the key is past its expiry. A key is dead **at** its
+  expiry instant, and the deadline is also checked on every call, so a session
+  that is already open stops answering the moment its key expires rather than
+  running to teardown.
+
+Revoking, rotating, deleting an agent or editing its grants does not wait for the
+next session. The operator verb sweeps every live session belonging to that agent
+across every edge in the process, and raises a fence so a session that was still
+authenticating when the sweep ran cannot bind afterwards. A connected agent stops
+resolving mid-flight.
+
+Grants are per sector and default-deny. A grant of `*` expands to every sector;
+anything else is intersected with the known sectors, and the known sectors are
+`finance`, `health`, `mail`, `contacts`, `calendar` and `home`. Whatever the
+grant holds, it covers reading **and** acting in those sectors: there is no
+per-connector, per-tool or per-call gating underneath it.
+
+`query`, `get_record`, `fetch_live` and `invoke_action` check the grant before any
+database work, and the refusal names the sector: `access denied: finance`. A name
+whose leading segment is not one of the six is refused the same way rather than
+being mapped onto a real grant. The other three filter instead of refusing:
+`describe_context` and `get_schema` answer with what you are granted and nothing
+else, and `list_actions` does the same — unless you name a sector, and naming an
+ungranted one is a refusal.
+
+<Warning>
+  A key granted no sectors connects successfully and is then denied on every
+  read. That is the intended shape, not a fault, and it is silent from the
+  client's side — the connection is fine and the answers are empty. The tell is
+  `describe_context` coming back with `sectors: []`. Fix it in Console →
+  Agents & keys by editing the key's grants; nothing about the client changes.
+</Warning>
+
+### Hosted clients and the OAuth bridge
+
+claude.ai and ChatGPT will not take a static bearer. Postern ships a small OAuth
+2.1 authorization server on the same edge, where the agent key is the login and
+the token it issues resolves to that same grant — same sectors, same expiry
+ceiling, same revocation.
+
+It is off unless the gateway has been given a public address, and while it is off
+its paths 404 exactly like any other path that is not `/mcp`. When it is on, the
+edge publishes:
+
+```text
+GET  /.well-known/oauth-protected-resource
+GET  /.well-known/oauth-protected-resource/mcp
+GET  /.well-known/oauth-authorization-server
+POST /register
+GET  /authorize
+POST /authorize
+POST /token
+```
+
+The authorization-server document advertises `code` responses,
+`authorization_code` and `refresh_token` grants, `S256` challenges only, and
+`none` for token endpoint auth — dynamic client registration with PKCE, no client
+secret. Access tokens carry the prefix `pcgat_` and live 3600 seconds; the
+refresh token rotates on use, and presenting a refresh token that has already
+been rotated out revokes the whole chain. A refresh chain can never outlive the
+key it came from.
+
+Turning the bridge on also changes one thing about a plain 401: it gains the
+RFC 9728 `WWW-Authenticate` challenge pointing at the protected-resource
+metadata. With the bridge off, a 401 carries no such header.
+
+Publishing an address is [Set up remote access](/start/remote-access). Nothing is
+published by default.
+
+## What a tool call returns
+
+Every tool answers with one text block holding the result as JSON, indented two
+spaces:
+
+```ts
+{ content: [{ type: "text", text: string }] }
+```
+
+Tools are the entire surface. This server registers no resources and no prompts.
+
+A refusal or a failure comes back as a **tool error** carrying Postern's own
+message — not as a transport error, and not as a broken session. The messages are
+listed under each tool below and indexed at the foot of this page. How your
+client renders the error around that message is the client's business, and it is
+not written down here because nobody has recorded it against a real gateway.
+
+An action the source itself rejects is not an error: `invoke_action` returns
+`ok: false` as an ordinary result. See [invoke_action](#invoke_action).
+
+Every call is written to the ledger at the edge — who asked, which tool, which
+sector, allow or deny, the outcome, and the arguments — whether it succeeded, was
+refused, or threw. The write happens off the response path, so it costs the call
+nothing, and the bearer is never one of the fields. Console → The ledger.
+
+## What the agent is told at connect
+
+The server introduces itself as `postern` and ships this text in the `initialize`
+result, where it stays in the agent's context for the whole session. It is the
+one place the universal rules are stated, so they cost nothing per response:
+
+```text
+Postern is this person's personal context gateway: one authenticated surface over
+the sectors of their life (finance, health, mail, contacts, calendar, home). Reads
+are served from a local cache in milliseconds; `fetch_live` is the only path that
+touches a source at read time. Start with `describe_context` (what you are granted,
+and each connection's freshness), then `get_schema` for the object you want — read
+its `notes` and `fieldDocs` before composing any filter or aggregate; they carry
+sign conventions and unit traps that the types do not. `query` reads ONE sector:
+there are no cross-sector joins, so fan out and correlate yourself. Responses are
+capped — `has_more: true` means you are looking at a page, not an answer.
+`list_actions` / `invoke_action` act on a source; a granted sector covers both
+reading and acting. Never assume a field's meaning from its name.
+```
+
+Each tool carries its own description on top of that, and those descriptions are
+where the per-tool traps live. An agent that reads them is reading the same facts
+this page states.
+
+## describe_context
+
+What this key can reach: the sectors it was granted, and every connection the
+owner has in those sectors.
+
+Takes no parameters.
+
+What comes back, as the code declares it:
+
+```ts
+{
+  sectors: string[]
+  connections: {
+    connection_id: string
+    provider: string
+    sector: string
+    status: string
+    label: string | null
+    last_synced_at: unknown
+    mode: "poll" | "push" | "on_demand" | null
+    health: { status: string; consentExpiresAt: string | null } | null
+    freshness: {
+      state:
+        | "ok" | "syncing" | "stale" | "unreachable"
+        | "error" | "paused" | "disconnected" | "never_synced"
+      last_heard_at: string | null
+      next_expected_at: string | null
+      stream_state: "connected" | "retrying" | "down" | null
+      error: { message: string; since: string | null } | null
+    }
+  }[]
+}
+```
+
+`sectors` is the **granted** list, not the connected list. A granted sector can
+hold no connection at all, so an agent that reads `sectors` as an inventory of
+available data will ask for things that are not there. Read `connections`
+alongside it.
+
+Connections whose status is active, error, syncing or paused are all listed. Only
+revoked ones are left out. A broken source is visible rather than absent, which
+is the point: a connection that vanished from the list would read as "the owner
+does not have one".
+
+`freshness` is derived on the server and is the value to trust over any raw
+timestamp. `last_heard_at` is the last-synced clock normalised to ISO-8601;
+`last_synced_at` on the connection is the same clock as the database holds it,
+and is declared `unknown` rather than promised as a string. `next_expected_at` is
+computed for poll connections only.
+
+`mode` and `freshness` together decide whether a `fetch_live` is worth making. A
+push connection reading `ok` is already live, so skip it. Poll and on-demand
+connections go stale between syncs. `unreachable` means a push stream is down or
+retrying and the cache is ageing behind a connection that still looks active.
+
+`health` is populated for Plaid connections and is `null` for every other
+provider. `status: "action_required"` there means the bank link is broken and the
+cache is stale even though the last-synced clock kept advancing — that is a
+reconnect for the owner, not something an agent can retry around.
+
+`mode` is `null` when no connector is registered for the provider.
+
+<Note>
+  A connection listed with `freshness.state: "error"`, `mode: null`, `health:
+  null` and `error.message: "freshness derivation failed"` is a degraded row, not
+  a dead source. Its own facts — provider, sector, status, last-synced clock —
+  are still true; only the derivation failed. Postern lists it rather than
+  dropping it, because a vanished connection is the worse lie.
+</Note>
+
+## get_schema
+
+The queryable objects and fields, per sector — the contract `query` validates
+against.
+
+<ParamField body="sector" type="string">
+  A full object key (`finance.transaction`) returns that object. A bare sector
+  name (`finance`) returns every object in it. Omitted, it returns everything the
+  key is granted.
+</ParamField>
+
+The answer is keyed by object key, and each entry is the object's declared shape:
+
+```ts
+Record<string, {
+  object: string
+  table: string
+  fields: Record<string, "text" | "numeric" | "bool" | "timestamptz" | "uuid">
+  fieldDocs?: Record<string, string>
+  notes?: string
+  primaryTime?: string
+  jsonb?: string[]
+  serveDeduped?: boolean
+}>
+```
+
+The object keys, and the sector each belongs to:
+
+```text
+finance.account          finance
+finance.transaction      finance
+finance.holding          finance
+health.sample            health
+health.workout           health
+health.sleep_session     health
+mail                     mail
+contacts                 contacts
+calendar                 calendar
+home                     home
+```
+
+Sectors with more than one object take the dotted key everywhere an object is
+named — `query`, `get_record`, and `fetch_live` with an id. Single-object sectors
+take the bare name.
+
+The field lists themselves are not reproduced on this page. The call is the
+authority, it is filtered to the caller's own grants, and a copy here would drift
+away from it silently. `notes` and `fieldDocs` are the reason to make the call at
+all: they carry the sign conventions, enums and unit traps that a field's type
+and name cannot, and they are authored per object rather than derived.
+
+Rules that hold across every object, stated once in the tool's own description
+rather than repeated per field: `id` is the Postern row uuid and is what
+`get_record` and `fetch_live` take, while `source_object_id` is the provider's
+own id; timestamps are ISO-8601 UTC; `sum`, `avg`, `min` and `max` return
+precision-safe decimal **strings** while `count` returns a number; rows the
+source deleted are excluded from `query` but still readable through `get_record`;
+and `raw` is the untouched provider payload, which may use different names, units
+and signs than the normalized columns beside it.
+
+<Note>
+  A sector the key was not granted comes back as an empty object, not as a
+  refusal. `get_schema` filters to the caller's grants after it resolves the
+  name, so `get_schema("finance")` on a key with no finance grant returns `{}` —
+  the same answer a reader could mistake for "this gateway has no finance data".
+  An unknown name is different and does fail, with `unknown sector: <name>`.
+  Check `describe_context` before concluding anything from an empty schema.
+</Note>
+
+## query
+
+A structured read over one sector, served from the local cache. There are no
+cross-sector joins — fan out and correlate on your own side.
+
+<ParamField body="sector" type="string" required>
+  The object key. Multi-object sectors need the dotted form.
+</ParamField>
+
+<ParamField body="where" type="object">
+  Field-keyed conditions. A bare scalar means equality; a bare `null` means
+  `IS NULL`. Per-field operators are `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`
+  and `contains`.
+</ParamField>
+
+<ParamField body="select" type="string[]">
+  The projected columns. Omitted, it is every flat field. At most 50 entries.
+</ParamField>
+
+<ParamField body="limit" type="integer" default="100">
+  Capped at 500. In aggregate mode this caps the number of groups instead of
+  rows. Must be an integer of 1 or more.
+</ParamField>
+
+<ParamField body="offset" type="integer">
+  Rows mode only, and capped at 5000. Deep paging is not supported — narrow with
+  `where` instead.
+</ParamField>
+
+<ParamField body="orderBy" type="{ field: string, dir?: 'asc' | 'desc' }[]">
+  Rows mode only. `dir` defaults to `asc`. At most 50 entries, no field twice.
+</ParamField>
+
+<ParamField body="aggregate" type="{ fn, field?, groupBy? }">
+  `fn` is one of `count`, `sum`, `avg`, `min`, `max`. `count` takes no field;
+  the other four require a numeric one. `groupBy` takes up to 50 flat fields.
+</ParamField>
+
+<ParamField body="includeShadowed" type="boolean">
+  Finance objects only — the cross-provider dedup drill-through, below.
+</ParamField>
+
+Rows mode returns:
+
+```ts
+{
+  sector: string
+  object: string
+  count: number
+  has_more: boolean
+  rows: Record<string, unknown>[]
+}
+```
+
+Aggregate mode returns:
+
+```ts
+{
+  sector: string
+  object: string
+  aggregate: { fn: string, field?: string }
+  count: number
+  has_more: boolean
+  groups: { group: Record<string, unknown>, value: number | string | null }[]
+}
+```
+
+`count` is what **this response** holds. It is never a total, and it is never the
+answer to "how many are there" — that is `aggregate: { fn: "count" }`. `has_more`
+is derived from a probe row rather than from `count === limit`, so a page that
+happens to fill exactly reads `has_more: false` truthfully.
+
+Groups come back ordered by the aggregate value descending, then by the group
+columns ascending. `count` there is a JSON number; `sum`, `avg`, `min` and `max`
+are decimal strings, or `null` when the aggregated set was empty. `aggregate`
+cannot be combined with `select`, `orderBy` or `offset`; each of those is a typed
+refusal naming the field, never a silent drop.
+
+Rows come back ordered by the object's `primaryTime` descending with `id`
+ascending as the tiebreak, unless you order them yourself. Ordering is
+deterministic within one snapshot, but a later page can shift as sync lands new
+rows.
+
+Two clauses are on every query and are not yours to set: the read is scoped to
+the owner's own rows, and rows the source has deleted are excluded. Those
+tombstoned rows remain readable through [get_record](#get_record).
+
+**Operator detail that changes answers.** `neq` is null-inclusive — a row whose
+field is null **does** match `neq: 'X'` — and `{neq: null}` means `IS NOT NULL`.
+`in` takes up to 200 scalars and an empty array matches nothing. `contains` is a
+case-insensitive substring match on text fields only. `gt`, `gte`, `lt` and `lte`
+are refused on boolean fields and cannot take `null`.
+
+**Projecting the raw payload.** `select` may name a sector's jsonb columns as
+well as its flat fields: `raw` on every object, plus `attendees` on `calendar`
+and `attributes` on `home`. That reads a row and its raw detail in one call
+instead of a `get_record` follow-up. Projection only — jsonb stays out of
+`where`, `orderBy`, `groupBy` and `aggregate`, which validate against the flat
+fields alone. It is opt-in because selecting `raw` costs a fetch and decompress
+per row.
+
+**The finance drill-through.** On the three finance objects, cross-provider
+duplicates are served as one merged winner row with the underlying provider rows
+hidden. `includeShadowed: true` omits that filter and reveals the pristine
+provider rows too, with read-only linkage columns appended so a winner and its
+members can be tied together. Aggregates follow the same rule, so a drill-through
+total double-counts a merged pair by design. On any other sector the parameter is
+refused outright rather than ignored.
+
+<Warning>
+  Money is signed, and negative means money **out**. To total spending, filter
+  `amount < 0` and negate the sum. A plain `sum(amount)` nets income against
+  spending and is the single most common wrong answer this surface produces — it
+  succeeds, it returns a number, and the number is wrong. The per-field rule is
+  in `get_schema`'s `fieldDocs`, which is why the server's own instructions tell
+  an agent to read them before composing an aggregate.
+</Warning>
+
+<Note>
+  `query requires a full object key (finance.account or finance.transaction or
+  finance.holding), got 'finance'` — a multi-object sector was named bare. The
+  message lists the keys you can use. A name that matches nothing at all gets
+  `unknown sector: <name> (known: …)` with the full list instead.
+</Note>
+
+## get_record
+
+One stored record by id — the drill past the normalized view.
+
+<ParamField body="sector" type="string" required>
+  The object key. Multi-object sectors need the dotted form: `finance.transaction`,
+  not `finance`.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  The Postern row uuid, from a `query` result's `id` — not the provider's
+  `source_object_id`.
+</ParamField>
+
+Returns the stored row, or `null`.
+
+This is the whole row as the database holds it, so it carries columns `query`
+never projects — the jsonb `raw` payload and the bookkeeping columns among them.
+It is also the one read that is **not** filtered by tombstone: a row with a
+non-null `deleted_at` means the source has removed that object, and this is where
+you can still read it.
+
+An id that is not a uuid returns `null` rather than failing, and so does a uuid
+that names no row of the owner's. `null` is the absent answer here, not an error.
+
+A bare multi-object sector is a different matter and does fail, with
+`get_record requires a full object key (finance.account or finance.transaction or
+finance.holding), got 'finance'` — the message names the keys you can use.
+
+## fetch_live
+
+The one read-time path to a source. `query` and `get_record` never leave the
+cache; this does, on request, and within a bound.
+
+<ParamField body="sector" type="string" required>
+  Without `id`, a bare sector name or a dotted key both cover the whole sector.
+  With `id`, a multi-object sector needs the dotted key.
+</ParamField>
+
+<ParamField body="id" type="string">
+  Present, this fetches that one record from its own source connection. Absent,
+  it syncs the sector.
+</ParamField>
+
+Without `id` — sync the sector and wait:
+
+```ts
+{
+  sector: string
+  mode: "sync"
+  synced: boolean
+  timed_out: boolean
+  last_synced_at: string | null
+  errors?: string[]
+  connections: {
+    connection_id: string
+    provider: string
+    mode: "poll" | "push" | "on_demand" | null
+    freshness: Freshness   // the same tuple describe_context serves
+  }[]
+}
+```
+
+With `id` — fetch that record from its source:
+
+```ts
+{
+  sector: string
+  mode: "record"
+  id: string
+  record: unknown   // the raw provider payload; null = the source says it is gone
+}
+```
+
+Sync mode runs a sync-now across every active poll or on-demand connection in the
+sector and waits at most 30 seconds. **`timed_out: true` means Postern stopped
+waiting, not that the sync stopped.** The syncs continue in the background;
+re-read `describe_context` rather than calling again. Concurrent calls are not
+deduplicated, and the syncs are idempotent.
+
+Push connections have no pull to run, and they are not quietly counted as fine: a
+push stream that is down or retrying contributes an attributed line to `errors[]`
+and forces `synced: false`. That is a reconnect for the owner, not a retry for the
+agent. `errors[]` entries are masked before they leave the process.
+
+`connections[]` carries each connection's freshness re-read **after** the wait,
+including connections whose sync failed in it — a row that flipped to `error` is
+still listed rather than dropped.
+
+A sector with no active connection at all is a not-found refusal rather than an
+empty success.
+
+Record mode resolves the connection from the row itself, so a sector holding two
+providers drills through the right one. Not every connector implements a live
+record fetch, and a connector without one refuses with
+`live record fetch not supported for <provider>`. Which providers implement it is
+not written down in these docs — the gateway's own refusal is the authority, and
+a list here would rot. Live fetches for footprint-limited sectors, mail bodies
+among them, are returned to you and never stored.
+
+## list_actions
+
+What the connected sources let you do — the write-side counterpart of
+`get_schema`. Served from the cache and a static catalog, not from a live poll.
+
+<ParamField body="sector" type="string">
+  One sector. Omitted, it enumerates every granted sector.
+</ParamField>
+
+<ParamField body="area" type="string">
+  Passed to the connector verbatim; the connector owns its meaning.
+</ParamField>
+
+<ParamField body="domain" type="string">
+  The cheapest filter — it matches the entity-class prefix, `light`, `lock`,
+  `climate` and so on.
+</ParamField>
+
+<ParamField body="entity_id" type="string">
+  One device. Note the wire name: `entity_id` here, `entityId` at the connector.
+</ParamField>
+
+<ParamField body="limit" type="integer" default="100">
+  Capped at 500. Must be an integer of 1 or more.
+</ParamField>
+
+Returns:
+
+```ts
+{
+  actions: {
+    id: string
+    description: string
+    params: {
+      name: string
+      type: "string" | "number" | "boolean"
+      required: boolean
+      description?: string
+    }[]
+    domain?: string
+    service?: string
+    target?: { area?: boolean, entity?: boolean, domain?: string }
+  }[]
+  count: number
+  truncated: boolean
+}
+```
+
+Read-only sectors contribute nothing, so an empty catalog is a normal answer.
+
+`count` is what this response holds. `truncated: true` means the cap trimmed the
+catalog — the answer is a narrower `domain`, `area` or `entity_id`, not a bigger
+`limit`, because the cut is taken off the end of an accumulated list and can drop
+a whole trailing group of actions rather than a scattered few.
+
+The optional `domain`, `service` and `target` fields are filled in by connectors
+that build their catalog from a live source's own entities; a connector with a
+fixed catalog leaves them undefined.
+
+## invoke_action
+
+Perform one declared action on a source. This is the only tool that changes
+anything outside Postern.
+
+<ParamField body="action_id" type="string" required>
+  Sector-namespaced, and taken from `list_actions` — `home.light.turn_on`,
+  `home.lock.lock`. Never guessed: the leading segment is what the grant is
+  checked against.
+</ParamField>
+
+<ParamField body="params" type="object">
+  The action's parameters, including its target. An explicit id, or a structured
+  selector — area, domain, name — resolved against the cache on the server, so
+  "the kitchen light" is one call.
+</ParamField>
+
+Returns:
+
+```ts
+{ ok: boolean, detail?: unknown }
+```
+
+`detail` carries the source's own response or its error summary. The ledger line
+records the action id, the parameters you sent, and whether the outcome was ok or
+an error — not `detail` itself.
+
+Postern passes `params` to the connector as given and does not check them against
+the action's declared `params` first, so a malformed parameter surfaces as the
+source's own error inside `detail`. The types in `list_actions` are there for you
+to check against before you call.
+
+A sector with no active connection returns
+`{ ok: false, detail: "no active connection for sector '<sector>'" }`, and a
+provider with no registered connector returns
+`{ ok: false, detail: "no connector registered for <provider>" }`. Both are
+ordinary results.
+
+<Warning>
+  `ok: false` is a **successful tool call**. The call did not error, the client
+  will not flag it, and an agent that only checks for tool errors will report a
+  light as switched on when the source refused. Read the field. Postern records
+  it too — the ledger line for a rejected action is allow with an error outcome,
+  which is what tells the owner the call was permitted and the source said no.
+</Warning>
+
+## The REST read mirror
+
+For tools that do not speak MCP, the Console's own edge serves five of the reads
+over plain HTTP, bearer-gated with the same key and audited the same way:
+
+```text
+GET  /api/context
+GET  /api/schema?sector=
+POST /api/query
+GET  /api/records/:sector/:id
+POST /api/fetch_live
+```
+
+They call the same core functions and answer the same shapes as the tools above.
+Two differences are worth knowing before you build on it. **Acting on a source
+goes through MCP** — there is no `invoke_action` on the bearer mirror. And the
+identity is resolved on **every** request rather than once per session, so the
+mirror has no session to sweep and no session-cached grant.
+
+That edge is the Console's port, not the agent port, and the compose file
+publishes it on loopback. Remote access publishes the agent edge; it does not
+publish this one.
+
+## What is not documented here
+
+Stated so it is not mistaken for completeness:
+
+- **How your client renders a tool error.** Postern throws its message; the MCP
+  SDK and your client decide what wraps it. Nobody has recorded that against a
+  real gateway, so this page quotes only Postern's own half of the string.
+- **The field list of every object.** `get_schema` is the authority and is
+  filtered to your grants. A copy here would drift.
+- **Which connectors support a live record fetch.** The gateway refuses by name
+  when one does not; the docs carry no list.
+- **Rate limits on the tools themselves.** There are none in the tool path to
+  document. The OAuth bridge's own endpoints are metered; the tools are bounded
+  by the caps stated per tool above.
+
+## If something went wrong
+
+Every string below is Postern's own. Your client may print more around it.
+
+| What you see | Where it is answered |
+|---|---|
+| 401, `Unauthorized`, at connect | [How a client authenticates](#how-a-client-authenticates) |
+| `access denied: unknown agent` | [How a client authenticates](#how-a-client-authenticates) |
+| `access denied: revoked` | [How a client authenticates](#how-a-client-authenticates) |
+| `access denied: expired` | [How a client authenticates](#how-a-client-authenticates) |
+| `access denied: <sector>` on one tool while others answer | [How a client authenticates](#how-a-client-authenticates) |
+| The client connects and every read is denied | [How a client authenticates](#how-a-client-authenticates) |
+| 400, `Missing or invalid Mcp-Session-Id` | [The endpoint](#the-endpoint) |
+| 404, `Not found`, on a path you expected to exist | [The endpoint](#the-endpoint) |
+| 404, `Unknown session` | [The endpoint](#the-endpoint) |
+| 503, `Too many sessions` | [The endpoint](#the-endpoint) |
+| The client can only launch a command and will not take a URL | [The endpoint](#the-endpoint) |
+| `describe_context` lists a sector and no connection for it | [describe_context](#describe_context) |
+| A connection reads `freshness.state: "error"` with `mode: null` | [describe_context](#describe_context) |
+| A Plaid connection keeps syncing and the data stops changing | [describe_context](#describe_context) |
+| `get_schema` returns nothing for a sector you expected | [get_schema](#get_schema) |
+| `unknown sector: <name>` | [get_schema](#get_schema) |
+| `query requires a full object key (…), got '<sector>'` | [query](#query) |
+| `unknown field in where: <field>` | [query](#query) |
+| `limit must be an integer >= 1 (capped at 500)` | [query](#query) |
+| `includeShadowed is not valid on sector "<sector>"` | [query](#query) |
+| A spending total that nets income against spending | [query](#query) |
+| An answer that looks complete and carries `has_more: true` | [query](#query) |
+| A row that `query` will not return and the source has deleted | [get_record](#get_record) |
+| `get_record` answers `null` for an id you have | [get_record](#get_record) |
+| `get_record requires a full object key (…), got '<sector>'` | [get_record](#get_record) |
+| `timed_out: true` from `fetch_live` | [fetch_live](#fetch_live) |
+| `synced: false` with a push-stream line in `errors[]` | [fetch_live](#fetch_live) |
+| `live record fetch not supported for <provider>` | [fetch_live](#fetch_live) |
+| `truncated: true` from `list_actions` | [list_actions](#list_actions) |
+| An action reported as done that the source never performed | [invoke_action](#invoke_action) |
+| `no active connection for sector '<sector>'` | [invoke_action](#invoke_action) |
+| `no connector registered for <provider>` | [invoke_action](#invoke_action) |
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    a running Postern and the Console in front of you · a few minutes, plus a
+    restart of whatever client you are connecting · an agent key
+  </Card>
+  <Card title="Set up remote access" href="/start/remote-access">
+    Tailscale, and Funnel only if a hosted client needs you · about 20 minutes,
+    once · off by default
+  </Card>
+</Columns>

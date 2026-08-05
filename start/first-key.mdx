@@ -1,0 +1,176 @@
+---
+title: "Mint your first key"
+description: "One agent, the sectors it may reach, and a deadline. The key is shown once on the screen that follows, and Postern keeps only a hash of it."
+---
+
+<Info>
+  **Before you start**
+
+  - **A running Postern, and the Console in front of you** — everything on this page happens at
+    Console → Agents & keys. If Postern runs on a NAS, a home server or anything else headless,
+    bring the Console to yourself first:
+    [reach it over SSH](/start/install#open-the-console-from-where-you-are).
+  - **A few minutes.** Nothing here contacts a source, and nothing here can fail slowly.
+  - **A name for the agent you are about to key.** It is what the ledger records against every call
+    that agent makes, so name it after the client rather than after the task.
+  - **Your password manager, open before you press Mint.** The key is shown once, on the screen
+    that follows the mint, and Postern stores only a hash of it. There is nothing to re-reveal.
+  - **No source connected yet is fine.** A key is not a connection. Minting one grants an agent
+    sectors; whether anything answers in them is a separate question, and a key minted first is
+    ready the moment a source lands.
+</Info>
+
+<Steps>
+
+<Step title="Name the agent" titleSize="h2" id="name">
+
+Console → Agents & keys → **Mint a key**. The first field is **Name**, and the form suggests
+`my-agent`.
+
+The name is the agent's identity everywhere else in Postern. It is what Console → The ledger prints
+under **Who** for every call that key makes, and it is the only thing tying a row in that log to a
+client you can recognise. Name it after the thing holding the key — the client, the machine, the
+person — not after what you expect it to do.
+
+One agent name holds one key and one grant. Minting under a name that already exists is not a
+second key: it replaces that agent's key, its sectors and its deadline, and clears any revocation.
+That is the rotate path, and the Console offers it under that name.
+
+<Warning>
+  Minting under an existing agent name replaces that agent's key. The previous secret stops being
+  accepted at once, every token derived from it is deleted in the same transaction, and the live
+  sessions it was holding are cut. Only a hash of the old key was ever stored, so there is no copy
+  of it anywhere: every client still holding the old secret has to be handed the new one. Use a
+  fresh name unless replacing the key is what you came to do.
+</Warning>
+
+</Step>
+
+<Step title="Grant the sectors it may reach" titleSize="h2" id="grant-sectors">
+
+Under **Grant which sectors**, six toggles: `finance`, `health`, `mail`, `contacts`, `calendar` and
+`home`. The form states the rule underneath them —
+`Nothing is granted until you pick it. Tap a sector to toggle it.`
+
+Two properties of a sector decide what you are handing over, and neither has a narrower setting.
+
+A sector is the smallest thing there is to grant. There is no per-source, per-object or per-field
+grant, and granting `mail` grants every mail source connected now and every mail source connected
+later.
+
+A grant covers **read and act** across every provider in the sector. There is no read-only version.
+Today only `home` has anything to act on — Home Assistant serves a live action catalogue, and every
+other connector that ships declares an empty one — so `finance`, `health`, `mail`, `contacts` and
+`calendar` confer an act permission with nothing behind it. That is a statement about connectors,
+not about the model: a connector that grows actions later is covered by grants that already exist,
+and nobody is asked again. [Grants and sectors](/reference/grants-and-sectors) is the whole model.
+
+<Note>
+  The Console does not stop you minting a key with no sectors at all — the Mint button needs a name
+  and nothing else, and the form says so beside it: `No sectors granted yet — this key would be
+  denied everything until you edit its grants.` Such a key connects successfully and is then denied
+  on every read. That is the intended shape rather than a defect, and it is the reason a connection
+  that succeeds can still answer nothing.
+</Note>
+
+</Step>
+
+<Step title="Set when it lapses" titleSize="h2" id="expiry">
+
+Under **Expires**, four chips: **Never**, **30 days**, **60 days** and **90 days**.
+
+Which one the form starts on follows this gateway rather than your last choice. On a gateway that
+publishes nothing it starts on **Never**; once an address is published it starts on **90 days**, and
+the form adds a line saying why. The Console never blocks a never-expiring key — it moves the
+default and states the reason, and the gateway's own rule at the OAuth bridge is the one that
+refuses.
+
+The distinction worth making is where the key will live, not how long you expect to use it. A key
+that never leaves this machine may sit at **Never**. A key that will leave it — pasted into
+claude.ai or ChatGPT, carried to another device — should not: it is a credential on somebody else's
+infrastructure, and an unexpiring one can only ever be ended by your noticing.
+
+A deadline is a hard stop, not a warning. A key is refused at the instant it expires, including
+inside a session it was already holding, and moving the deadline of a lapsed key is refused by the
+gateway itself — rotation is the way back.
+
+</Step>
+
+<Step title="Mint it, and put the key somewhere safe before you leave the screen" titleSize="h2" id="mint">
+
+<Warning>
+  The key is shown once. It is 32 random bytes; Postern persists only its sha256 hash, and the
+  plaintext exists nowhere after this screen — not in the database, not in a log, not behind a
+  reveal button. If you leave without it, the only remedy is minting again, which replaces the key
+  you just made. Have somewhere to put it open before you press the button.
+</Warning>
+
+Press **Mint the key**. The screen that follows is the only moment the plaintext exists, and it
+carries four things:
+
+- **Agent key — shown once**, with a **Copy** button. This is the secret.
+- **Opens** — the sectors you granted, recapped, `read and act, across every provider in each`. A
+  key with none reads `no sectors — this key is denied everything`.
+- **MCP endpoint** — the address this gateway is actually serving, and under it the complete connect
+  config with a **Copy config · key included** button. That block is the one you paste into a
+  client, with the key already in it and nothing to fill in.
+- **Done**, and **Connect a hosted client (claude.ai, ChatGPT) →** for a client that reaches you
+  from a vendor's cloud.
+
+The Console says the same thing in its own words at the top of that screen: *"Copy the key now and
+keep it somewhere safe — it is shown once, and claude.ai or ChatGPT will ask for it later, in the
+middle of signing in. Postern keeps only a hash of it; lose it and you simply mint another."*
+
+<Frame caption="The mint form: a name, the sector toggles under default-deny, and the expiry chips.">
+  <img src="/images/gate-mint-key.png" alt="The Console's mint-a-key panel: an agent name, the sector checkboxes, and an expiry." />
+</Frame>
+
+<Note>
+  If a hosted client is where this key is going, copy the key **before** you copy anything else on
+  that screen. The endpoint's own Copy button overwrites the clipboard, and the sign-in asks for the
+  key at the end of a flow that happens in another app. Witnessed 2026-08-01: the URL went into the
+  key box and the sign-in answered `That agent key was not accepted. Check the key in the Console
+  and try again.`
+</Note>
+
+</Step>
+
+</Steps>
+
+## Confirm it works
+
+- Console → Agents & keys lists the agent under the name you gave it, with the sectors you granted
+  and the deadline you set.
+- The key is in your password manager, not only on your clipboard. The next Copy button you press
+  overwrites it, and nothing on the screen can show it again.
+- The sectors listed are the ones you ticked and nothing else. A key showing none is the one that
+  connects and is denied everything.
+
+## If something went wrong
+
+| What you see | Where it is answered |
+|---|---|
+| `No sectors granted yet — this key would be denied everything until you edit its grants.` | [Grant the sectors it may reach](#grant-the-sectors-it-may-reach) |
+| You minted, and every read the agent makes comes back denied | [Grant the sectors it may reach](#grant-the-sectors-it-may-reach) |
+| You left the screen without the key | [Mint it, and put the key somewhere safe before you leave the screen](#mint-it-and-put-the-key-somewhere-safe-before-you-leave-the-screen) |
+| The key box in a hosted client's sign-in rejects what you pasted | [Mint it, and put the key somewhere safe before you leave the screen](#mint-it-and-put-the-key-somewhere-safe-before-you-leave-the-screen) |
+| You minted under a name that already existed, and another client stopped working | [Name the agent](#name-the-agent) |
+| An agent that worked yesterday is refused today, with nothing changed | [Set when it lapses](#set-when-it-lapses) |
+| The mint screen shows no MCP endpoint to copy | [Connect an agent](/start/connect-an-agent) |
+
+## What you have now
+
+One agent, named, holding a key that opens exactly the sectors you ticked and nothing else, until
+the deadline you set. Postern holds a hash of that key and can never show it to you again.
+
+Nothing is connected to it yet. The key is a credential from this moment: it belongs wherever your
+other secrets live, and every config file you paste it into becomes a file holding a secret. If it
+is ever loose, revoking or rotating this agent ends it and every token derived from it at once, and
+cuts the sessions it was holding — no source credential is touched, and nothing upstream changes.
+
+## Next
+
+<Card title="Connect an agent" href="/start/connect-an-agent">
+  the key you just minted · a few minutes, plus a restart of whatever client you are connecting ·
+  claude.ai and ChatGPT need a public address first
+</Card>

@@ -1,0 +1,186 @@
+---
+title: "Connect WHOOP"
+description: "Recovery, sleep, strain, workouts and day-cycles, through a developer app you register once under your own WHOOP account."
+---
+
+<Info>
+  **Before you start**
+
+  - **A WHOOP membership.** The strap and the subscription are yours; the developer app you build on
+    top of them costs nothing.
+  - **About ten minutes.**
+  - **A confidential client — a client ID and a client secret, both required.** WHOOP has no public
+    client type and ignores PKCE, so the secret is the only proof the request is your app.
+  - **A developer account at developer.whoop.com**, where you create that app.
+  - **Postern installed and running**, with the Console in front of you. Everything on this side
+    happens at Console → Sources → Add a source → WHOOP. If you have not got that far,
+    [install Postern](/start/install) first.
+  - **A browser that reaches the Console at `http://localhost:8787`.** The sign-in comes back to a
+    loopback address, and the gateway refuses a callback that arrives under any other host name, so
+    the whole consent has to finish in a browser that has the Console open at that address. If
+    Postern runs on a NAS, a home server or anything else headless, bring the port to yourself over
+    SSH first: [Set up remote access](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box).
+  - **One uninterrupted run.** Postern holds the pending sign-in in memory for ten minutes and drops
+    it if the gateway restarts, so do not upgrade or bounce the stack in the middle of this.
+</Info>
+
+<Steps>
+
+<Step title="Copy the redirect URI out of the Console" titleSize="h2" id="redirect-uri">
+
+Console → Sources → Add a source → WHOOP. The left column of that screen carries the registration
+steps; the second one renders the redirect address with a copy control beside it. Copy it now — it is
+the first thing WHOOP asks for in the next step.
+
+Read it off that screen rather than off this page. The Console asks your own gateway what address it
+will send and renders the answer verbatim, so the string stays true if you ever move the Console off
+its default port. On a stock install it reads:
+
+```text
+http://localhost:8787/api/oauth/whoop/callback
+```
+
+<Note>
+  The redirect box is blank, or it holds a sentence where the address should be. The Console prints
+  what the gateway told it: blank means the answer has not come back yet, and a sentence is the
+  gateway's own message about why it could not answer. Reload the screen once `docker compose ps`
+  reports `app` healthy.
+</Note>
+
+</Step>
+
+<Step title="Create the app at WHOOP" titleSize="h2" id="create-app">
+
+At developer.whoop.com, sign in and create a new app. Put the redirect URI you copied into the app's
+redirect field — paste it, never hand-type it, because WHOOP exact-matches that string and one wrong
+character is a dead consent. Then give the app its scopes.
+
+Postern asks for exactly these six on every sign-in, so the app has to be able to grant all six:
+
+```text
+read:recovery
+read:cycles
+read:sleep
+read:workout
+read:profile
+offline
+```
+
+Five of them are reads. The sixth, `offline`, is not data: it is what lets Postern renew the sign-in
+without you. Its refresh request sends `scope=offline`, and WHOOP will not renew a token without it —
+which is why a consent that skips it works this evening and is dead tomorrow.
+
+<Warning>
+  Grant every scope on that list. The sectors Postern turns on afterwards are derived from what WHOOP
+  actually granted, not from what was asked for: `read:recovery`, `read:sleep` and `read:workout` are
+  the three that map to the health sector, and a consent granting none of them creates no connection
+  at all. The Console reports the connection it made; it cannot report the scope it did not get.
+</Warning>
+
+WHOOP issues the app a client ID and a client secret. Copy both — they go into the Console in the
+next step.
+
+</Step>
+
+<Step title="Paste both halves into the Console and sign in" titleSize="h2" id="sign-in">
+
+Back at Console → Sources → Add a source → WHOOP, under **Configure the app**: paste the client ID
+into **Client ID**, the client secret into **Client secret**, and press **Save & sign in with Whoop**.
+The Console seals both into the vault, hands you to WHOOP's consent page, and — once you approve —
+WHOOP returns you to the Console's Sources page with the new connection on it.
+
+Both halves are required, and the Console stops you before it sends anything if one is missing: the
+field answers **Whoop is a confidential client — paste the client secret too, or the sign-in will be
+refused.** The secret is sealed in the vault from here on and is sent only to refresh the sign-in.
+
+<Note>
+  You land back on the Console's WHOOP screen reading **Whoop did not complete the sign-in.** with a
+  code from WHOOP beneath it, in mono. Postern renders that code exactly as WHOOP sent it and never
+  rewrites it, because it is the thing you match against your registration. Two paths arrive here:
+  WHOOP answered with an error instead of a code — you declined, or the app is misconfigured — or the
+  token exchange failed, which is what a client secret that does not belong to that client ID looks
+  like. The repair is on the screen you are already on: re-read the registration steps, correct the
+  app at WHOOP or re-paste the pair, and press the button again.
+</Note>
+
+<Note>
+  A bare page reading `{"error":"invalid or expired state"}` at the callback address, instead of the
+  Console. Postern holds the pending sign-in in memory, one-shot, for ten minutes; leaving the consent
+  page open longer than that, restarting the gateway mid-flow, or opening the same callback link a
+  second time all land here. Nothing was stored and nothing is lost — go back to Console → Sources →
+  Add a source → WHOOP and press the button again.
+</Note>
+
+</Step>
+
+</Steps>
+
+## Confirm it works
+
+Everything here is on screens you already have open. The point of the first two is that WHOOP fans
+one credential into one connection, and that a healthy one is quiet.
+
+- Console → Sources lists **one** WHOOP row, under health. One, not two: a second sign-in replaces
+  the stored app rather than adding a connection beside it.
+- That row reads **Syncing…** for a while — with a running count beside it on the very first sync —
+  and then loses its label entirely. There is no healthy badge in this Console, so a WHOOP connection
+  with nothing to say carries no label at all. **Awaiting first sync** means the first poll has not
+  run yet. **Stale**, **Unreachable** and **Disconnected** each mean something to fix.
+- Open the connection and it counts the rows it has cached, a count per kind of record. Sleep
+  sessions, workouts and health samples are the three that fill for WHOOP; recovery and the
+  day-cycle both land in samples.
+- The same page offers **Sync now**. WHOOP is polled rather than pushed, so that button is the way to
+  stop waiting for the next cadence.
+- Console → Sources → Add a source → WHOOP now opens with **Whoop is already connected. Signing in
+  again replaces the stored app and re-runs consent — it won’t create a second connection.**, an
+  intent checkbox reading **Yes — replace the stored app and re-run consent.**, and a button that now
+  says **Reconnect Whoop**. That is the same screen confirming from the other side.
+
+## If something went wrong
+
+| What you see | Where it is answered |
+|---|---|
+| The redirect box on the Console's WHOOP screen is blank, or holds a sentence instead of an address | [Copy the redirect URI out of the Console](#copy-the-redirect-uri-out-of-the-console) |
+| The consent finished, and no WHOOP row appears under Sources | [Create the app at WHOOP](#create-the-app-at-whoop) |
+| `Whoop is a confidential client — paste the client secret too, or the sign-in will be refused.` | [Paste both halves into the Console and sign in](#paste-both-halves-into-the-console-and-sign-in) |
+| `Whoop did not complete the sign-in.` with a code from WHOOP beneath it | [Paste both halves into the Console and sign in](#paste-both-halves-into-the-console-and-sign-in) |
+| A bare page reading `{"error":"invalid or expired state"}` at the callback address | [Paste both halves into the Console and sign in](#paste-both-halves-into-the-console-and-sign-in) |
+| The connection reads **Stale** or **Unreachable** days after a sign-in that worked | [What you have now](#what-you-have-now) |
+| Nothing answers on 8787 from your laptop, and Postern runs on another machine | [Set up remote access](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box) |
+
+## What you have now
+
+One health connection, on a credential you own, syncing on its own cadence — which you can change on
+the connection's own page. It carries sleep sessions, workouts, recovery, and the physiological
+day-cycle that day-strain comes from: recovery, sleep, strain, workouts and day-cycles, answerable by
+any agent you have granted the health sector. Granting is done on the key, not here —
+[connect an agent](/start/connect-an-agent) is where a key meets this data.
+
+It is read-only in both directions. WHOOP exposes no actions through Postern and the connector
+refuses to execute one, so nothing an agent asks can write back to WHOOP.
+
+The client secret you pasted stays sealed in the vault, and the access token is renewed by the
+gateway without you — which is what the `offline` scope bought.
+
+What you are carrying from here: the WHOOP membership itself, and an app registration at WHOOP that
+has to keep working. Revoke the app there, or let the sign-in lapse, and the token dies with it — the
+next sync stops and the connection stops being fresh. In the other direction, disconnecting in the
+Console flips this connection and its credential to revoked and deletes the sealed access token, the
+refresh token and the stored client secret from the vault; the connection's page then reads **This
+connection was removed — its credential is gone from the vault. Syncing will not resume on its own;
+re-add the source to start a new connection.** What that does not touch is the data already synced.
+The cached rows are kept — disconnecting removes the credential, not the cache — and re-adding the
+source means pasting the client ID and secret again.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    An agent key, shown once · a few minutes, plus a restart of whatever client you are connecting ·
+    nothing published, unless the client is claude.ai or ChatGPT.
+  </Card>
+  <Card title="Connect Apple Health" href="/connect/apple-health">
+    Health Auto Export on your iPhone · about 10 minutes · push, not pull. The Console's own WHOOP
+    screen names it: recovery, sleep and day-strain, alongside Apple Health.
+  </Card>
+</Columns>

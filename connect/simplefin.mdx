@@ -1,0 +1,238 @@
+---
+title: "Connect SimpleFIN"
+description: "Accounts, balances and transactions from the banks you link at SimpleFIN Bridge. You paste one token; your bank logins never reach Postern."
+---
+
+<Info>
+  **Before you start**
+
+  - **A SimpleFIN Bridge subscription** — about $1.50 a month, paid by you, at
+    [bridge.simplefin.org](https://bridge.simplefin.org). The US has no free universal bank API, and
+    that subscription is the honest cost of coverage.
+  - **About five minutes** in Postern, once your banks are linked at the Bridge.
+  - **One token to paste** — a setup token, which is a long base64 string, or the access URL it
+    converts into. Nothing to install, no developer account, no OAuth app to register.
+  - **Your banks are linked at the Bridge, not here.** Every bank login lives at SimpleFIN. Postern
+    never sees one, and which banks this connection carries is decided over there.
+  - **The setup token can be claimed once.** Postern spends it during the paste. A token you have
+    already claimed somewhere else arrives here spent.
+  - **A Console you can reach.** Everything on the Postern side happens in the Console, which binds
+    loopback and answers only on the machine Postern runs on. If that machine is a NAS, a home server
+    or anything else headless, bring the Console to yourself first —
+    [Set up remote access](/start/remote-access) is the SSH tunnel, and it publishes nothing.
+</Info>
+
+## Choose your path
+
+What you paste depends on what you are holding, and the same field in the Console takes either.
+
+| If… | Then |
+|---|---|
+| you have not linked any banks yet | start at [Link your banks at the Bridge](#link-your-banks-at-the-bridge) |
+| you hold a setup token — a long base64 string | skip to [Paste the token into the Console](#paste-the-token-into-the-console) |
+| you hold the access URL itself — it begins `https://` and carries a token before an `@` | [paste that instead](#paste-the-token-into-the-console); nothing is claimed, and it is sealed as it stands |
+| SimpleFIN is already connected here | [pasting again replaces the stored credential](#paste-the-token-into-the-console) rather than adding a second connection |
+
+<Steps>
+
+<Step title="Link your banks at the Bridge" titleSize="h2" id="link-banks">
+
+At [bridge.simplefin.org](https://bridge.simplefin.org), create an account and connect each bank you
+want covered. That is where every bank login lives: you sign in to your banks at SimpleFIN, and
+Postern never sees a bank credential — not during this setup, and not afterwards.
+
+The banks you link there are the banks this connection carries. SimpleFIN arrives in Postern as one
+connection holding every institution behind it, so adding a bank later, or dropping one, is done at
+the Bridge and shows up here on the next sync. There is nothing in the Console that picks banks.
+
+The subscription is billed by SimpleFIN and stays yours whether or not Postern is running.
+
+</Step>
+
+<Step title="Copy the setup token" titleSize="h2" id="setup-token">
+
+Still at the Bridge, request an access URL. What it hands back is a setup token — a long base64
+string on one line. Copy the whole thing: it carries no spaces and no line breaks, and a truncated
+paste fails the same way a wrong one does.
+
+You are holding a credential from this point on. Postern will convert it into the durable one in the
+next step; treat both the way you would treat a bank password until then.
+
+</Step>
+
+<Step title="Paste the token into the Console" titleSize="h2" id="paste-token">
+
+Console → Sources → **Add a source** → **SimpleFIN**. Under **Paste it here** the card has one
+field, labelled **Access URL**, with `https://…@bridge.simplefin.org/…` shown in it as a placeholder
+— and it takes either form, so paste the setup token there if that is what you have.
+
+<Warning>
+  Pressing **Connect SimpleFIN** claims the setup token, and a setup token can be claimed exactly
+  once. After a successful claim it is spent: pasting it again, here or into any other SimpleFIN
+  client, fails. What Postern holds from then on is the access URL the Bridge returns in exchange —
+  it embeds a username and password that read every bank you linked, Postern seals it in the local
+  vault and never shows it back to you. If you pasted an access URL rather than a token, that string
+  in your clipboard or your notes is that same credential; delete the copy you pasted from.
+</Warning>
+
+Press **Connect SimpleFIN**. Postern decodes the token into the claim address the Bridge put inside
+it, claims it once over HTTPS, and seals the access URL that comes back — the setup token itself is
+never stored. When the paste and the first read both succeed, a message reads `SimpleFIN connected.`
+and the Console returns you to Sources with a SimpleFIN row on it.
+
+If SimpleFIN is already connected, the card says so before you press anything —
+`SimpleFIN is already connected. Connecting again replaces the stored credential — it won’t create a
+second copy.` — and it holds the button until you tick the box beside it, which is the Console asking
+whether you meant it. The button then reads **Reconnect SimpleFIN**.
+
+<Note>
+  The Console checks the shape of what you pasted before it spends a round trip, and answers in the
+  field. An empty field answers `Paste your SimpleFIN access URL, or the setup token from the
+  Bridge.` A bare bridge address answers `That’s the bridge address, not your access URL. Yours
+  starts with https:// and carries a token after the //.` — a real access URL carries credentials
+  between the `//` and the `@`, and `https://bridge.simplefin.org` on its own has no such segment.
+  Neither is a refusal from SimpleFIN; nothing has been sent yet.
+</Note>
+
+<Note>
+  The card answers `SimpleFIN refused it.` with `simplefin setup-token claim failed` printed
+  underneath it. The claim did not go through. Every way a claim can fail collapses to that one
+  message — an already-claimed token, a mangled or truncated paste, a token the Bridge no longer
+  recognises, or a box that could not reach the Bridge at all — because Postern refuses to put any
+  part of a credential into an error string. Nothing was written: the claim runs before the
+  connection row, so a failed claim leaves no half-connected source behind. Get a fresh setup token
+  from the Bridge, or paste the access URL if you kept it.
+</Note>
+
+</Step>
+
+<Step title="Watch the first sync land" titleSize="h2" id="first-sync">
+
+Back in Console → Sources, the connection has already read. Connecting does more than store a
+credential: Postern runs the first sync straight away and reports how it went rather than swallowing
+it, so the `SimpleFIN connected.` message means the first read worked as well.
+
+That first sync asks the Bridge for a year of history, in 90-day windows laid end to end, because the
+Bridge silently caps any span longer than 90 days. Every sync after it asks only for what has
+happened since the last one plus a three-day overlap, which is what catches a transaction that posts
+a couple of days late. Re-reading that overlap changes nothing already stored.
+
+What lands is accounts with their balances, posted transactions, and investment positions for the
+accounts that report them. Pending charges are not included — Postern asks the Bridge for posted
+transactions only, so a charge appears when it settles rather than when it is authorised.
+
+Console → Sources now carries a SimpleFIN row with an account count on it, and under that row the
+institutions it covers: their names run together separated by ` · `, followed by
+`One link carries all <n> — which banks are in it is chosen at SimpleFIN Bridge ↗`, carrying your own
+number. With a single institution behind the link that line reads `One link carries it` instead.
+
+<Note>
+  The card stays where it is and reads `SimpleFIN is connected, but its first sync failed.`, with the
+  gateway's own message underneath and a **Manage this connection →** link below that. The connection
+  is real and nothing is rolled back — Postern will not delete a connection that genuinely exists to
+  make a screen look tidier. Follow that link, or reach the same page from Sources, and press **Sync
+  now**: it answers `Synced — <n> updated.` with its own count, or shows you the failure verbatim.
+</Note>
+
+<Note>
+  A bank you linked at the Bridge is missing from the institutions line, and nothing looks broken. A
+  partly-failing read comes back from the Bridge as a normal answer carrying per-institution error
+  strings rather than as an error. Postern keeps everything that did arrive, writes each of those
+  strings to its own log prefixed `simplefin:`, and skips the investment-position sweep for that
+  round so that a bank which failed to answer does not have its holdings marked gone. `docker compose
+  logs -f app` on the box that runs Postern carries those lines.
+</Note>
+
+</Step>
+
+<Step title="Choose how often it re-syncs" titleSize="h2" id="cadence">
+
+Console → Sources → the SimpleFIN row → **Manage** opens the connection. **Poll cadence** is a row of
+chips there — 2h, 6h, 12h, 1d — and a new connection sits on 6h, which asks nothing of you if that
+suits. Pick another and it takes effect without a restart: the scheduler re-reads its table about
+once a minute and moves the timer, and the connection's next expected check moves with it.
+
+2h is the floor, and the Console offers nothing below it. The gloss under the chips says so:
+`How often Postern re-syncs this connection. Minimum 2h — a faster override is clamped to that
+floor.` The connector declares that floor to stay inside the daily request budget the Bridge
+publishes for its tokens, which it enforces by disabling tokens that go past it. Polling harder also
+buys less than it looks like it should — the Bridge refreshes what it holds roughly daily, so most of
+the extra reads return rows you already have.
+
+</Step>
+
+</Steps>
+
+## Confirm it works
+
+Four checks, in the Console. Together they show that the credential took, that a read actually
+reached the Bridge, and that the coverage is the coverage you paid for.
+
+- Console → Sources lists SimpleFIN with an account count on the row, rather than a zero.
+- The line under that row names each bank you linked at the Bridge. A bank you expected and cannot
+  see is either not linked at the Bridge or failed on this read.
+- Open the connection from **Manage**: it was last heard from minutes ago rather than never, and one
+  **Poll cadence** chip is selected.
+- Press **Sync now** on that page. It answers `Synced — <n> updated.` with its own count. Run it
+  again a minute later and a smaller number, or zero, is the correct answer — that is the three-day
+  overlap re-reading what is already stored.
+
+## If something went wrong
+
+| What you see | Where it is answered |
+|---|---|
+| `Paste your SimpleFIN access URL, or the setup token from the Bridge.` | [Paste the token into the Console](#paste-the-token-into-the-console) |
+| `That’s the bridge address, not your access URL. Yours starts with https:// and carries a token after the //.` | [Paste the token into the Console](#paste-the-token-into-the-console) |
+| `SimpleFIN refused it.` over `simplefin setup-token claim failed` | [Paste the token into the Console](#paste-the-token-into-the-console) |
+| The token worked once and will not work again | [Paste the token into the Console](#paste-the-token-into-the-console) |
+| `SimpleFIN is already connected. Connecting again replaces the stored credential — it won’t create a second copy.` | [Paste the token into the Console](#paste-the-token-into-the-console) |
+| `SimpleFIN is connected, but its first sync failed.` | [Watch the first sync land](#watch-the-first-sync-land) |
+| A bank you linked at the Bridge is missing from the institutions line | [Watch the first sync land](#watch-the-first-sync-land) |
+| Pending charges never appear | [Watch the first sync land](#watch-the-first-sync-land) |
+| Nothing older than about a year arrives | [Watch the first sync land](#watch-the-first-sync-land) |
+| `Cadence rejected.`, or the chip you want is not offered | [Choose how often it re-syncs](#choose-how-often-it-re-syncs) |
+| The Console does not open at all, and Postern runs on another machine | [Set up remote access](/start/remote-access) |
+
+## What you have now
+
+One finance connection carrying every bank the Bridge covers for you: accounts and balances, posted
+transactions, and investment positions where the bank reports them, syncing on the cadence you chose
+and answered from the local cache in milliseconds by any agent you have granted finance. Finance is
+read-only — the connector declares no actions at all — so a finance grant is a grant to read.
+
+Some of what arrives is shaped by the source, and it decides whether an agent's answer is right.
+Transaction amounts are signed, with negative meaning money leaving the account, so a plain sum nets
+spending against income. Nothing is categorised: SimpleFIN sends no categories, and an absent
+category means *not categorised*, never *uncategorised spending*. Investment positions are a
+snapshot of what is held now rather than a stream of trades, and a cost basis of `0.00` is SimpleFIN
+saying *unknown*, not *free*.
+
+The standing costs are the Bridge's, not Postern's. The subscription renews whether or not Postern
+is running, and it is billed by SimpleFIN. Which banks this connection covers stays a decision you
+make at the Bridge. Disconnecting in the Console — Sources → the connection → **Disconnect**, which
+asks you to type `disconnect` before it does anything and tells you first that it
+`Removes Finance's cached data and this connection. Re-add it anytime.` — deletes this connection's
+cached rows, and with them the sealed access URL, because no other connection is using that
+credential. Nothing is sent to the Bridge when you do: your subscription and your linked banks are
+untouched, and the access URL stops being used by anything.
+
+If you add Plaid later for a bank the Bridge cannot reach, the two do not double-count. Postern
+matches an account arriving through both providers on the institution's domain and the last four
+digits in the account name, and serves one.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    a key you minted, and a client that can reach the machine Postern runs on · a few minutes, plus a
+    restart of that client
+  </Card>
+  <Card title="Connect Apple Health" href="/connect/apple-health">
+    Health Auto Export on your iPhone · about 10 minutes · push, not pull
+  </Card>
+</Columns>
+
+Banks SimpleFIN cannot reach are Plaid's job — the coverage upgrade, one connection per linked bank,
+at [Connect Plaid](/connect/plaid), at *a Plaid developer account · pay-per-bank (free ≤10-bank
+Trial) · hosted Link*. The other sources are [Home Assistant](/connect/home-assistant),
+[iCloud](/connect/icloud), [Microsoft](/connect/microsoft) and [WHOOP](/connect/whoop).
