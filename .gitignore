@@ -1,2 +1,5 @@
 # Fact ledgers are conversion working-artefacts, not published pages.
 *.ledger.md
+
+# Internal working docs — not published.
+TEMPLATE.md

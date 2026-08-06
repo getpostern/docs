@@ -8,7 +8,9 @@ description: "Answers on what Postern is, where your data lives, what an agent c
 ### Is Postern an AI agent?
 
 No. Postern is deterministic software — there’s no model inside. Your agents do the reasoning;
-Postern authenticates them, stores your context, serves bounded slices of it, and logs every access.
+Postern authenticates them, stores your context, serves bounded slices of it, and records every
+agent request. (Some owner-side reads in the Console are deliberately not recorded — see
+[the audit log](/reference/audit-log).)
 
 ### Is Postern open source?
 
@@ -45,7 +47,7 @@ for any of that.
 ### Can I use it with any agent?
 
 Any agent that speaks MCP can connect — locally, or remotely with a per-agent key; hosted agents
-like claude.ai connect through the gate’s built-in OAuth bridge. Every read is also available over a
+like claude.ai connect through Postern’s built-in OAuth bridge. Every read is also available over a
 REST API for tools that don’t speak MCP; acting on a source goes through MCP.
 
 ### Does an agent receive my entire life?
@@ -71,8 +73,8 @@ audit, live refresh from sources, and the encrypted credential vault.
 ### What comes later?
 
 Person-to-person sharing, memory the person owns, connectors written by strangers, and specialist
-agents paid for their craft — all on [the roadmap at Fig. V](https://getpostern.com/#roadmap), and
-none of it in the beta.
+agents paid for their craft — all on [the roadmap](https://getpostern.com/#roadmap), and none of it
+in the beta.
 
 ### What will be paid?
 

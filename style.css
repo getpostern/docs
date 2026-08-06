@@ -2,13 +2,14 @@
  *
  * docs.json's `fonts` block carries only `heading` and `body`, so two things
  * have to live here:
- *   1. Courier Prime, the records mono. It sets every code block and command
- *      line in the field guides — the single most-read type on this site.
+ *   1. Courier Prime. It sets every code block and command line on this site,
+ *      which makes it the most-read face here.
  *   2. The four *-marks subsets. These are NOT spare weights: they are additive
- *      cuts scoped to unicode-range U+2116, U+2190-2192 — № ← ↑ → — declared
- *      AFTER the main faces so they win for exactly those four codepoints and
- *      touch nothing else. Every guide's kicker reads "FIELD GUIDE · № 09".
- *      Drop them and the № falls back to a platform glyph on all eleven pages.
+ *      cuts declared AFTER the main faces and scoped by unicode-range, so they
+ *      win for those codepoints and touch nothing else. Of the four they carry,
+ *      only the arrow is still used — it appears ~170 times in navigation paths
+ *      like "Console -> Add a source". Drop these and every one of those arrows
+ *      falls back to a platform glyph mid-sentence.
  *
  * Cut from the upstream OFL sources with:
  *   pyftsubset <src>.ttf --unicodes="U+2116,U+2190-2192" --flavor=woff2 \
