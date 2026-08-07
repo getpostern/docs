@@ -23,44 +23,52 @@ Postern never asks Google for access to your mail, and the Cloud app you build b
 Gmail permission. [Why Gmail uses a password instead of a Google
 sign-in](/reference/security-model)
 
-Part A is the first 2 steps below. Part B is the 6 steps after them.
+Part A is the first 2 steps below. Part B is the 8 steps after them.
 
 | If you want… | Then |
 |---|---|
 | mail | [Part A](#two-step-verification) — 2-Step Verification, then one app password. About 5 minutes. |
-| calendar and contacts | [Part B](#enable-apis) — one Google Cloud project, one OAuth client, one sign-in. About 15 minutes. |
-| all three | [Part A](#two-step-verification), then [Part B](#enable-apis). Neither part depends on the other. |
+| calendar and contacts | [Part B](#create-project) — one Google Cloud project, one OAuth client, one sign-in. About 15 minutes. |
+| all three | [Part A](#two-step-verification), then [Part B](#create-project). Neither part depends on the other. |
 | a Google Workspace account | Choose **External** in [Part B](#consent-screen). **Internal** appears only on Workspace accounts, and this page does not cover it. |
 
 <Steps>
 
 <Step title="Turn on 2-Step Verification" titleSize="h2" id="two-step-verification">
 
-Go to [myaccount.google.com](https://myaccount.google.com) → **Security** → **2-Step Verification**
-and turn it on. Google asks for your password, then a phone number, then a code it sends to that
-phone. Keep your phone with you.
+Go to [myaccount.google.com](https://myaccount.google.com). Open **Security and sign-in** in the left
+column. Under **How you sign in to Google**, find the **2-Step Verification** row and turn it on.
+Google asks for your password, then a phone number, then a code it sends to that phone. Keep your
+phone with you.
 
-Google offers app passwords only to accounts with 2-Step Verification on. Until it is on, the page
-in the next step does not exist. This changes your Google account, not Postern.
+Google offers app passwords only to accounts with 2-Step Verification on. While that row reads
+`2-Step Verification is off`, the page in the next step does not exist, and the words **App
+passwords** appear nowhere in your Google Account. This changes your Google account, not Postern.
 
 </Step>
 
 <Step title="Create the app password and paste it into the Console" titleSize="h2" id="app-password">
 
-Open this address directly. The Security page does not link to it.
+Open this address directly. The **Security and sign-in** page does not link to it.
 
 ```text
 myaccount.google.com/apppasswords
 ```
 
-The page heading reads **App passwords**. In the **App name** field, type `Postern`, and create it.
+{/* UNWITNESSED: the label on the control that creates the password. The only capture of this page (google-console-gmail-redacted.png) already has the Generated app password dialog open over it, so that control sits hidden behind the dialog. That is why the sentence below names no control. Needed: one screenshot of the App passwords page before the dialog opens. */}
+The page heading reads **App passwords**. In the **App name** field, type `Postern`, then create it.
+
 Google opens a dialog headed **Generated app password**, under the line **Your app password for
-your device**. It holds 16 characters in four groups.
+your device**. The password is 16 characters. The Console's own **App password** field shows the
+shape it expects: `xxxx xxxx xxxx xxxx`.
 
 <Warning>
   Google shows those 16 characters once. Copy them before you press **Done** — nothing can show them
   again. If the dialog closes first, delete that entry on the **App passwords** page and create
   another. Nothing else changes.
+
+  Google's own note under the password, headed **How to use it**, carries the reason: "…this app
+  password grants complete access to your Google Account." Keep it in your password manager.
 </Warning>
 
 Copy the 16 characters, then press **Done**.
@@ -90,34 +98,68 @@ a time.
 
 </Step>
 
-<Step title="Create a Cloud project and enable two APIs" titleSize="h2" id="enable-apis">
+<Step title="Create a Cloud project" titleSize="h2" id="create-project">
 
 Everything in Part B happens inside one Google Cloud project. Stay in it for every step below.
 
-At [console.cloud.google.com](https://console.cloud.google.com), open the project picker at the top
-of the page. Until you are inside a project it reads **Select a project**. Press **Create project**,
-type a name for the project, and create it.
+Go to [console.cloud.google.com](https://console.cloud.google.com) and sign in as the account that
+will own the app. Open the project picker at the top of the page. Until you are inside a project it
+reads **Select a project**. Press **Create project**.
 
-Then reopen the picker and select the new project. Google does not always switch you into it. The
-picker shows the project name once you are inside it.
+The page heading reads **New Project**. **Project name** arrives prefilled with `My Project` and a
+number — replace it with a name you will recognise. Under the field Google prints `Project ID:` with
+an identifier it generated, then `It cannot be changed later.` Leave **Parent resource** at
+`No organisation`. Press **Create**.
+
+Then reopen the picker and select the new project. Google does not always switch you into it. Once
+it has, the picker carries the project name on every page in this part.
+
+<Note>
+  On an account's first visit to the Cloud console, Google opens a dialog headed `Welcome, <name>!`,
+  with your own account name in place of `<name>`. It holds a **Country** list and a **Terms of
+  Service** checkbox that reads `I agree to the Google Cloud Platform Terms of Service, and the terms
+  of service of any applicable services and APIs.` Tick that checkbox and press **Agree and
+  continue**.
+
+  A banner then sits across the top of every page. On an account that has never tried the paid tier
+  it reads `Start your free trial with $300 in credit.` and carries **Learn more**, **Dismiss** and
+  **Start free**. On an account whose trial has ended it reads `Your free trial is over but you can
+  still access 20+ always-free products with a full account.` and carries **Learn more** and
+  **Activate**. Postern needs neither. Ignore the banner, or press **Dismiss** where it offers one.
+</Note>
+
+</Step>
+
+<Step title="Enable the two APIs Postern reads" titleSize="h2" id="enable-apis">
 
 <Warning>
   A search for `contacts` shows the old **Contacts API** first, and it does nothing for Postern.
-  Contacts come through the **People API**. The old one names itself: its page reads Service name
-  `contacts.googleapis.com`, and its overview says *"This API is no longer being developed further.
-  Please consider migrating to the People API instead."* If you land there, go back and enable the
-  **People API** instead.
+  Contacts come through the **People API**. The old one names itself: its **Additional details**
+  block reads `Service name: contacts.googleapis.com` and `Last product update: 21/07/2022`, and its
+  overview says "This API is no longer being developed further. Please consider migrating to the
+  People API instead." If you land there, go back and open the **People API** card instead.
 </Warning>
 
-In that project, open **APIs and services** → **Library**. The page heading reads **API Library**.
-Search for `Google Calendar API`, and click its card — the search result is not a button. The card
-opens a page under the heading **Product details**. Enable the API there.
+In that project, open **APIs and services** → **Library** in the left column. The breadcrumb reads
+`APIs and services / API library / Browse`, and the page heading reads **API Library**.
 
-That page then reads **API/Service details**, with Status **Enabled** and **Disable API** at the top.
+Search for `calendar`. Google returns 4 cards: **Google Calendar API**, **Calendar MCP API**,
+**CalDAV API** and **Workspace MCP API**. Click **Google Calendar API**, the one by
+*Google Enterprise API*. A search result is a card, not a button.
+
+The card opens a page headed **Product details**, with the tabs **Overview**, **Documentation**,
+**Support** and **Related products**. Its **Additional details** block reads
+`Service name: calendar-json.googleapis.com`. That is the right one, even though it does not read
+`calendar.googleapis.com`.
+
+{/* UNWITNESSED: the label on the control that enables an API. In both recordings the click falls between sampled frames, and every captured Product details frame shows a spinner where that control sits. Needed: one screenshot of a not-yet-enabled API's page. */}
+
+Enable the API from that page. The heading then reads **API/Service details**, `Status` reads
+**Enabled**, and **Disable API** sits at the top.
+
 Do the same for `People API`.
 
-Wait a minute or two after the second one before you connect from the Console. Ignore the free-trial
-banner at the top of the Cloud console, or press **Dismiss**.
+Wait a minute or two after the second one before you connect from the Console.
 
 <Note>
   Postern's Console writes this route as **APIs & Services** → **Library**. Google's own screen
@@ -130,31 +172,89 @@ banner at the top of the Cloud console, or press **Dismiss**.
 
 </Step>
 
-<Step title="Set up the consent screen and add yourself as a test user" titleSize="h2" id="consent-screen">
+<Step title="Set up the consent screen" titleSize="h2" id="consent-screen">
 
-The consent screen has to exist before the **Clients** page will create a client. Without it, the
-next step stops on a bar: **To create an OAuth client ID, you must first configure your consent
-screen**. Its **Configure consent screen** button lands you here.
+The consent screen has to exist before Google will create an OAuth client. The shortest route to it
+is the page that refuses you.
 
-In the same project, open **Google Auth Platform** → **Audience**. Google's older name for this page
-is the OAuth consent screen, and Postern's Console still uses that name.
+In the same project, open **Google Auth Platform** → **Clients** → **Create client**. Google stops
+you on a bar that reads **To create an OAuth client ID, you must first configure your consent
+screen**. Press **Configure consent screen** on that bar.
 
-On a project with no consent screen yet, **Audience** opens a setup form first. It asks for three
-things: an app name, contact emails, and the audience. Choose **External** for the audience.
-**Internal** appears only on Workspace accounts. Complete the form.
+The page heading reads **Project configuration**. It carries four numbered steps — **App
+Information**, **Audience**, **Contact Information** and **Finish** — with **Create** and **Cancel**
+at the bottom throughout. Google's older name for all this is the OAuth consent screen, and
+Postern's Console still uses that name.
 
-The **Audience** page then appears. Under **Test users**, press **+ Add users**, add your own Google
-address, and save it.
+**1 · App Information.** Type a name into **App name**, which Google marks required. Its note reads
+"The name of the app asking for consent". Google prints that name on every screen you meet from here
+on, including its refusals. Name it `Postern`. Then pick your own address in **User support email**,
+also required, whose note reads "For users to contact you with questions about their consent." Press
+**Next**.
 
-The page then reads Publishing status **Testing** and User type **External**, and lists your address
-under **Test users**. The **OAuth user cap** meter reads `1 user (1 test, 0 other) / 100 user cap`.
+**2 · Audience.** Two options, each with its own description:
+
+| option | Google's own description of it |
+|---|---|
+| **External** | "Available to any test user with a Google Account. Your app will start in testing mode and will only be available to users that you add to the list of test users. Once your app is ready to push to production, you may need to verify your app." |
+| **Internal** | "Only available to users within your organisation. You will not need to submit your app for verification." |
+
+Choose **External**. Press **Next**.
 
 <Note>
-  Skip **Test users** and Google refuses your own sign-in with `OAuth access is restricted to the
-  test users listed on your OAuth consent screen.` While Publishing status is **Testing**, only listed
-  accounts may sign in. A new app lists nobody, not even the account that created it.
-  Add the address, then start the sign-in again from the Console. You lose nothing.
+  On a personal Google account **Internal** cannot be chosen, and one note is the only thing that
+  says why. Hover **Internal** and it reads: "Because you're not a Google Workspace user, you can
+  only make your app available to external (general audience) users."
+
+  **Audience** is also required, and Google prints no message when you skip it. Press **Next** with
+  neither option chosen, and the blue `2` beside **Audience** turns into a red error mark. That mark
+  is the whole warning.
 </Note>
+
+**3 · Contact Information.** Type your own address into **Email addresses**, which Google marks
+required. Its note reads "These email addresses are for Google to notify you about any changes to
+your project." Press **Next**.
+
+**4 · Finish.** Press **Create**.
+
+{/* UNWITNESSED: the body of step 4, Finish. Its heading is captured (video-google-frames.md, Screen 11) but the wizard collapsed straight to the checked state, so nobody has seen what sits under it. Do not claim there is, or is not, anything to accept there. Needed: one screenshot of the wizard paused on step 4. */}
+
+A message reads `OAuth configuration created.`, and you land on a page headed **OAuth overview**.
+Under **Metrics** it reads "You haven't configured any OAuth clients for this project yet." with a
+**Create OAuth client** button. That is correct. The client comes two steps from here, and there is
+one thing to do first.
+
+<Note>
+  The same bar appears on **APIs and services** → **Credentials**, worded differently: **Remember to
+  configure the OAuth consent screen with information about your application.** Its
+  **Configure consent screen** button opens the same wizard.
+</Note>
+
+</Step>
+
+<Step title="Add yourself as a test user" titleSize="h2" id="test-users">
+
+<Warning>
+  Skip this step and Google refuses your own sign-in. While **Publishing status** is **Testing**,
+  only the accounts listed here may sign in — and a new app lists nobody, not even the account that
+  created it. The step costs 10 seconds, and nothing after this page works without it.
+</Warning>
+
+In the same project, open **Google Auth Platform** → **Audience**. Four sections sit on that page:
+
+| section | what it reads on a new app |
+|---|---|
+| **Publishing status** | **Testing**, with a **Publish app** button |
+| **User type** | **External**, with a **Make internal** button, greyed out on a personal account |
+| **OAuth user cap** | "While publishing status is set to 'Testing,' only test users are able to access the app. Allowed user cap prior to app verification is 100, and is counted over the entire lifetime of the app." |
+| **Test users** | a **+ Add users** button |
+
+Under **Test users**, press **+ Add users**. Add the Google address you will sign in as, and save it.
+
+{/* UNWITNESSED: the panel + Add users opens, its field label, and its save control. The + Add users button itself is captured on the Audience page (google-audience.png), and nothing after the press is — which is why no control is named in the sentence above. Needed: one screenshot of the open panel. */}
+
+**Test users** then lists that address, and the **OAuth user cap** meter reads
+`1 user (1 test, 0 other) / 100 user cap`.
 
 <Frame caption="Google Auth Platform → Audience. Test users is at the bottom; Clients, where the next step goes, is in the left navigation.">
   <img src="/images/google-audience.png" alt="The Google Auth Platform Audience page for a project named Postern. Publishing status reads Testing, with a Publish app button. User type reads External, with a Make internal button. An OAuth user cap section counts 1 test user of 100. Below it, a Test users section with an Add users button. The left navigation lists Overview, Branding, Audience, Clients, Data access, Verification centre and Settings." />
@@ -182,27 +282,43 @@ http://localhost:8787/api/oauth/google/callback
 Back in the Cloud console, open **Google Auth Platform** → **Clients** → **Create client**. The page
 heading reads **Create OAuth client ID**.
 
-Choose **Web application** in the application-type list. Type a name into **Name**, which Google
-marks required. That name only identifies the client inside the Cloud console. Nobody who signs in
-ever sees it.
+Choose **Web application** in **Application type**, which Google marks required.
 
-Under **Authorised redirect URIs** — the section whose helper reads *"For use with requests from a
-web server"* — press **+ Add URI** and paste the address you copied. Do not use **Authorised
-JavaScript origins** above it, whose helper reads *"For use with requests from a browser"*. Some
-accounts spell both labels **Authorized**, with a z.
+Type a name into **Name**, also required. It arrives prefilled with `Web client 1`. Google's note
+reads "The name of your OAuth 2.0 client. This name is only used to identify the client in the
+console and will not be shown to end users."
+
+Under **Authorised redirect URIs** — the section whose note reads "For use with requests from a web
+server" — press **+ Add URI**. A field appears, labelled **URIs 1** and marked required, which shows
+`https://www.example.com` until you type. Paste the address you copied.
+
+Do not use **Authorised JavaScript origins** above it, whose note reads "For use with requests from a
+browser".
+
+{/* UNWITNESSED: the z-spelling. Every Google capture in the witness pack comes from an en-GB account, which renders "Authorised", "organisation" and "Verification centre". Other accounts are reported to render "Authorized"; nobody here has seen that screen, which is why neither spelling is bolded in the sentence below. Needed: one capture of this form on a US-locale account. */}
+
+Both section labels change spelling with the account's language. These captures read `Authorised`;
+other accounts read `Authorized`, with a z. Match a section by its note, not by its spelling.
 
 <Warning>
-  Google shows the client secret once, in the dialog it opens the moment you press **Create**. Copy
-  the client ID and the client secret out of that dialog before you close it. Nothing can reveal a
-  lost secret again. The only way back is to delete the client and create another, which changes the
-  client ID too.
+  Google shows the client secret once, in the dialog it opens the moment you press **Create**. Its
+  own wording: "You will no longer be able to view or download the client secret once you close this
+  dialogue. Make sure that you have copied or downloaded the information below and stored it
+  securely." Copy the client ID and the client secret before you close it. The client ID stays
+  readable afterwards; the secret never does. The only way back is to delete the client and create
+  another, which changes the client ID too.
 </Warning>
 
-Press **Create**. Google opens a dialog that holds the client ID and the client secret. Copy both out
-of it now.
+Press **Create**. Google opens a dialog headed **OAuth client created**. It holds **Client ID**,
+**Client secret**, **Creation date**, `Status` **Enabled** and a **Download JSON** control. Each of
+the two values has a copy control beside it. Copy both now, then press **OK**.
 
-Google's own note at the foot of that form reads *"Note: It may take five minutes to a few hours for
-settings to take effect."*
+Two lines in that dialog matter. One reads "The client ID can always be accessed from the Clients tab
+under the Google Auth Platform." The other repeats the last step's rule: "OAuth access is restricted
+to the test users listed on your OAuth consent screen".
+
+Google's own note at the foot of the form reads "Note: It may take five minutes to a few hours for
+settings to take effect".
 
 Google's **APIs and services** → **Credentials** page lists the same clients, under **OAuth 2.0
 Client IDs**. Either route reaches them.
@@ -213,14 +329,31 @@ Client IDs**. Either route reaches them.
 
 Go back to the Console's Google screen (`http://localhost:8787/connect/google`). Under **Configure
 the app**, paste the client ID into **Client ID**, and the client secret into **Client secret**.
-Press **Save & sign in with Google**.
 
 Google needs both halves. With only the ID, the Console answers `Google is a confidential client —
 paste the client secret too, or the sign-in will be refused.`
 
-The Console hands that same tab over to Google, so finish anything else you have open in it first.
-Sign in as the address you added under **Test users**. Google refuses every other account, whichever
-one the browser is already signed into.
+<Warning>
+  Sign in as the address you added under **Test users**. Google refuses every other account,
+  whichever one the browser is already signed into. Its refusal fills the page, and it names your
+  app:
+
+  `Access blocked: Postern has not completed the Google verification process`
+
+  `Postern has not completed the Google verification process. The app is currently being tested and
+  can only be accessed by developer-approved testers. If you think that you should have access,
+  contact the developer.`
+
+  `If you are a developer of Postern, see error details.` · `Error 403: access_denied`
+
+  Google prints whatever you typed into **App name**, so your own copy carries that name where this
+  one reads `Postern`. Nothing was saved. Add the address under
+  [**Test users**](#test-users), then start again from the Console's Google screen.
+</Warning>
+
+Press **Save & sign in with Google**. The button reads `Redirecting...`, and Google's account chooser
+opens in the same tab. The Console hands that tab over, so finish anything else you have open in it
+first.
 
 <Frame caption="The Console's Google screen, captured on an already-connected source. On a first connection the button reads Save & sign in with Google. The numbered steps are from an older Console build — the current one carries four, and the redirect address sits in the third.">
   <img src="/images/google-console-card.png" alt="The Console's Google connect screen: numbered steps on the left to register the app, and a Client ID field with the placeholder ...apps.googleusercontent.com and a Client secret field with the placeholder GOCSPX-... on the right, under the heading Configure the app, above the connect button." />
@@ -237,8 +370,8 @@ one the browser is already signed into.
 
 Two Google screens follow, and both read like failures.
 
-The first says **Google hasn't verified this app**. That is what an app with Publishing status
-**Testing** looks like to its own author. **Continue** is the plain text link at the bottom. The
+The first says **Google hasn't verified this app**. That is what an app whose **Publishing status**
+is **Testing** looks like to its own author. **Continue** is the plain text link at the bottom. The
 blue **Back to safety** button cancels the sign-in.
 
 <Frame caption="Continue is the plain text link, to the left of the blue button. The blue button is Back to safety, and it cancels.">
@@ -282,12 +415,18 @@ synced** time.
 
 <Step title="Publish the app to end the weekly sign-in" titleSize="h2" id="publish">
 
-While Publishing status stays **Testing**, Google expires the app's access every 7 days. Calendar
+While **Publishing status** stays **Testing**, Google expires the app's access every 7 days. Calendar
 and contacts then stop until you sign in again.
 
-To end that, open **Google Auth Platform** → **Audience** and press **Publish app**. That is the
-same page where you added **Test users**. Confirm the dialog Google opens. Publishing status then
-reads **In production**.
+To end that, open **Google Auth Platform** → **Audience** — the same page where you
+[added your test user](#test-users) — and press **Publish app** under **Publishing status**. Confirm
+what Google asks for.
+
+{/* UNWITNESSED: what Google opens after Publish app, its controls, and the exact wording Publishing status takes afterwards. The Publish app button itself is captured on the Audience page (google-audience.png); nothing after the press is. Google's own documentation names the resulting status "In production", which is why that phrase is quoted as documentation below and not bolded as a label. Needed: one screenshot of the confirmation, and one of Publishing status after it. */}
+
+**Publishing status** then leaves **Testing**, and the 7-day expiry stops. Google's own documentation
+calls the status you land on "In production". Nobody here has captured that screen, so match it by
+what it is not: **Testing**.
 
 For a one-person app that asks for these two read-only permissions, this is a form, not a review.
 
@@ -304,17 +443,21 @@ one.
 - Each of the three shows a **Last synced** time.
 - The Console's Gmail and Google screens read that the source is connected, and their buttons read
   **Reconnect Gmail** and **Reconnect Google**.
-- In the project that owns your client, **Google Calendar API** and **People API** both read Status
+- In the project that owns your client, **Google Calendar API** and **People API** both read `Status`
   **Enabled**. Each page carries **Disable API** at the top.
-- **Google Auth Platform** → **Audience** reads User type **External** and lists your address under
-  **Test users**.
+- On **Google Auth Platform** → **Audience**, **User type** reads **External**, and **Test users**
+  lists the address you signed in as.
 
 ## If something went wrong
 
 | What you see | What to do |
 |---|---|
-| `OAuth access is restricted to the test users listed on your OAuth consent screen.` | Your address is not listed. Open **Google Auth Platform** → **Audience** → **+ Add users**, add it, save it, then sign in again from the Console. [Set up the consent screen](#consent-screen) |
-| **To create an OAuth client ID, you must first configure your consent screen** | The project has no consent screen yet. Press **Configure consent screen** on that bar, or open **Google Auth Platform** → **Audience**. [Set up the consent screen](#consent-screen) |
+| `Access blocked: Postern has not completed the Google verification process`, with `Error 403: access_denied` under it | Your address is not listed as a test user, or you signed in as another account. Open **Google Auth Platform** → **Audience** → **+ Add users**, add it, save it, then sign in again from the Console. Google prints your own app name where this reads `Postern`. [Add yourself as a test user](#test-users) |
+| `OAuth access is restricted to the test users listed on your OAuth consent screen.` | The same cause, worded differently by Google. Add your address under **Test users**, then sign in again from the Console. [Add yourself as a test user](#test-users) |
+| **To create an OAuth client ID, you must first configure your consent screen** | The project has no consent screen yet. Press **Configure consent screen** on that bar. It opens the **Project configuration** wizard. [Set up the consent screen](#consent-screen) |
+| **Remember to configure the OAuth consent screen with information about your application.** | The same cause, on the **Credentials** page. The **Configure consent screen** button beside it opens the same wizard. [Set up the consent screen](#consent-screen) |
+| **Internal** is greyed out on the **Audience** step of the wizard | Hover **Internal**: "Because you're not a Google Workspace user, you can only make your app available to external (general audience) users." Choose **External**. Audience is required, and a skipped choice turns the step marker red with no message beside it. [Set up the consent screen](#consent-screen) |
+| Contacts stay empty while calendar works | You enabled the old **Contacts API**, whose `Service name` reads `contacts.googleapis.com`. Enable the **People API** as well. [Enable the two APIs](#enable-apis) |
 | A permission error on calendar or contacts right after a successful sign-in — the Console shows it as 403 | The two APIs are not enabled in the project that owns your client. Open that project's **APIs and services** → **Library**, enable **Google Calendar API** and **People API**, wait a minute or two, then press **Reconnect Google**. [Enable the two APIs](#enable-apis) |
 | Google refuses before any consent screen appears, and names the redirect URI | The address under **Authorised redirect URIs** does not match. Press **Copy** on the Console's Google screen, and replace the address on the client. [Create the OAuth client](#oauth-client) |
 | `{"error":"invalid or expired state"}` in the browser after you approve | The sign-in ran past 10 minutes, or Postern restarted, or you reused an old tab. Postern stored nothing. Start again from the Console's Google screen. [Paste both halves and sign in](#sign-in) |
@@ -335,7 +478,7 @@ connector can never act, whatever permission it holds](/reference/grants-and-sec
 
 What this costs you from here on:
 
-- While Publishing status stays **Testing**, you sign in again every 7 days. [Publish the
+- While **Publishing status** stays **Testing**, you sign in again every 7 days. [Publish the
   app](#publish) ends that.
 - Revoke the app password or the Google sign-in at your Google Account, not in Postern. Each stops
   only its own connections, and a fresh sign-in overrides an earlier revocation.
@@ -349,7 +492,7 @@ What this costs you from here on:
 
 <Columns cols={2}>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    an agent key, shown once · a few minutes, plus a restart of the client · a client that can reach
+    an agent key, shown once · a few minutes, plus a restart of the agent · an agent that can reach
     the machine Postern runs on
   </Card>
   <Card title="Connect Microsoft" href="/connect/microsoft">

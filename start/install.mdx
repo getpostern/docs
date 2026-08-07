@@ -166,7 +166,7 @@ Docker Compose creates.
      tells a later you when you took the copy.
 
   2. **Hold the key yourself.** Put `PCI_MASTER_KEY` in `.env` — a base64 32-byte key you keep —
-     and restart. Make one with `openssl rand -base64 32`. Set it before the first start: a new key
+     and restart. Make one with `openssl rand -base64 32`. Set it before the first start. A new key
      against accounts encrypted under an old one makes Postern refuse to start.
 
   A restore brings the notice back. The marker sat in the old storage area, and the restore makes a
@@ -212,7 +212,7 @@ network. Do not put a tunnel service in front of it. The full argument is in
 [The Console has no authentication](/reference/security-model#the-console-has-no-authentication).
 
 The Console opens on a page headed `Your gate is new.` with one button, **Add your first source**.
-The list down the left has **Gatehouse**, then the six sectors, then **Sources**, **Agents & keys**,
+The left sidebar lists **Gatehouse**, then the six sectors, then **Sources**, **Agents & keys**,
 **The ledger** and **Settings**. A sector is one area of your life: finance, mail, calendar,
 contacts, health, home. It is the smallest thing you can grant.
 
@@ -259,8 +259,8 @@ docker volume ls
 
 Postern runs on a machine you own. Docker downloaded a finished image from
 `ghcr.io/getpostern/postern` and built nothing on that machine. There is no Postern account and no
-Postern server in the middle. Nothing is connected yet, and no agent can reach anything until you
-grant it.
+Postern server in the middle. You have connected nothing yet, and no agent can reach anything until
+you grant it.
 
 Three things are now yours to keep: the machine, on and updated; the one line in `.env`; and a copy
 of the vault key.
@@ -269,9 +269,10 @@ of the vault key.
 
 <Columns cols={2}>
   <Card title="Mint your first key" href="/start/first-key">
-    a name, the sectors it opens, and a deadline · a few minutes · the key is shown once
+    a name, the sectors it opens, a deadline · a few minutes · Postern shows the key once
   </Card>
   <Card title="Set up remote access" href="/start/remote-access">
-    Tailscale, and Funnel only if a hosted agent needs it · about 20 minutes, once · off by default
+    Tailscale, and Funnel only if a hosted agent needs a public address · about 20 minutes, once ·
+    off by default
   </Card>
 </Columns>

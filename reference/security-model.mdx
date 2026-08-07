@@ -11,8 +11,8 @@ description: "What Postern encrypts, what it does not, which computers can reach
     columns.
   - **The Console port has no password.** Which computers can reach it is the
     whole of its protection.
-  - **No external security review has been done.** Nobody outside the project has
-    audited this code, and there has been no penetration test.
+  - **Nobody outside the project has audited this code.** There has been no
+    external security review and no penetration test.
   - **Three related subjects live on three other pages.** Sectors, grants,
     revoke, rotate and expiry: [Grants and sectors](/reference/grants-and-sectors).
     The record of agent calls: [The audit log](/reference/audit-log). The tools an
@@ -39,7 +39,7 @@ internet, can.
 | Port | Carries | Reachable from | What protects it |
 |---|---|---|---|
 | 8787 — the Console port | the Console, the admin routes, the OAuth and Plaid routes, the audit read, the export, erase | this computer only | its address, and nothing else |
-| 8788 — the agent port | the MCP edge for agents | this computer only, until you turn on remote access | an agent key on every call |
+| 8788 — the agent port | the tools an agent calls over MCP | this computer only, until you turn on remote access | an agent key on every call |
 | Postgres | your synced rows | Postern only | it is not opened at all |
 
 The database gets no port in the compose file Postern ships. Only Postern reaches
@@ -49,7 +49,7 @@ cached. If you need one to inspect the data, add it temporarily and keep it on
 this computer: `ports: ["127.0.0.1:5432:5432"]`. Postern serves the Console, the
 Console's backend and the agent port from one address.
 
-Postern is open source, so none of this has to be taken on trust.
+Postern is open source, so you do not have to take any of this on trust.
 
 ## The Console has no authentication
 
@@ -77,15 +77,15 @@ ports:
 
 A `Host` check sits in front of those routes: `localhost`, `127.0.0.1`, `::1`,
 plus anything you add to `REST_ALLOWED_HOSTS` in `.env`. It checks the address
-your browser used, and it stops a malicious web page from reaching Postern
+your browser used, and it stops a malicious web page that tries to reach Postern
 through your own browser.
 
 It is not a password. The `Host` header is a string the caller chooses, so it
 identifies nobody. Anyone who can open a connection to that port can send
-`Host: localhost:8787` and create an agent key in one request. No credential is
-needed, and the key comes back in the answer. `REST_ALLOWED_HOSTS` only widens
-which `Host` values are accepted, so it cannot make the port safe. Add a tailnet
-name to it and every admin route opens to every device on your tailnet.
+`Host: localhost:8787` and create an agent key in one request. That request needs
+no credential, and the key comes back in the answer. `REST_ALLOWED_HOSTS` only
+widens which `Host` values Postern accepts, so it cannot make the port safe. Add a
+tailnet name to it and every admin route opens to every device on your tailnet.
 
 To reach the Console from another computer, leave the `ports:` line alone. Put
 something that authenticates in front of it. It has to land on this computer: an
@@ -98,22 +98,22 @@ the machine itself — the only kind of request Postern answers. The port stays
 local and the tunnel carries the identity.
 
 The rule is per route, not per port. Three other route groups share port 8787, and
-each is protected differently.
+Postern protects each one differently.
 
 | Route group on 8787 | What protects it |
 |---|---|
 | the admin, OAuth and Plaid routes | nothing but the address |
-| the agent read mirror | an agent key on every request |
+| the REST read mirror | an agent key on every request |
 | `/healthz` | nothing, deliberately, so a container check can reach it — it returns only a status |
 | `POST /api/ingest/:connectionId` | a per-connection secret, described below |
 
-## The agent edge authenticates every call
+## The agent port authenticates every call
 
-Port 8788 carries the MCP edge. MCP is the standard way AI assistants connect to
+Port 8788 is the agent port. MCP is the standard way AI assistants connect to
 outside tools. Postern speaks it, so Claude, ChatGPT and Cursor connect the same
 way. Every call carries a per-agent key in an `Authorization: Bearer` header, and
-Postern resolves it to a grant before anything runs. A missing, unknown or
-revoked key is refused at the handshake, before any tool exists to call.
+Postern resolves it to a grant before anything runs. Postern refuses a missing,
+unknown or revoked key at the handshake, before any tool exists to call.
 
 Port 8788 is opened to this computer only. To let an agent reach it from
 elsewhere, go to Console → **Settings** → **Remote access**. Do not edit the
@@ -135,7 +135,7 @@ is the full model.
 A key is 32 random bytes from Node's cryptographic random source, encoded as
 base64url. Postern stores the SHA-256 of it, in `agent_grants.key_hash`. Postern
 cannot show you this key again. It keeps a scrambled copy it can check against,
-never the key itself. No route returns it, including the route that lists your
+never the key itself. No route returns it, not even the route that lists your
 agents. A rotation is the only way to get a new one.
 
 Postern hashes a presented key the same way and looks the result up. Three states
@@ -143,8 +143,8 @@ refuse it: unknown key, revoked key, expired key. Postern puts the reason in the
 record rather than tells the caller which of the three it was.
 
 A key carries no expiry unless you set one when you create it, and no expiry
-means never. A key is dead at the instant it expires, including inside a session
-that is already open. [Expiry](/reference/grants-and-sectors#expiry) carries the
+means never. A key is dead at the instant it expires, even inside a session that
+is already open. [Expiry](/reference/grants-and-sectors#expiry) carries the
 presets and the rules.
 
 One rule tightens that. Postern's OAuth bridge refuses a hosted agent whose key
@@ -156,10 +156,10 @@ mint or rotate a key with a 30/90/365-day expiry in the Console, then try again.
 ```
 
 The bridge enforces that rule, and nothing else does. Nothing at creation time
-stops a never-expiring key, because Postern cannot know then that the key is
-bound for someone else's cloud. So a key created before you had a
-public address is refused at the sign-in, not earlier. A key that never expires,
-held by a company's cloud, ends only when you notice it.
+stops a key that never expires, because Postern cannot know then that the key will
+go to someone else's cloud. So the bridge refuses a key you created before you had
+a public address — at the sign-in, not earlier. A key that never expires, held by a
+company's cloud, ends only when you notice it.
 
 The bridge also accepts a client registration from anyone who can reach your
 public address. The OAuth standard requires that, so Postern cannot refuse one on
@@ -178,9 +178,9 @@ box, and why neither is a setting.
 | **Rotate** | the old key, at once | Postern replaces the stored hash and, in the same transaction, deletes every OAuth-bridge code and token made from the old key. The agent's name and grants stay. |
 | **Edit a grant, or change an expiry** | the current session | Postern runs the same sweep whether the change widens or narrows. The change lands at the agent's next session. The cost is one reconnection. |
 
-Nothing at the source changes. Revoke a hosted agent's key and its next call is
-refused; rotate and its existing passes die at the same moment. A rotation is the
-answer to a leaked key, which is why the derived credentials die with it.
+Nothing at the source changes. Revoke a hosted agent's key and Postern refuses its
+next call. Rotate, and its passes die at the same moment. A rotation is the answer
+to a leaked key, which is why the derived credentials die with it.
 
 [Revoking, rotating, and removing](/reference/grants-and-sectors#revoking-rotating-and-removing)
 carries the procedure, the order the code runs in, and the one thing the code
@@ -188,7 +188,8 @@ does not settle.
 
 ## There is no rate limit and no lockout
 
-A wrong key costs the sender nothing on either agent edge. Nothing counts
+A wrong key costs the sender nothing, on the agent port or on the REST read
+mirror. Nothing counts
 failures, nothing locks out an agent or an address, and nothing slows the next
 attempt. The defence is the 256 bits of randomness in the key. There is no second
 layer behind it.
@@ -197,13 +198,13 @@ Postern records refused keys rather than drops them silently. The agent port
 writes a deny line for every key a caller presents and Postern refuses. The cap
 is 30 a minute, and one combined line stands in for whatever the cap swallowed. A
 caller that presents no key at all leaves no line, unless the OAuth bridge is on.
-The Console port's read mirror records no refused key at all —
+The REST read mirror records no refused key at all —
 [what does not get a row](/reference/audit-log#what-does-not-get-a-row) has the
 split.
 
 Postern has exactly one rate limiter and it is not here. It sits on the OAuth
-bridge's own routes — registration, authorize, token — at 120 requests a minute,
-and it is sized for availability, not defence.
+bridge's own routes — registration, authorize, token — at 120 requests a minute.
+Postern sized it for availability, not for defence.
 
 Behind a Tailscale Funnel there is no client address to count against. The tunnel
 lands locally and Docker rewrites every connection to one source, so a per-caller
@@ -212,8 +213,8 @@ limit becomes one global limit for the whole internet. `MCP_TRUSTED_PROXIES` in
 proxy supplies a real client address. Leave it unset otherwise.
 
 The cost is narrow: a stranger who finds your address can disrupt connection
-setup. No data is exposed, no key is at risk, and every read and action stays
-key-gated.
+setup. That exposes no data and puts no key at risk, and every read and action
+still needs a key.
 
 **A refused source credential is not retried.** Home Assistant throttles repeated
 sign-in failures, so Postern treats `auth failed: invalid token` as final. Only a
@@ -225,28 +226,28 @@ Postern encrypts every password a source gave you before it reaches the database
 It never hands a source password to an agent, on any path.
 
 **In the vault:** OAuth access and refresh tokens, app-specific passwords,
-SimpleFIN access URLs, Home Assistant tokens, Plaid item tokens, and the client
-secrets of the provider apps you register yourself.
+SimpleFIN access URLs, Home Assistant tokens and Plaid item tokens. Postern also
+encrypts the client secrets of the provider apps you register yourself.
 
 They live in one `secrets` table. A credential row holds only a pointer of the
-form `sec_<uuid>`, never the secret. A secret is never written into a data row
-and never comes back out of a route.
+form `sec_<uuid>`, never the secret. Postern never writes a secret into a data
+row, and no route ever returns one.
 
 | | |
 |---|---|
 | Cipher | AES-256-GCM |
-| Per record | a fresh 12-byte nonce, and the 16-byte authentication tag appended to the ciphertext |
-| Bound into the tag | the owning context — user, provider, purpose |
-| Checked on the way out | the stored context must equal the one the caller re-derives, and then the tag is verified over it |
+| Per record | a fresh one-time value, never reused, and a check value stored with the encrypted text |
+| Bound into that check value | the owning context — user, provider, purpose |
+| Checked on the way out | the stored context must equal the one the caller re-derives, and then Postern verifies the check value over it |
 
-A record encrypted for one purpose cannot be opened as another, and a swapped
-pointer fails rather than decrypts. `SECURITY.md` carries the rest of the
-cryptographic detail.
+A record encrypted for one purpose does not open as another, and a swapped
+pointer fails rather than decrypts. `SECURITY.md` carries the exact algorithm
+parameters and the rest of the cryptographic detail.
 
 **There is no password on the vault.** The master key is 32 raw bytes. Either
 Postern generates them on first use, or you supply them in `PCI_MASTER_KEY` as
-base64 of exactly 32 bytes. A value that decodes to any other length is refused
-outright, never padded or truncated. There is no passphrase, no key derivation
+base64 of exactly 32 bytes. Postern refuses a value that decodes to any other
+length outright, and never pads or truncates one. There is no passphrase, no key derivation
 and no escrow. The key file is the secret, and anything that can read it can open
 the vault.
 
@@ -273,13 +274,14 @@ boot. A Postern that has connected nothing has no key yet. Under Docker the
 **A disconnect removes the credential, not the data.** Postern sets the
 connection and its credential to revoked, so nothing schedules another sync. Then
 it deletes the encrypted access token, the refresh token and the stored client
-secret from the vault. The cached rows are a third thing and are untouched.
+secret from the vault. The cached rows are a third thing, and Postern leaves them
+alone.
 
 ### Rotating the master key
 
 Rotation is offline. Postern re-encrypts every record under the new key, in place
-under the same pointers, so nothing that points at a secret has to be repointed.
-An interrupted run resumes, because the new key's label is derived from the key
+under the same pointers, so nothing that points at a secret has to change. An
+interrupted run resumes, because Postern derives the new key's label from the key
 bytes and the same command skips the records it already re-encrypted.
 
 <Warning>
@@ -309,7 +311,7 @@ curl -fsS http://localhost:8787/healthz    # {"status":"ok"}
 `PCI_MASTER_KEY_ID` defaults to the literal `env`, so a key supplied without its
 label matches none of the re-encrypted records and Postern refuses to boot.
 [docs/runbooks/key-rotation.md](https://github.com/getpostern/postern/blob/main/docs/runbooks/key-rotation.md)
-in the repository is the full procedure, including the source-checkout form.
+in the repository is the full procedure. It covers the source-checkout form too.
 
 ## What the vault does not cover
 
@@ -328,7 +330,7 @@ vendor documents its own.
 
 One narrower fact cuts the other way. The mail table has no column for a message
 body or an attachment. Postern stores who sent it, the subject, the dates and the
-preview line. It never stores the message text. A body is fetched from the
+preview line. It never stores the message text. Postern fetches a body from the
 provider when an agent asks for that one message.
 
 ## Losing the vault key
@@ -342,11 +344,11 @@ provider when an agent asks for that one message.
 </Warning>
 
 If Postern cannot open the vault at start-up, it refuses to start rather than
-start broken. The migrations run first. Then, before any port is served, Postern
+start broken. The migrations run first. Then, before Postern serves any port, it
 opens one encrypted record per distinct key label among the credentials its live
 connectors need. If any of those fails, Postern refuses to start. It names the
-label, the count and the first pointer that failed, and it reports that nothing
-was changed. No environment variable, flag or setting skips that check.
+label, the count and the first pointer that failed, and it reports that it changed
+nothing. No environment variable, flag or setting skips that check.
 
 The check is deliberately narrow, so a real read is still the verification that
 counts. A wrong key restores cleanly and then decrypts nothing.
@@ -379,7 +381,7 @@ docker compose exec app sh -c \
 ```
 
 Postern only checks that the file is there. Write the date into it anyway, so a
-later you knows when the copy was taken. If you set `PCI_MASTER_KEY_PATH`, use
+later you knows when you took the copy. If you set `PCI_MASTER_KEY_PATH`, use
 that path plus `.backed-up` instead. The marker sits in the same volume as the
 key on purpose. `docker compose down -v` takes both, and a marker that outlived
 its key would be a lie.
@@ -400,8 +402,8 @@ empty volume, and the marker was in the old one. Write it again.
 |---|---|
 | `scripts/backup.sh` exits with `refusing a keyless backup` and writes nothing | It reads the key from a host path, `.pci/master.key`. Under Docker the key is inside the `pci_master_key` volume, so no such file exists. When you manage the key yourself it writes a note that records that, and you still archive the value yourself. |
 | The database copy needs no password | The command runs inside the database container and connects over that container's own socket. The database service opens no port to the machine at all. |
-| Migrations are harmless on a restored database | They see an already-current schema and change nothing. The vault check runs before any port is served, which is why `/healthz` answers nothing for the first few seconds after `docker compose up -d app`. |
-| The same erase can be run twice | The deletes run as independent statements, not one transaction, and a repeated delete does nothing. An erase that stops partway is fully recovered by the same command again. |
+| Migrations are harmless on a restored database | They see an already-current schema and change nothing. The vault check runs before Postern serves any port, which is why `/healthz` answers nothing for the first few seconds after `docker compose up -d app`. |
+| You can run the same erase twice | The deletes run as independent statements, not one transaction, and a repeated delete does nothing. An erase that stops partway is fully recovered by the same command again. |
 | `/api/export` answers on this computer only | The bundle is the whole store, and no agent's grant narrows it. Its reachability is the only thing that bounds it. |
 | A restore pipes the key through standard input | That keeps the key off any folder shared between your machine and the container. |
 
@@ -430,11 +432,12 @@ Four properties make an internet-reachable route acceptable here:
   a guesser learns nothing from the speed of the answer. Postern compares two
   32-byte digests, never two strings. A stored hash of the wrong length fails
   closed rather than throws.
-- **Every failure answers identically.** An unknown connection id, a paused
-  connection, a connection with no secret set, a wrong secret and a malformed id
-  all return the same `401` and the same body, `{"error":"unauthorized"}`. Nobody
-  can use the route to learn what exists. That is also why a stuck device tells
-  you nothing: the answer is in the record, on the machine Postern runs on.
+- **Every failure answers identically.** Five causes all return the same `401` and
+  the same body, `{"error":"unauthorized"}`. They are an unknown connection id, a
+  paused connection, a connection with no secret set, a wrong secret, and a
+  malformed id. Nobody can use the route to learn what exists. That is also why a
+  stuck device tells you nothing: the answer is in the record, on the machine
+  Postern runs on.
 - **Ownership comes from the connection row, never from the payload.** Postern
   reads the user, the sector and the destination table from the database, against
   the id in the path. A pusher cannot choose whose account its records land in, or
@@ -446,7 +449,8 @@ behind the `Host` check.
 ## What Postern connects out to
 
 Postern pulls from your sources. No source has to reach the machine Postern runs
-on, and no port is opened for one. The push-ingest route above is the exception.
+on, and Postern opens no port for one. The push-ingest route above is the
+exception.
 
 Behind a strict outbound firewall, iCloud needs `*.icloud.com` and
 `imap.mail.me.com:993`. A fixed list of hostnames is not enough. Apple spreads
@@ -457,8 +461,8 @@ account's partition. Postern re-discovers that host on every call and stores non
 Postern checks every request address against `*.icloud.com` before it attaches
 the app-specific password. That covers Apple's internal discovery hops too. It
 takes redirects one at a time, and it refuses any redirect that leaves
-`*.icloud.com` rather than send the password again. HTTPS is required, and
-Postern refuses a downgrade to HTTP.
+`*.icloud.com` rather than send the password again. Postern requires HTTPS and
+refuses a downgrade to HTTP.
 
 ## Provider sign-ins
 
@@ -475,32 +479,34 @@ guess. Providers match the string character for character, which is why you copy
 it from your own Console and never from this page. It stays true if you move the
 Console off port 8787.
 
-It says `localhost` rather than `127.0.0.1` on purpose. Microsoft's portal refuses
-an `http://` address with an IP number in the **Redirect URIs** box, and it
-accepts any port after `localhost`. Google accepts both forms. WHOOP is proven on
-`localhost`.
+It says `localhost` rather than `127.0.0.1` on purpose.
+
+{/* UNWITNESSED: Microsoft's label on the redirect-address field beside the platform dropdown. The only capture crops it out, and every internal source that named it inferred the label. Needs one screenshot of that field. */}
+Microsoft's portal refuses an `http://` address with an IP number in the field
+beside the platform dropdown, and it accepts any port after `localhost`. Google
+accepts both forms. WHOOP is proven on `localhost`.
 
 Postern holds an unfinished sign-in in memory for 10 minutes and spends it on
-first use. Nothing about it is written to disk. If you wander off mid-consent,
-restart Postern, or reload the callback address, the sign-in ends and the browser
-shows `{"error":"invalid or expired state"}`. Nothing was stored and nothing is
-broken. Start again from the Console. The same hold governs Google, Microsoft and
-WHOOP.
+first use. It writes nothing about that sign-in to disk. If you wander off
+mid-consent, restart Postern, or reload the callback address, the sign-in ends and
+the browser shows `{"error":"invalid or expired state"}`. Postern stored nothing,
+and nothing is broken. Start again from the Console. The same hold governs Google,
+Microsoft and WHOOP.
 
 ### What each provider needs, and why
 
 | Provider | Client secret | The security fact behind it |
 |---|---|---|
-| Google | required | Google issues a confidential client, and Postern sends the secret only to Google, only to ask for fresh access. Postern asks for no Gmail permission, ever: the Gmail API needs restricted scopes, and restricted scopes mean an annual third-party CASA assessment for every self-hosted install. Mail comes in over IMAP with an app password instead. Google's scopes are locked to `calendar.readonly` and `contacts.readonly`, and a product test asserts that no Gmail scope can appear in the sign-in address. |
-| WHOOP | required | WHOOP has no public client type and ignores PKCE, so the secret is the only proof the request is your app. WHOOP renews a sign-in only when the refresh request carries `scope=offline`. A consent without it works today and is dead tomorrow. |
-| Microsoft | never created, stored or sent | Postern is a public client at Microsoft and proves itself with PKCE. The Console's **Client secret** field is disabled and reads `not required — public client (PKCE)`, and Postern rejects a secret sent for a public client. Unlike Google there is also no API to switch on and nothing to add under **API permissions**: Postern asks for its read permissions at sign-in, and Microsoft's consent screen is where you grant them. |
+| Google | required | Google issues a confidential client, and Postern sends the secret only to Google, only to ask for fresh access. Postern asks for no Gmail permission, ever: the Gmail API needs restricted scopes, and restricted scopes mean an annual third-party CASA assessment for every self-hosted install. Mail comes in over IMAP with an app password instead. Postern locks Google's scopes to `calendar.readonly` and `contacts.readonly`, and a product test asserts that no Gmail scope can appear in the sign-in address. |
+| WHOOP | required | WHOOP offers no app type that can prove itself without a secret, so the secret is the only proof the request is your app. WHOOP renews a sign-in only when the refresh request carries `scope=offline`. A consent without it works today and is dead tomorrow. |
+| Microsoft | never created, stored or sent | Microsoft lets Postern prove itself without a secret, so Postern never creates one. The Console disables its **Client secret** field, and that field reads `not required — public client (PKCE)`. Postern rejects a secret sent for such an app. Unlike Google there is also no API to switch on, and no permission to add in Entra ahead of time: Postern asks for its read permissions at sign-in, and Microsoft's consent screen is where you grant them. |
 | Plaid | a client ID and a Production secret | Postern pastes these into Plaid. There is no redirect address to register with Plaid at all. |
-| SimpleFIN | none | A setup token is claimed once, for an access URL. |
+| SimpleFIN | none | You claim a setup token once, for an access URL. |
 | iCloud | none | An app-specific password. |
 
 Postern encrypts every client secret into the vault on your machine. A secret
-leaves that machine for one purpose only: the request that renews the sign-in. It
-is never sent to a browser and never rendered back into the Console.
+leaves that machine for one purpose only: the request that renews the sign-in.
+Postern never sends it to a browser and never renders it back into the Console.
 
 ### Two Microsoft registration choices Postern cannot work around
 
@@ -531,15 +537,15 @@ is never sent to a browser and never rendered back into the Console.
 |---|---|
 | **An Apple ID password** | Postern does not check which iCloud credential you paste. It encrypts whatever you give it and stores it, so an Apple ID password ends up on the machine Postern runs on and then fails anyway. Apple refuses an Apple ID password for mail, calendar and contacts on an account with two-factor authentication on. Only an app-specific password works. The failure arrives at the first sync, not at the paste, because the paste never contacts Apple. |
 | **A SimpleFIN access URL** | It carries a username and a password inside its own text. Anyone who holds that line can read every bank linked at the Bridge, with no further sign-in. Postern encrypts it, never shows it back, never echoes it in an answer, and never writes it to a log. If you pasted an access URL rather than a setup token, delete the copy in your clipboard and in your notes. |
-| **A SimpleFIN setup token** | Not a credential Postern keeps — a one-time voucher. Postern base64-decodes it into the claim address the Bridge put inside it, requires `https://`, and posts to it once. The Bridge answers with an access URL, which Postern encrypts; the setup token is never written to disk. You can use a setup token one time. Once Postern claims one it is spent everywhere, in Postern and in every other SimpleFIN client. The remedy is a fresh one: at the Bridge, open **My account**, press **New app connection**, then press **Create Setup Token**. A failed claim writes no row, because Postern claims before it inserts the connection — so you can paste again with nothing to clean up. |
+| **A SimpleFIN setup token** | Not a credential Postern keeps — a one-time voucher. Postern base64-decodes it into the claim address the Bridge put inside it, requires `https://`, and posts to it once. The Bridge answers with an access URL, which Postern encrypts; Postern never writes the setup token to disk. You can use a setup token one time. Once Postern claims one it is spent everywhere, in Postern and in every other SimpleFIN client. The remedy is a fresh one: at the Bridge, open **My account**, press **New app connection**, then press **Create Setup Token**. A failed claim writes no row, because Postern claims before it inserts the connection — so you can paste again with nothing to clean up. |
 
 ### Plaid never shows Postern your bank sign-in
 
-Plaid's hosted Link is why a bank can be linked from a Postern that nothing on the
+Plaid's hosted Link is why you can link a bank from a Postern that nothing on the
 internet can reach. You sign in to your bank on a page Plaid hosts, in a tab
 Postern opened but does not read. The Console picks the result up by a check on
 the session every few seconds. Postern never receives a call back from Plaid, so
-no port is opened to the internet and there is no redirect address to register.
+it opens no port to the internet and there is no redirect address to register.
 What returns is an access token for that one bank, which Postern encrypts and
 stores. Postern never held the bank password.
 
@@ -555,7 +561,7 @@ Your tailnet is the private network Tailscale builds between the devices signed
 into your account. Nothing else can reach it. Postern documents Tailscale and
 nothing else, for four reasons:
 
-- it is encrypted end to end;
+- Tailscale encrypts it end to end;
 - it needs no port forwarded on your router;
 - it works on internet connections that block traffic from outside;
 - the certificate keys never leave the machine Postern runs on.
@@ -566,7 +572,7 @@ money in readable form on somebody else's network.
 
 | Fact | What it costs you |
 |---|---|
-| A Tailscale Funnel opens exactly three ports: 443, 8443 and 10000. A hosted agent makes outgoing connections on 443 only. | Use 443. A funnel on either other port is dropped before the request leaves the vendor's network, so the agent reports it could not connect and nothing at all appears in your record. |
+| A Tailscale Funnel opens exactly three ports: 443, 8443 and 10000. A hosted agent makes outgoing connections on 443 only. | Use 443. A funnel on either other port never gets the request out of the vendor's network, so the agent reports it could not connect and nothing at all appears in your record. |
 | `serve` and `funnel` are last-command-wins per port. | Scope the funnel permission to one machine's tag in your tailnet policy. If every machine holds it, a mistyped command on any of them can make something reachable from the internet. |
 | A public address is permanent in a certificate log. | Certificate Transparency is a public list of every secure-website certificate ever issued. Anyone can read it, and entries cannot be removed. |
 
@@ -579,8 +585,8 @@ and an address that stays live until you turn it off.
 Three properties hold by design:
 
 - **The resolved identity is the first argument** of every function that returns
-  data, and the sector check runs before any SQL. Every read is scoped to the user
-  on that identity. No path reads without one.
+  data, and the sector check runs before any SQL. Postern scopes every read to the
+  user on that identity. No path reads without one.
 - **A secret never lives in a row.** A credential row carries a pointer into the
   vault and nothing more. A domain row carries no pointer at all.
 - **An unknown sector fails closed.** Postern refuses a target whose first word is
@@ -588,7 +594,7 @@ Three properties hold by design:
   give.
 
 [SECURITY.md](https://github.com/getpostern/postern/blob/main/SECURITY.md) in the
-repository carries the project's full list, including properties this page has not
+repository carries the project's full list. It covers properties this page has not
 verified line by line.
 
 ## The record
@@ -597,9 +603,9 @@ Postern writes every agent read and every action to the record. It records what
 happened; it never stops anything, and no call waits for a line to land.
 
 **The record covers what your agents did, not what you did to your agents.** Six
-acts leave no row at all: create a key, rotate one, edit its sectors or its
-deadline, revoke it, delete it, and set a connection's sync window. Keep your own
-note of those. [What does not get a row](/reference/audit-log#what-does-not-get-a-row)
+acts leave no row at all. They are: create a key, rotate one, edit its sectors or
+its deadline, revoke it, delete it, and set a connection's sync window. Keep your
+own note of those. [What does not get a row](/reference/audit-log#what-does-not-get-a-row)
 lists them.
 
 Postern only ever adds to the record — append-only in practice: the only statement
@@ -616,10 +622,9 @@ holds, what gets one, and
 
 ## What has not been reviewed
 
-No external security review has been done. Nobody outside the project has audited
-this code, and there has been no penetration test. The review recorded in the
-repository's own history is internal — the same people who wrote the code, who
-then read it again.
+Nobody outside the project has audited this code. There has been no external
+security review and no penetration test. The review in the repository's own
+history is internal — the same people who wrote the code, who then read it again.
 
 One known question sits inside that gap. The push-ingest secret is the only
 comparison in Postern that takes the same time whether the value is right or
@@ -632,8 +637,9 @@ project has published no analysis of it.
 Postern is pre-1.0. The supported version is the latest release. Fixes go into the
 next release, and older releases do not get them, so update to stay fixed.
 
-To report something, use GitHub's private vulnerability reporting on the
-repository: the **Security** tab, then **Report a vulnerability**. That opens an
+{/* UNWITNESSED: GitHub's labels for the tab and the control that start a private report. No capture of GitHub's repository security page exists in the witness pack. Needs one screenshot. */}
+To report something, use GitHub's private vulnerability reporting on
+[the postern repository](https://github.com/getpostern/postern). It opens an
 advisory only the maintainers can see. There is no security mailbox, and an
 exploitable finding should not go in a public issue. Read the scope section of
 [SECURITY.md](https://github.com/getpostern/postern/blob/main/SECURITY.md) first.
@@ -661,7 +667,7 @@ computer, and Postern does not encrypt the cached data at rest.
 |---|---|
 | Postern refuses to start and names a key label | Read `PCI_MASTER_KEY_ID` in `.env`. Set it back to the label the message names — `env`, `file` or `auto` — then run `docker compose up -d app`. The key is usually intact and only its label changed. |
 | `VAULT KEY IS NOT BACKED UP` on every start, after you took a backup | Expected. No Console control writes the acknowledgement marker today. Write the marker yourself, or hold the key yourself: [the backup banner](#the-backup-banner-and-how-to-stop-it). |
-| An agent key that worked yesterday is refused today, with nothing changed | It has usually met its expiry. Console → **Agents & keys** → the agent shows its deadline. Rotate to create a fresh key, then hand the new one to the client. |
+| An agent key that worked yesterday is refused today, with nothing changed | It has usually met its expiry. Console → **Agents & keys** → the agent shows its deadline. Rotate to create a fresh key, then hand the new one to the agent. |
 | A push to `/api/ingest/…` returns `401` and `{"error":"unauthorized"}` | Every cause answers the same way, so check all four: wrong secret, wrong connection id, paused connection, no secret set. Press **Rotate secret** on the connection and re-enter the new secret on the device. |
 
 ## What you have now

@@ -261,13 +261,13 @@ connection covers stays your decision at the Bridge.
 To remove the connection, open **Sources** and press **Manage →** on the SimpleFIN row. Scroll to
 **Lifecycle**, to the row **Disconnect Finance**, and press **Disconnect**. A confirm panel opens. It
 names what it removes:
-`Removes Finance's cached data and this connection. Re-add it anytime.` Type `disconnect` in the box
-under **Type disconnect to confirm**, then press **Disconnect Finance**. Postern deletes this
+`Removes Finance's cached data and this connection. Re-add it anytime.` Type `disconnect` in the
+field under **Type disconnect to confirm**, then press **Disconnect Finance**. Postern deletes this
 connection's cached rows and the encrypted access URL. It sends nothing to the Bridge, so your
 subscription and your linked banks stay as they are.
 
 Add [Plaid](/connect/plaid) later for a bank the Bridge cannot reach. Postern merges an account that
-arrives through both, but only when both publish the last 4 digits. Otherwise it asks you to settle
+arrives through both, but only when both report the last 4 digits. Otherwise it asks you to settle
 it on its own screen.
 [Postern never merges two accounts on a resemblance](/reference/grants-and-sectors)
 
@@ -275,8 +275,8 @@ it on its own screen.
 
 <Columns cols={2}>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    a key you created, and a client that can reach the machine Postern runs on · a few minutes, plus
-    a restart of that client
+    a key you created, and an agent that can reach the machine Postern runs on · a few minutes, plus
+    a restart of that agent
   </Card>
   <Card title="Connect Apple Health" href="/connect/apple-health">
     Health Auto Export on your iPhone · about 10 minutes · push, not pull

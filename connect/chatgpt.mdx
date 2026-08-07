@@ -18,7 +18,7 @@ description: "ChatGPT connects from OpenAI's cloud, so Postern needs a public HT
     the sign-in, in another window, after step 2 has replaced it on your clipboard.
 </Info>
 
-About ten minutes, once the address is up. Every ChatGPT label below comes from a real run on
+About 10 minutes, once the address is up. Every ChatGPT label below comes from a real run on
 1 August 2026. Where that run recorded no label, this page names none. OpenAI renames these screens,
 so trust your screen over this page.
 
@@ -33,9 +33,9 @@ Open the Console at [http://localhost:8787](http://localhost:8787). Go to **Agen
 
 In **Name**, type `chatgpt`. That name is what the record prints under **Who**.
 
-Under **Grant which sectors**, tick each sector ChatGPT may reach. The six toggles read `finance`,
-`mail`, `calendar`, `contacts`, `health` and `home`. A grant covers read and act across every
-provider in the sector, and only `home` has anything to act on today —
+Under **Grant which sectors**, tick each sector ChatGPT may reach. The six toggles read **Finance**,
+**Mail**, **Calendar**, **Contacts**, **Health** and **Home**. A grant covers read and act across
+every provider in the sector, and only **Home** has anything to act on today —
 [what a grant covers](/reference/grants-and-sectors#what-a-grant-covers). A key with no sectors
 ticked still connects, and Postern then denies every read.
 
@@ -69,8 +69,9 @@ https://gateway.example-tailnet.ts.net/mcp
 ```
 
 <Warning>
-  The **MCP endpoint** block on the previous screen prints this gateway's **local** address, which
-  ChatGPT can never reach. Copy only from **Paste this into claude.ai or ChatGPT**.
+  The **MCP endpoint** block on the previous screen prints the address on the machine Postern runs
+  on, which ChatGPT can never reach. It still reads that way after you save a public address. Copy
+  only from **Paste this into claude.ai or ChatGPT**.
 </Warning>
 
 <Note>
@@ -82,7 +83,7 @@ https://gateway.example-tailnet.ts.net/mcp
   | `Bridge is off — agents can only reach this gate with a pasted key` | Nothing was ever published. [Set up remote access](/start/remote-access). |
   | `Bridge is off — an address is saved but not published yet` | In the folder that holds `docker-compose.yml`, run `docker compose restart app`. |
   | `Bridge is off — this gateway couldn't read its own exposure setting` | Open Settings → **Remote access**, which says why. |
-  | `This gateway didn't answer with its bridge status` | About the Console's own request, not about Postern. Reload. |
+  | `This gateway didn’t answer with its bridge status` | About the Console's own request, not about Postern. Reload. |
   | `Hosted clients egress on port 443 only; on any other port the connection is reset with nothing you'll see.` | Your address is local, plain `http`, or off port 443. Fix it in Settings → **Remote access**. |
 </Note>
 
@@ -145,8 +146,9 @@ A second tab opens on your own address, served by your own Postern. Step 5 happe
 
   If ChatGPT says instead that it could not reach your server, and nothing appears in your logs:
   nothing arrived, so there was nothing to log. Fix the address in step 2, then wait five minutes
-  before you retry. ChatGPT remembers a failed check for a few minutes, and the Console says so too —
-  `If claude.ai or ChatGPT says it can't connect, fix the address, wait five minutes, and try once.`
+  before you retry. The Console says the same thing under the address:
+  `If claude.ai or ChatGPT says it can't connect, fix the address, wait five minutes, and try once: a
+  hosted client remembers a failed check for a few minutes.`
 </Note>
 
 </Step>
@@ -167,7 +169,7 @@ start this from that app, close this page.` Postern prints both from what ChatGP
   Read both lines before you approve. Anyone who can reach your address can ask to connect, so those
   two lines are your only check —
   [why the bridge cannot refuse an unknown client](/reference/security-model#agent-keys). If the name
-  is not the app you just used, or the address does not belong to OpenAI, close the page.
+  is not the app you started this from, or the address does not belong to OpenAI, close the page.
 </Warning>
 
 Paste the key from step 1 into **Paste an agent key from the Console**, then press **Approve**.
@@ -201,8 +203,8 @@ no actions yet. That is what a new plugin shows, not a broken connection.
 
 {/* UNWITNESSED: the control in ChatGPT's message box that attaches a plugin. The 1 August 2026 run recorded the `[P] Postern` chip it produces, not the click that produced it. */}
 
-In a chat, add **Postern** to the message box. A `[P] Postern` chip lands in the box. Type your
-question after it.
+In a chat, attach the plugin you named `Postern`. A `[P] Postern` chip lands in the message field.
+Type your question after it.
 
 ChatGPT shows plain-English progress, never tool names: **Describing the Current Context** means
 ChatGPT called `describe_context`. On the `Allow low-risk` setting from step 4 it asked no
@@ -275,6 +277,6 @@ ChatGPT can only answer from sources Postern already holds. Pick the one you can
     publish to production
   </Card>
   <Card title="Connect Apple Health" href="/connect/apple-health">
-    Health Auto Export on your iPhone · about ten minutes · push, not pull
+    Health Auto Export on your iPhone · about 10 minutes · push, not pull
   </Card>
 </Columns>

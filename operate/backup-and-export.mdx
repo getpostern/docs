@@ -9,11 +9,13 @@ description: "Save the master key and the database in one file, restore them on 
   - **A terminal on the machine Postern runs on.** Every command runs from the folder that holds
     `docker-compose.yml` and `.env`.
   - **Postern installed and running.** [Install Postern](/start/install) if it is not.
-  - **The Console cannot back up.** Settings → Your data has a **Back up now** row. Its **Back up**
-    button is disabled: backup runs on the machine, and the Console is not told how it went.
+  - **The Console cannot back up.** Settings → **Your data** has a **Back up now** row, and its
+    **Back up** button is disabled. The row says why:
+    `Backup runs on the box — its status isn’t served to the Console.` Backup runs on the machine
+    Postern runs on, and the Console is never told how it went.
   - **Postern never backs up on its own.** You decide when to run this, and where the copy goes.
-  - **These commands are written for macOS and Linux.** Postern itself runs on Windows, because
-    it runs under Docker — but nobody has tested it there, and this page has no PowerShell form.
+  - **These commands are for macOS and Linux.** Postern runs under Docker, so it should also run
+    on Windows. Nobody has tested that. This page has no PowerShell form.
 </Info>
 
 ## Choose your path
@@ -47,9 +49,10 @@ grep -c '^PCI_MASTER_KEY=' .env
 
 An empty `PCI_MASTER_KEY=` counts as `0`. Postern reads an empty value as no value.
 
-**Postern holds it.** Postern made a 32-byte key on first boot and keeps it at
-`/app/.pci/master.key`, inside a Docker storage area named `pci_master_key`. The storage area is
-the key.
+**Postern holds it.** Postern makes a 32-byte key the first time it encrypts a credential. It is
+not made at first boot. A Postern that has connected nothing has no key yet. Postern keeps the key
+at `/app/.pci/master.key`, inside a Docker storage area named `pci_master_key`. The storage area
+is the key.
 
 **You hold it.** The value after the `=` is the key, and the storage area holds nothing to copy.
 Store that value in your password manager, away from the database copy. On the new machine, put
@@ -390,10 +393,10 @@ In the Console at `http://localhost:8787`, go to **Settings** → **Your data**.
 
 Pick one of the three scope cards. Each states what it reaches before anything happens:
 
-- **One connection** — that source's cached rows only. It stays connected, and a sync fills it
-  again.
-- **A sector** — everything in one sector, across every provider. The connections stay connected.
-- **Everything** — every sector, every connection. Postern keeps its identity and your agent keys.
+- **One connection** — `Drop one source's cached rows.` That connection stays connected, and a sync
+  fills it again.
+- **A sector** — `Everything in one sector, all providers.` Those connections stay connected.
+- **Everything** — `Every sector, every connection.` Postern keeps its identity and your agent keys.
   The data is gone.
 
 **One connection** is selected first, as the least destructive. For **One connection** or
@@ -401,7 +404,7 @@ Pick one of the three scope cards. Each states what it reaches before anything h
 
 1. Click **Export first**. The guard opens the moment you click, not when the download finishes —
    so watch that the file arrives.
-2. Type `ERASE` into the **Type ERASE to confirm** box.
+2. Type `ERASE` into the field labelled **Type ERASE to confirm**.
 3. Click **Erase this connection**, **Erase this sector** or **Erase everything**.
 
 If you change the target after that, both guards close again.
@@ -461,8 +464,8 @@ lost nothing are left out. So a short answer on a machine with a lot of data usu
 a narrower scope than you meant. A connection id that is not yours answers `404` and deletes
 nothing.
 
-Running the same erase twice is safe. An erase that stops partway is fully recovered by running the
-same command again. [Why](/reference/security-model)
+Running the same erase twice is safe. If an erase stops partway, run the same command again
+to finish it. [Why](/reference/security-model)
 
 </Step>
 

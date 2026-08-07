@@ -46,11 +46,11 @@ Postern asked for. It creates one connection per sector that list covers.
   because the consent covered two sectors.
 - **Microsoft** — Postern requests exactly `Mail.Read`, `Calendars.Read`,
   `Contacts.Read` and `offline_access`, and nothing else on any sign-in. That
-  gives 3 connections. A consent that grants fewer gives fewer connections; sign
-  in again and approve the whole set.
+  gives three connections. A consent that grants fewer gives fewer connections;
+  sign in again and approve the whole set.
 - **WHOOP** — `read:recovery`, `read:sleep` and `read:workout` each map to
   `health`. `read:cycles`, `read:profile` and `offline` map to no sector at all.
-  A consent that returns none of the 3 health scopes creates no connection. The
+  A consent that returns none of the three health scopes creates no connection. The
   Console then answers `WHOOP signed in, but granted no sectors. Check the scopes
   on your app, then sign in again.` It can only report the connection it made. It
   cannot name the scope it did not get.
@@ -66,7 +66,7 @@ and a bank added or dropped there appears or disappears on the next sync. The
 Connect Plaid as well and the same account can arrive through both. Postern's
 dedup engine matches on the institution's domain plus the last 4 digits in the
 account name, and serves one account rather than two. It merges on its own only
-when both providers publish a last 4. When one does not, it refuses to guess and
+when both providers report a last 4. When one does not, it refuses to guess and
 asks `Is this the same account, seen twice?` Answer once with **They're the same
 account** or **Keep them separate**, and it stays answered.
 
@@ -95,15 +95,16 @@ that agent and your data, for as long as the key lives.
 | Sector | Can an agent act in it? |
 |---|---|
 | `home` | **Yes.** Home Assistant serves a live action catalogue, built from its own entity-and-service registry. |
-| `finance`, `health`, `mail`, `contacts`, `calendar` | **No.** Every connector in these 5 declares an empty action list, so `list_actions` returns nothing and `invoke_action` has nothing to call. |
+| `finance`, `health`, `mail`, `contacts`, `calendar` | **No.** Every connector in these five declares an empty action list, so `list_actions` returns nothing and `invoke_action` has nothing to call. |
 
 The **Mint a key** form states it before you grant anything: `A grant covers read
 and act, but only Home has a catalogue to act on today; Finance, Mail, Calendar,
 Contacts, Health are read-only.`
 
 So no agent can move money through Postern, whatever its grant says. Google's
-`calendar` and `contacts` are read-only twice over: the 2 scopes Postern requests
-are read-only, and the connector refuses to run an action. WHOOP is the same.
+`calendar` and `contacts` are read-only twice over: the two scopes Postern
+requests are read-only, and the connector refuses to run an action. WHOOP is the
+same.
 
 That is a statement about connectors, not about the permission model. If a source
 adds actions later, keys that already hold that sector can use them. Nothing in a
@@ -123,8 +124,8 @@ grant names an action, so Postern re-issues nothing and asks nobody again.
 Parameters and returns are on [MCP tools](/reference/mcp-primitives).
 
 An agent whose key opens `finance` is served the accounts, transactions and
-holdings in the local cache, plus each connection's health. Once Plaid publishes
-one, it is also served the date that bank's consent expires.
+holdings in the local cache, plus each connection's health. Once Plaid reports
+one, Postern also serves the date that bank's consent expires.
 
 ## Read a grant, and change it
 
@@ -166,7 +167,7 @@ and connects, and then every sector check denies it. A freshly installed Postern
 answers on the agent port and grants nothing at all.
 
 Postern does not treat that as an error, and the Console does not block it:
-**Mint the key** needs a name and nothing else. The form says so 3 times.
+**Mint the key** needs a name and nothing else. The form says so three times.
 
 | Where on the form | What it reads |
 |---|---|
@@ -180,13 +181,13 @@ succeeds can still answer nothing.
 Two behaviours of the stored list matter if you write one through the API.
 
 - **A sector name Postern does not recognise is dropped, silently.** Postern
-  intersects the stored list with the 6 real sectors when the key resolves. A
+  intersects the stored list with the six real sectors when the key resolves. A
   grant of `finance` and `bogus` grants finance and raises nothing. The endpoint
   checks only that the field is an array of strings. If a sector you wrote does
-  not appear on the key, check its spelling against the 6 above.
-- **`*` expands to every sector.** A stored grant of `["*"]` resolves to all 6 at
-  connection time. The Console cannot write one, because its toggles are built
-  from the 6 named sectors. A wildcard grant can only arrive through
+  not appear on the key, check its spelling against the six above.
+- **`*` expands to every sector.** A stored grant of `["*"]` resolves to all six
+  at connection time. The Console cannot write one, because its toggles are built
+  from the six named sectors. A wildcard grant can only arrive through
   `POST /api/agents`.
 
 ## Expiry
@@ -194,7 +195,7 @@ Two behaviours of the stored list matter if you write one through the API.
 A grant carries a deadline, and its default is none. Stored as null, the key
 never expires.
 
-The **Expires** row offers 4 chips: **Never**, **30 days**, **60 days** and
+The **Expires** row offers four chips: **Never**, **30 days**, **60 days** and
 **90 days**. It starts on **90 days** once you have set a public address at
 Console → **Settings** → **Remote access**, and on **Never** before that. Through
 `POST /api/agents`, `expiresInDays` is a whole number of days from now between 1
@@ -221,7 +222,7 @@ one reconnection.
   refuses it. Rotate to mint a fresh key with a new deadline.`
 </Warning>
 
-Sectors on a dead key are a different case, and the 2 surfaces differ. Postern
+Sectors on a dead key are a different case, and the two surfaces differ. Postern
 accepts a sectors-only edit on a revoked or lapsed grant, because the sectors of
 a key that cannot resolve do nothing. The Console disables the toggles once a key
 is revoked and says `This key is revoked; its grants can no longer change.` On a
@@ -248,7 +249,7 @@ default and states the reason.
 
 ## Revoking, rotating, and removing
 
-Four operator verbs act on a grant. All 4 are on the Console port, and no agent
+Four operator verbs act on a grant. All four are on the Console port, and no agent
 can call any of them.
 
 | Verb | The clicks | What changes in the row | What the agent gets |
@@ -314,7 +315,7 @@ codes and tokens outright, because a rotate answers a compromise.
 
 ### What a revoke does not touch
 
-Erase, disconnect and revoke are 3 separate acts. Erase drops cached rows and
+Erase, disconnect and revoke are three separate acts. Erase drops cached rows and
 leaves the connection connected and the credential in the vault. Disconnect
 removes that connection's credential from the vault. Revoke ends an agent's key,
 touches no source credential, and changes nothing upstream.
@@ -342,7 +343,7 @@ touches anything upstream. A denial costs no database work and leaves no partial
 read.
 
 - **It fails closed on an unknown target.** A target whose leading segment is not
-  one of the 6 raises the same access denial as an ungranted sector. A typo'd or
+  one of the six raises the same access denial as an ungranted sector. A typo'd or
   invented object name can never map onto a real grant.
 - **Postern never compares the presented key as itself.** It stores a sha256 hash
   of the key and looks the grant up by that hash. The raw key is not stored, not
@@ -356,9 +357,9 @@ read.
 Both of these come from the REST read mirror, on the Console port. The agent port
 answers its own refusals differently — see below.
 
-| What the client sees | What it means | Does it write a row? | What to do |
+| What the agent sees | What it means | Does it write a row? | What to do |
 |---|---|---|---|
-| `401` with `{"error":"unauthorized"}` | The request presented no key Postern could read. | No. A missing or malformed key writes nothing. | Check the `Authorization: Bearer` line in the client's config. |
+| `401` with `{"error":"unauthorized"}` | The request presented no key Postern could read. | No. A missing or malformed key writes nothing. | Check the `Authorization: Bearer` line in the agent's config. |
 | `403` with `{"error":"access denied"}` | Postern read the key and said no: an unknown, revoked or expired key, or an ungranted sector. | It depends which. An **ungranted sector** writes a `deny` row. An unknown, revoked or expired **key** writes nothing here, because the mirror resolves the key before it reaches the code that records anything. | Click **Agents & keys**, click the agent, and check its status and its lit toggles. |
 
 **The agent port is the other way round.** It answers `Unauthorized` (`401`) to a
@@ -407,8 +408,8 @@ a creation stamp, a revocation stamp and a deadline. Nothing else. So there is:
   withheld;
 - no per-object, per-field or per-row grant;
 - no read-only grant — read and act travel together, and the only thing that
-  limits action today is that 5 of the 6 sectors have no action catalogue behind
-  them;
+  limits action today is that five of the six sectors have no action catalogue
+  behind them;
 - no per-call approval, no confirmation tier, no rate limit, no budget, no
   time-of-day window;
 - no per-sector deadline. One deadline covers the whole key;
@@ -439,14 +440,14 @@ shape you have.
 
 | What you see | What to do |
 |---|---|
-| The client connected, and every read comes back denied | The key has no sectors. Click **Agents & keys**, click the agent, tap a sector under **Grants**, then restart the client. |
-| The agent worked yesterday and is refused today, with nothing changed | The key met its deadline. Its client sees `Unauthorized` (`401`) from the agent port, or `403` and `{"error":"access denied"}` from the REST read mirror. The agent port records the refusal with reason `expired`; the mirror records nothing. A dead key's deadline cannot be moved: click the agent, press **Rotate**, press **Rotate the key**, then paste the new key into the client. |
+| The agent connected, and every read comes back denied | The key has no sectors. Click **Agents & keys**, click the agent, tap a sector under **Grants**, then restart the agent. |
+| The agent worked yesterday and is refused today, with nothing changed | The key met its deadline. The agent sees `Unauthorized` (`401`) from the agent port, or `403` and `{"error":"access denied"}` from the REST read mirror. The agent port records the refusal with reason `expired`; the mirror records nothing. A dead key's deadline cannot be moved: click the agent, press **Rotate**, press **Rotate the key**, then paste the new key into the agent. |
 | A sector is granted and every query comes back empty, or `no active connection for sector '<name>'` | Nothing is connected in that sector. Click **Sources** and connect one. This is not a permission problem. |
-| You asked an agent to act and it reports there is nothing to act on | Only `home` has an action catalogue today. The other 5 sectors are read-only, and no grant changes that. |
+| You asked an agent to act and it reports there is nothing to act on | Only `home` has an action catalogue today. The other five sectors are read-only, and no grant changes that. |
 
 ## What you have now
 
-The 6 sectors, what one grant covers, and where every control that changes a
+The six sectors, what one grant covers, and where every control that changes a
 grant lives in the Console. A grant covers read and act, and only `home` has
 anything to act on today. A revoke or a rotate ends every token derived from that
 key at once.

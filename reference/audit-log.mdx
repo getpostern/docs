@@ -26,8 +26,8 @@ whole of the authorization.
 **The record tells you what your agents did. It does not tell you what you did to
 your agents.** Six acts leave no row at all: create a key, rotate one, edit its
 sectors or its deadline, revoke it, delete it, and set a connection's sync window.
-Everything else on this page is recorded. And nothing here stops anything: the
-record is a witness, never a guard.
+Postern records everything else on this page. And nothing here stops anything:
+the record is a witness, never a guard.
 
 ## What one row holds
 
@@ -59,7 +59,7 @@ Nothing records the call's own time.
 
 ## What gets a row
 
-**Agent calls — all 7 tools.** `describe_context`, `get_schema`, `query`,
+**Agent calls — all seven tools.** `describe_context`, `get_schema`, `query`,
 `get_record`, `fetch_live`, `list_actions`, `invoke_action`. The agent port writes
 a row for every one, served or refused. The REST read mirror carries the five
 reads, and writes the same row for those. The agent key is never in any field, on
@@ -184,7 +184,7 @@ The row detail panel prints them whole under **Args (redacted, verbatim)**, and
 
 ## Read it in the Console
 
-Click **The ledger** in the left nav. The table has 6 columns: **Time**, **Who**,
+Click **The ledger** in the left nav. The table has six columns: **Time**, **Who**,
 **Tool**, **Sector**, **Args**, **Decision**. Click any row to open the **Ledger
 entry** panel — Time, Agent, Tool, Sector, Decision, Deny reason, Outcome, Result
 count, Request id and **Args (redacted, verbatim)**. Press **Close** or `Esc` to
@@ -299,7 +299,8 @@ route scopes every query to them.
 ### Paging headers
 
 - `x-postern-audit-has-more` — `true` or `false` on every 200. `false` means this
-  is the last page.
+  is the last page. Postern fetches one row past your `limit` and trims it, so a
+  page that fills exactly still reports `false` truthfully.
 - `x-postern-audit-next` — the cursor for the next page, present when has-more is
   `true`.
 
@@ -382,7 +383,7 @@ the machine as they land — Postern does none of that for you today.
   **Filter by sector** on **All sectors**, a row appears within about 2 seconds,
   with the agent's name under **Who** and `describe_context` under **Tool**.
 - Pause a connection or run a sync. A row appears with `operator` under **Who**.
-- Point a client at Postern with a key it does not know, then restart the client.
+- Point an agent at Postern with a key it does not know, then restart that agent.
   The client fails to connect, and a row appears with **Denied** under **Decision**.
 
 ## If something went wrong

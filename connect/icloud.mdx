@@ -8,9 +8,9 @@ description: "One app-specific password from Apple gives Postern three read-only
 
   - **An Apple Account with two-factor authentication already on.** App-specific
     passwords do not exist without it, and Postern cannot add one for you. If it is
-    off, turn it on first: Apple's two routes are in [step 1](#app-password).
+    off, turn it on first — [step 1](#app-password) says where.
   - **About 5 minutes, and your password manager open.** Apple shows the password
-    once and cannot show it again.
+    once, on a screen with no copy button, and cannot show it again.
   - **Postern installed, with the Console open** at `http://127.0.0.1:8787`. The
     Console answers only on the machine Postern runs on. That machine must reach
     the internet; behind a strict firewall, allow `*.icloud.com` and
@@ -32,33 +32,74 @@ Sign in at
 In the left rail, select **Sign-In & Security**. Under the **App-Specific
 Passwords** card, select **View details**.
 
-A window opens, titled **App-Specific Passwords**. Under the heading **Passwords**
-it lists the ones you already have. Each row carries the name you gave that
-password and the date you made it.
+A window opens, titled **App-Specific Passwords**. A line under the title counts
+the ones you already have. The heading **Passwords** sits over the list, one row
+each: the name you gave that password, and the date you made it. The list holds
+those two things only, never the password itself.
+
+{/* UNWITNESSED: the screen that turns two-factor authentication on. Apple's help article names a web control and a device path for it, but that is documentation prose — nobody has captured the screen. No control is named below. To close it: one capture of that flow on an account that has two-factor authentication off. */}
 
 <Note>
   **No App-Specific Passwords card?** Two-factor authentication is off on the
-  account, and Apple turns it on somewhere else. On the web: sign in at
-  [account.apple.com](https://account.apple.com/), then select **Upgrade Account
-  Security**. On an iPhone or iPad: **Settings** → **[your name]** → **Sign-In &
-  Security** → **Turn on two-factor authentication**. On a Mac, start at **System
-  Settings**.
+  account. App-specific passwords do not exist without it, and Postern cannot turn
+  it on for you. Turn it on first — on the web at
+  [account.apple.com](https://account.apple.com/), or in your Apple Account
+  settings on an iPhone, iPad or Mac. Apple's own help article calls the web
+  control *Upgrade Account Security*; nobody here has seen that screen, so look
+  for the wording your account shows. Come back here afterwards and the card is
+  there.
 </Note>
 
+Open your password manager before you go on.
+
+Press the **+** at the right-hand end of the **Passwords** heading.
+
+The **Generate App-Specific Password** window opens. It holds one field. **Create**
+below it is pale, and it does nothing while the field is empty.
+
+Type `Postern` into the field. The field carries no label. Its placeholder,
+**e.g. Bill Pay**, floats up into the corner as you type and becomes the label.
+The name only helps you find this password later in Apple's list. **Create** turns
+solid.
+
+Press **Create**. The window dims and shows **Updating…**.
+
 <Warning>
-  Apple shows the new password once, as it makes it. The list afterwards holds the
-  name and the date, never the password itself. Open your password manager before
-  you go on.
+  **Apple now stops you and asks for your Apple Account password. The flow has not
+  broken.**
+
+  A window headed **Confirm Your Password** takes over. Under the heading it reads
+  **For your security, enter the password for:** and then the address of your Apple
+  Account. One field, placeholder **Password**. Two buttons, **Cancel** and
+  **Continue**. **Continue** stays pale until the field has text.
+
+  Type your Apple Account password here, not an app-specific password, and press
+  **Continue**. This is Apple's screen on Apple's site. Postern never sees this
+  password.
 </Warning>
 
-Select the **+** at the top right of the **Passwords** section. Apple then asks you
-to name the password. Call it `Postern`. The name only helps you find it later in
-Apple's list.
+The **Generate App-Specific Password** window comes back, your name still in it,
+and shows **Updating…** again. Then Apple prints the password:
 
-{/* UNWITNESSED: everything after the +. Needed: the name field's label, the confirm control, the one-time reveal screen, and whether Apple prints the password as 4 hyphenated groups of 4. One captured walk of the dialog closes all four. */}
+- The heading reads **Your app-specific password is:**
+- Under it, the password itself: 4 groups of 4 lowercase letters, joined by
+  hyphens — `xxxx-xxxx-xxxx-xxxx`.
+- Under that: **Enter this password into the password field of the app you would
+  like to sign in to. Password is case-sensitive.**
+- One button, **Done**.
 
-Postern expects 4 groups of 4 characters — `xxxx-xxxx-xxxx-xxxx`. Copy the whole
-string, hyphens included.
+<Warning>
+  **There is no copy control on this screen.** No copy button, no copy icon, no
+  link. Select the password text yourself and copy it by hand, hyphens included.
+  Put it in your password manager now.
+
+  **Done** is the only control on the screen, and it is one-way. Apple cannot show
+  you this password again.
+</Warning>
+
+Press **Done**. You land back in the **App-Specific Passwords** window. The count
+under the title has gone up by one. A new row at the foot of the list carries the
+name you typed and today's date.
 
 <Note>
   Postern never asks for your Apple ID password. Everything on this step happens on
@@ -182,7 +223,9 @@ Postern checks. The floor is 5 minutes —
 
 | What you see | What to do |
 |---|---|
-| No **App-Specific Passwords** card under **Sign-In & Security** | Two-factor authentication is off on the account. Turn it on with **Upgrade Account Security** on the web, or on a device under **Sign-In & Security** — [Create an app-specific password at Apple](#app-password). |
+| No **App-Specific Passwords** card under **Sign-In & Security** | Two-factor authentication is off on the account. Turn it on at `account.apple.com`, or in your Apple Account settings on an iPhone, iPad or Mac — [Create an app-specific password at Apple](#app-password). |
+| **Confirm Your Password** appears after you press **Create** | Apple wants your Apple Account password, not an app-specific one. Type it and press **Continue**. The flow carries on where it stopped — [Create an app-specific password at Apple](#app-password). |
+| No copy button on the screen that shows the password | Apple does not put one there. Select the password text yourself and copy it by hand, hyphens included — [Create an app-specific password at Apple](#app-password). |
 | You closed Apple's screen before you copied the password | Apple cannot show it again. Make a second one and paste that. Take the lost one out of Apple's list with the **⊖** on its row — [Create an app-specific password at Apple](#app-password). |
 | Mail stays empty while calendar and contacts fill up | The **Apple ID** box holds an address that is not `@icloud.com`. Mail accepts your `@icloud.com` address only. Paste again with that address — [Paste it into the Console](#paste). |
 | `icloud-mail: sync failed`, `apple: DAV connect failed`, or `apple: DAV account discovery failed` | The password is wrong, or Apple revoked it. Make a new one, then re-paste it with **Yes — replace the stored app-specific password.** ticked — [Watch the first sync land](#first-sync). |

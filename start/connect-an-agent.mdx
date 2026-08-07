@@ -20,7 +20,7 @@ description: "Paste one config block into Claude Code or Cursor. Claude Desktop 
 ## Choose your path
 
 MCP is the standard way AI assistants connect to outside tools. Postern speaks it,
-so Claude, ChatGPT and Cursor all connect the same way.
+so Claude, ChatGPT and Cursor connect the same way.
 
 | Your agent | Then |
 |---|---|
@@ -39,7 +39,7 @@ A sector is one area of your life: finance, mail, calendar, contacts, health, ho
 It is the smallest thing you can grant.
 
 A new key can reach nothing until you tick a sector. A key with no sectors connects
-successfully, and Postern then denies every read. The mint form warns you under the button: `No
+successfully, and Postern then denies every read. The form warns you under the button: `No
 sectors granted yet — this key would be denied everything until you edit its
 grants.` A connection that succeeds can still answer nothing.
 [Default-deny](/reference/grants-and-sectors#default-deny).
@@ -50,9 +50,9 @@ nothing narrower. Only Home Assistant has anything to act on today.
 
 To widen a key, click the agent's name and tap the sector you want under
 **Grants**. Postern saves at once and prints `Tap to toggle; the change applies at
-the agent's next session.` That cuts the agent's live session, and the new sectors
-apply when it connects again. The key itself does not change, so you paste nothing
-a second time. [Read a grant, and change
+the agent's next session.` Postern ends that agent's live sessions when you change
+a grant, so the new sectors apply the next time it connects. The key itself does
+not change, so you paste nothing a second time. [Read a grant, and change
 it](/reference/grants-and-sectors#read-a-grant-and-change-it).
 
 To replace a key you have lost, rotate it:
@@ -71,7 +71,7 @@ destroy](/reference/security-model#revoking-and-rotating-a-key).
   used with a cloud client must have an expiry — mint or rotate a key with a
   30/90/365-day expiry in the Console, then try again.` The chips under **Expires**
   read **Never**, **30 days**, **60 days** and **90 days**. There is no 365-day
-  chip. [Set one at mint time](/start/first-key#expiry).
+  chip. [Set one when you create the key](/start/first-key#expiry).
 </Warning>
 
 </Step>
@@ -115,7 +115,7 @@ Use the address the Console prints, not the one above. Your port may differ.
   tells you what to do.
 
   `This gateway isn’t serving MCP, so it has no address to point an agent at. Set
-  MCP_HTTP_PORT on the box and restart it.` — or, on the screen after a mint, `This
+  MCP_HTTP_PORT on the box and restart it.` — or, on the screen after you create a key, `This
   gateway isn’t serving MCP yet, so it has no address to pair with this key.` Both
   mean the same thing. Open `.env` beside `docker-compose.yml`. Add the line
   `MCP_HTTP_PORT=8788`. Save it. In that same folder, run `docker compose up -d`.
@@ -214,21 +214,30 @@ your published address plus `/mcp` — if Settings saved
 The Console shows that **Copy** button only for an address a hosted agent can use:
 `https`, on port 443.
 
-**Connect claude.ai.** In claude.ai, open **Settings** → **Connectors** → **Add
-custom connector**. Paste the address you copied into the field for the server
-address. Leave **Client ID** and **Client Secret** empty. Postern issues no client
-secret, and it registers the agent itself.
+{/* UNWITNESSED: claude.ai's own screen — the same gap is marked in /start/remote-access.
+ The route "Settings → Connectors → Add custom connector" traces only to Postern's own Console copy
+ (ConnectHostedPage.tsx:91); agents.md §3c heads that finding "The click path — witnessed only as
+ Postern's own copy, not as claude.ai's screen", and the 2026-07-21 run corroborates the route, not
+ the labels. The dialog's field labels trace only to the founder's paraphrase — "we have client idd
+ and secret option" (agents.md §3a) — and agents.md §7 records them as never captured.
+ "Pick OAuth" is Postern's Console wording too (ConnectHostedPage.tsx:92), and agents.md §7 records
+ that nobody has seen claude.ai ask the question at all; it is kept below as advice, unbolded.
+ No claude.ai control is bolded here. One screenshot of that dialog closes it. */}
+**Connect claude.ai.** In claude.ai, open its settings and find its connectors. Add
+a connector of your own. Paste in the address you copied. If it asks for a client id
+or a client secret, leave both empty. Postern issues no client secret, and it
+registers the agent itself.
 
 <Note>
-  **Nobody has captured two labels in claude.ai's own dialog, so this page does not
-  print them.** We do not know what it calls the address field. We do not know whether
-  it ever asks how you want to sign in. One run, on 2026-07-21, is the whole record:
-  the dialog offered **Client ID** and **Client Secret**, the founder left both empty,
-  and the connection worked. The Console's own copy says to pick **OAuth** if the
-  agent asks how to authenticate. One screenshot of that dialog settles both.
+  **Nobody has captured claude.ai's dialog, so this page names nothing on it.** One run,
+  on 2026-07-21, is the whole record. It offered a client id and a client secret, the
+  founder left both empty, and the connection worked. What claude.ai calls the address
+  field is unknown. Whether it ever asks how you want to sign in is unknown too. If
+  yours asks, the Console's own advice is to choose OAuth. One screenshot of that dialog
+  settles both.
 </Note>
 
-claude.ai then opens a page served by your own Postern, headed **Authorize agent
+claude.ai then opens a page your own Postern serves, headed **Authorize agent
 access**. It names the app — `Claude`, for claude.ai — and the address your sign-in
 code goes to. Under **Paste an agent key from the Console**, paste your agent key.
 Press **Approve**. claude.ai holds a token that rotates from then on. That sign-in
@@ -246,8 +255,8 @@ machine. [Connect ChatGPT](/connect/chatgpt) walks it end to end.
 ## Confirm it works
 
 - Your agent lists seven Postern tools after the restart.
-- You type `What context can you reach?` and the agent answers with the sectors you
-  ticked for that key, how fresh each connection is, and nothing outside them.
+- You type `What context can you reach?` into the agent. It answers with the sectors
+  you ticked for that key, and how fresh each connection is — and nothing outside them.
 - Console → **The ledger** shows a new row: your agent's name under **Who**,
   `describe_context` under **Tool**. Leave the **Sector** filter off —
   `describe_context` belongs to no sector, and that filter drops exactly those rows.
@@ -270,13 +279,13 @@ reads from Postern's local cache. It can act only where the source allows, which
 today means Home Assistant alone.
 
 Every tool call that agent makes — served, refused or failed — lands in the record
-under its name, and Postern only ever adds to the record. [What gets a
-row](/reference/audit-log#what-gets-a-row). What you do to the key is not there:
-create a key, rotate one, edit its sectors or its deadline, revoke it or remove it,
-and Postern writes no row at all. [What does not get a
+under its name. Postern only ever adds to the record. [What gets a
+row](/reference/audit-log#what-gets-a-row). What you do to the key is not there.
+Postern writes no row when you create a key, rotate one, edit its sectors or its
+deadline, revoke it or remove it. [What does not get a
 row](/reference/audit-log#what-does-not-get-a-row).
 
-Your config file now holds a credential. Store it where your other passwords live.
+Your config file now holds your agent key. Store it where your other passwords live.
 [Agent keys](/reference/security-model#agent-keys).
 
 With no sources connected, your agent connects fine and answers empty. The Console

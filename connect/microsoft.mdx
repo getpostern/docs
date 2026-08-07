@@ -29,19 +29,21 @@ and contacts you want. You register your own app. Postern ships no shared one.
 The portal's masthead reads **Microsoft Entra admin center**. In the left rail, open **Entra ID**,
 then **App registrations**.
 
-On the **App registrations** page, a new account reads **There are no applications here.** Press
-**+ New registration**. The registration form opens.
+On the **App registrations** page, an account with no apps yet shows **There are no applications
+here.** Press **+ New registration**. The registration form opens.
 
 In **Name**, type `Postern`. Entra's helper under that box reads "The user-facing display name for
-this application (this can be changed later)." Do not press **Register** yet — the next two steps
-fill in the rest of the form.
+this application (this can be changed later)."
+
+{/* UNWITNESSED: Entra's label on the control that submits the New registration form. The only captured "Register" strings are the blocking dialog's heading "Register an application" and Postern's own Console step text — neither is this control. Needs one screenshot of the foot of the New registration form. */}
+Do not submit the registration form yet. The next two steps fill in the rest of it.
 
 <Note>
   **A dialog headed Register an application opens instead of the form.** It reads: "The ability to
   create applications outside of a directory has been deprecated. You may get a new directory by
   joining the M365 Developer Program or signing up for Azure." Its only button is **Cancel**, and
   the same words sit in an amber bar across the page. Your Microsoft account has no directory yet.
-  Take **joining the M365 Developer Program** or **signing up for Azure**, finish that sign-up, then
+  Take **joining the M365 Developer Program** or **signing up for Azure**. Finish that sign-up. Then
   come back and press **+ New registration** again. That is expected, not a wrong turn.
 </Note>
 
@@ -76,8 +78,10 @@ personal Outlook or Hotmail sign-in.
   **Public client/native (mobile & desktop)**.
 </Warning>
 
+{/* UNWITNESSED: whether Entra elsewhere renders this platform as "Mobile and desktop applications". Nobody has captured that second wording, so this page names only the string in microsoft-redirect.png. To close it: one capture of the Authentication page on a saved app. */}
+
 Lower in the same form, open **Select a platform** and choose **Public client/native (mobile &
-desktop)**. Entra also calls this "Mobile and desktop applications".
+desktop)**.
 
 <Frame caption="Take Public client/native (mobile & desktop). Single-page application (SPA) costs you a sign-in every day.">
   <img src="/images/microsoft-redirect.png" alt="The Entra platform dropdown, open, with the label 'Select a platform' and three choices beneath it: Public client/native (mobile & desktop), Web, and Single-page application (SPA)." />
@@ -108,13 +112,30 @@ The platform now holds one redirect URI, which ends `/api/oauth/microsoft/callba
 
 <Step title="Register the app and copy the client ID" titleSize="h2" id="client-id">
 
-Press **Register**. Entra creates the app and opens its **Overview** page.
+{/* UNWITNESSED: three Entra strings, all demoted here.
+ (1) The label on the control that submits the New registration form — see the note in the first step.
+ (2) The page Entra opens after it registers the app. google-ms-tailscale.md §M6 records: "The
+     Overview page (where 'Application (client) ID' is copied from) — never captured as a frame. The
+     field name is attested only by the walkthrough log and the Console's own step text." Its STILL
+     UNWITNESSED table repeats the gap: "Microsoft | The app Overview page showing the Application
+     (client) ID field label." The rail item "Overview" that IS witnessed (§M1) sits under Entra ID,
+     not under an app, so it does not license this page's name.
+ (3) The area that holds permissions. "API permissions" traces only to Postern's own Console step
+     text (catalog.ts, quoted at §M5 step 3) and to sessions-s3.md:126 — both prose about a screen
+     Postern does not own, which is not a witness for a rendered label.
+ One screenshot of the page Entra lands on after registration, with its title and left rail visible,
+ closes all three. Until then this step names no Entra control. */}
+Submit the registration form. Entra registers the app and opens a page for it.
 
-Copy the **Application (client) ID** — a long string of letters, numbers and dashes. It is the only
-value you carry back to the Console.
+That page shows the app's client ID. Copy it. It is the only value you carry back to the Console.
+It is 5 groups of letters and digits, separated by dashes. These zeros stand in for yours:
 
-Change nothing else. Microsoft needs no client secret, nothing under **API permissions**, and no API
-switched on. Postern proves itself without a stored secret.
+```text
+00000000-0000-0000-0000-000000000000
+```
+
+Change nothing else at Entra. Microsoft needs no client secret. Add no permissions by hand, and
+switch on no API. The sign-in screen in the next step is where you grant the scopes.
 [Why Microsoft needs no client secret](/reference/security-model)
 
 </Step>
@@ -123,7 +144,7 @@ switched on. Postern proves itself without a stored secret.
 
 Back in the Console, go to **Sources** → **Add a source** → **Microsoft**.
 
-Paste the **Application (client) ID** into the field of that name. Leave **Client secret** alone. The
+Paste the client ID into the **Application (client) ID** field. Leave **Client secret** alone. The
 Console disables that box, and it reads `not required — public client (PKCE)`.
 
 <Frame caption="The Console's Microsoft card, captured where Microsoft is already connected, so the button reads Reconnect Microsoft. On a first run it reads Save & sign in with Microsoft, with no checkbox above it.">
@@ -188,7 +209,7 @@ connection.
 
 - In Entra, your app's platform reads **Public client/native (mobile & desktop)**, not
   **Single-page application (SPA)**.
-- The Console's **Application (client) ID** field holds the same value as your app's **Overview**
+- The Console's **Application (client) ID** field holds the same value Entra shows on your app's own
   page.
 - **Sources** shows three Microsoft connections — mail, calendar and contacts — each with a
   `Last synced` time.
@@ -213,7 +234,7 @@ Three read-only connections out of one consent.
 
 | Connection | What Postern stores | How far back |
 |---|---|---|
-| Mail | Inbox and Sent — who sent it, the subject, the first line, the dates, and the read and attachment flags. Postern never stores the message text. An agent that asks for one message pulls the body from Microsoft on demand, and Postern stores it nowhere. | 180 days; **Recency window** sets 3, 6 or 12 months |
+| Mail | Inbox and Sent — who sent it, the subject, the preview line, the dates, and the read and attachment flags. Postern never stores the message text. An agent that asks for one message pulls the body from Microsoft on demand, and Postern stores it nowhere. | 180 days; **Recency window** sets 3, 6 or 12 months |
 | Calendar | Your events | 365 days back, 365 days forward |
 | Contacts | Your default contacts folder | all of it |
 
@@ -224,7 +245,7 @@ Three read-only connections out of one consent.
 - **The app registration stays yours at Entra.** Microsoft keeps the sign-in alive as long as
   Postern uses it once every 90 days.
 - **Postern never held a Microsoft password.** Revoke an agent, or disconnect Microsoft in the
-  Console, and neither one can touch a password that was never pasted.
+  Console, and neither one can touch a password you never pasted.
   [What a grant covers, and what you take back when you revoke one](/reference/grants-and-sectors)
 
 ## Next
@@ -235,6 +256,6 @@ Three read-only connections out of one consent.
     claude.ai and ChatGPT need a public address first.
   </Card>
   <Card title="Connect WHOOP" href="/connect/whoop">
-    a WHOOP membership + a free dev app · about ten minutes · confidential client
+    a WHOOP membership + a free dev app · about 10 minutes · confidential client
   </Card>
 </Columns>

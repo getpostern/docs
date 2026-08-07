@@ -17,10 +17,10 @@ description: "Create one agent key in the Console: name it, tick the sectors it 
 
 <Steps>
 
-<Step title="Open the mint form and name the agent" titleSize="h2" id="name">
+<Step title="Open the form and name the agent" titleSize="h2" id="name">
 
-In the Console, click **Agents & keys** in the left nav. Click **Mint a key**. On a first install the
-list is empty, and that button sits inside the **No keys issued yet** card. The mint form opens.
+In the Console, click **Agents & keys** in the left sidebar. Click **Mint a key**. On a first install
+the list is empty, and that button sits inside the **No keys issued yet** card. The form opens.
 
 <Warning>
   Give this agent a name no other agent has. One name holds one key. Type a name that already exists
@@ -36,24 +36,27 @@ Console → **The ledger** prints this name under **Who** for every call the key
 the key does, never what you do to the key.
 [What does not get a row](/reference/audit-log#what-does-not-get-a-row).
 
-<Frame caption="The mint form: the Name field, the six sector toggles, and the expiry chips.">
-  <img src="/images/gate-mint-key.png" alt="The Console's mint form: a Name field with the grey my-agent example, six unticked sector toggles, and four expiry chips." />
+<Frame caption="The form behind Mint a key: the Name field, the six sector toggles, and the expiry chips.">
+  <img src="/images/gate-mint-key.png" alt="The Console's form for a new key: a Name field with the grey my-agent example, six unticked sector toggles, and four expiry chips." />
 </Frame>
 
 </Step>
 
 <Step title="Tick the sectors it may reach" titleSize="h2" id="grant-sectors">
 
-Under **Grant which sectors**, tick each sector this agent may reach. The six toggles read `finance`,
-`mail`, `calendar`, `contacts`, `health` and `home`, in that order. No sector starts ticked, and the
-form says so: `Nothing is granted until you pick it. Tap a sector to toggle it.`
+Under **Grant which sectors**, tick each sector this agent may reach. The six toggles read
+**Finance**, **Mail**, **Calendar**, **Contacts**, **Health** and **Home**, in that order. No sector
+starts ticked, and the form says so:
+`Nothing is granted until you pick it. Tap a sector to toggle it.`
 
-A sector is the smallest thing you can grant. Tick `mail` and you grant every mail source you have
+A sector is the smallest thing you can grant. Tick **Mail** and you grant every mail source you have
 connected, and every one you connect later. There is no read-only setting:
 [a grant covers read and act across every provider in the sector](/reference/grants-and-sectors#what-a-grant-covers).
-Only `home` has anything to act on today.
+Only **Home** has anything to act on today.
 
-The screen after the button repeats exactly what you ticked, under **Opens**.
+The screen after the button lists the same sectors under **Opens**, in lower case — `finance`,
+`mail`. Postern prints them that way everywhere it recaps a grant, including the **Granted sectors**
+column of the register. The toggle you tick and the word you read back are the same sector.
 
 <Note>
   You can press **Mint the key** with nothing ticked, and the form says what that costs you:
@@ -83,7 +86,7 @@ Choose by where the key will live. A key that never leaves this computer may sit
 
 </Step>
 
-<Step title="Mint it, and store the key before you leave the screen" titleSize="h2" id="mint">
+<Step title="Create the key, and store it before you leave the screen" titleSize="h2" id="mint">
 
 <Warning>
   Postern shows this key once, on the screen after the button. It keeps a scrambled copy it can check
@@ -92,6 +95,13 @@ Choose by where the key will live. A key that never leaves this computer may sit
 </Warning>
 
 Press **Mint the key**. The reveal screen opens. Do four things on it, in this order.
+
+<Note>
+  On the rotate path the same form reads differently, so look for different words. Its heading is
+  `Rotate <agent>` with your agent's name in it, the button reads **Rotate the key**, and **Name** is
+  locked with the hint `The name carries over on rotate — one key per agent.` The sectors and the
+  deadline arrive already set to what that key held. Everything after the button is identical.
+</Note>
 
 1. Under **Agent key — shown once**, press **Copy**. The Console answers
    `Key copied — store it now; it isn't shown again`. Paste the key into your password manager now.
@@ -134,7 +144,7 @@ opens the hosted sign-in instead. That path needs a public address first:
 | What you see | What to do |
 |---|---|
 | Postern denies every read the agent makes | The key holds no sector, or not the sector the agent asked for. In Console → **Agents & keys**, click the agent and tick the sectors it needs under **Grants**. [Tick the sectors it may reach](#grant-sectors). |
-| A sign-in answers `That agent key was not accepted. Check the key in the Console and try again.`, or you left the reveal screen without the key | Nothing can show that key again. In Console → **Agents & keys**, click the agent, press **Rotate**, then copy the new key from the reveal screen. [Store the key before you leave the screen](#mint). |
+| A sign-in answers `That agent key was not accepted. Check the key in the Console and try again.`, or you left the reveal screen without the key | Nothing can show that key again. In Console → **Agents & keys**, click the agent, press **Rotate**, then copy the new key from the reveal screen. [Store it before you leave the screen](#mint). |
 | A sign-in says the key never expires, or an agent that worked yesterday fails today with nothing changed | Both are the deadline, and Postern will not move a lapsed key's. In Console → **Agents & keys**, click the agent, press **Rotate**, click **30 days**, **60 days** or **90 days**, then press **Rotate the key**. Hand the new key to the agent. [Set when it expires](#expiry). |
 
 ## What you have now
@@ -150,6 +160,6 @@ Postern touches no source password, and nothing upstream changes.
 ## Next
 
 <Card title="Connect an agent" href="/start/connect-an-agent">
-  the key you minted · a few minutes, plus a restart of the agent you connect ·
+  a key you created · a few minutes, plus a restart of the agent ·
   claude.ai and ChatGPT need a public address first
 </Card>

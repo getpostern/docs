@@ -3,8 +3,8 @@ title: "Postern"
 description: "A personal context gateway you run yourself. AI assistants ask Postern; Postern answers from your own machine."
 ---
 
-Postern is a personal context gateway you run yourself: one door onto six areas of
-your life — finance, mail, calendar, contacts, health and home.
+Postern is a personal context gateway you run yourself. It covers six areas of your
+life: finance, mail, calendar, contacts, health and home.
 
 MCP is the standard way AI assistants connect to outside tools. Postern speaks it, so
 Claude, ChatGPT and Cursor connect the same way.
@@ -34,8 +34,9 @@ docker compose up -d
 The first run downloads the image, so it takes minutes. Then open
 [http://localhost:8787](http://localhost:8787) — that is the Console.
 
-Postern, its database and the Console start together.
-[Postern opens its ports to this computer only — nothing on your Wi-Fi and nothing on the internet can reach them.](/reference/security-model#the-trust-boundary)
+Postern, its database and the Console start together, and Postern opens its ports to
+this computer only.
+[Only this computer can reach these addresses. Nothing on your Wi-Fi, and nothing on the internet, can.](/reference/security-model#the-trust-boundary)
 
 [Install Postern](/start/install) covers the rest: the password you can never change,
 what `docker compose down -v` destroys, and the Console from another computer. It also
@@ -48,14 +49,15 @@ does the same install without Git.
     Docker and a terminal · about 10 minutes · no cloud account
   </Card>
   <Card title="Set up remote access" href="/start/remote-access">
-    Tailscale · about 20 minutes, once · off by default. Hosted agents also need
-    Funnel, which gives you a public address.
+    Tailscale, and Funnel only if a hosted agent needs a public address · about 20
+    minutes, once · off by default
   </Card>
   <Card title="Mint your first key" href="/start/first-key">
-    a name, the sectors it opens, a deadline · a few minutes · shown once
+    a name, the sectors it opens, a deadline · a few minutes · Postern shows the key once
   </Card>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    a key you made · a few minutes · plus a restart
+    a key you created · a few minutes, plus a restart of the agent · claude.ai and
+    ChatGPT need a public address first
   </Card>
 </Columns>
 

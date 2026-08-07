@@ -10,7 +10,7 @@ description: "Open two ports to your own devices, and one port to the internet o
   - **Postern installed**, and the Console open in your browser. Step 1 opens it if Postern runs on another computer.
   - **About 20 minutes, once.** Postern takes ports 8443 and 10000 on your tailnet. Port 443 goes to the internet only if you do step 4.
   - **Your password manager open.** In step 6, Postern shows you an agent key one time only.
-  - **A Mac or a Linux computer.** Windows should work, because Postern is Docker, but nobody has run this page on Windows. In PowerShell, `curl` means something else, so type `curl.exe` in the checks below.
+  - **A Mac or a Linux computer.** Postern runs under Docker, so Windows should work. Nobody has run this page there. In PowerShell, `curl` means something else, so type `curl.exe` in the checks below.
 </Info>
 
 Your tailnet is the private network Tailscale builds between the devices signed
@@ -153,10 +153,10 @@ policy in its admin console, on the page its documentation calls Access
 controls. Tailscale's own instructions cover the funnel permission:
 [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). Scope the permission to
 this machine's own tag, never to the whole tailnet. `serve` and `funnel` are
-last-command-wins per port, so a mistyped command on any machine that holds the
+last-command-wins per port. A mistyped command on any machine that holds the
 permission can open something to the internet
 ([the whole argument](/reference/security-model#reaching-postern-from-another-network)).
-This page does not walk Tailscale's policy file. If the permission is missing,
+This page does not walk Tailscale's policy file. If the permission is not there,
 the command below refuses out loud and prints a link that turns it on. Open that
 link, then run the command again.
 
@@ -184,12 +184,12 @@ A field labelled **Your gate’s public address** appears, with the placeholder
 name, with nothing after it — not the `/mcp` address you hand an agent. Postern
 builds that one itself, and it refuses an address that carries a path.
 
-Typing does not save it. Press **Publish this gate** on the bar headed **Publish
-this gate to the public internet?**, which lists what it costs you. The row then
-reads **restart to apply**, and a message reads
-`Saved — restart the gateway to start publishing.`
+Postern does not save the address until you confirm it. Press **Publish this
+gate** on the bar headed **Publish this gate to the public internet?**. That bar
+lists what it costs you. The row then reads **restart to apply**, and a message
+reads `Saved — restart the gateway to start publishing.`
 
-<Frame caption="Settings → Remote access. The Public row reads off until you set an address.">
+<Frame caption="Settings → Remote access. The Public row reads off until you set an address. Recorded on a gateway whose Plaid source was in Sandbox, so ignore any Plaid detail in this shot.">
   <img src="/images/remote-console-card.png" alt="Settings → Remote access: the Public row reads off, with a Set the address button." />
 </Frame>
 
@@ -265,12 +265,24 @@ The address you hand the agent is your published address plus `/mcp`. The
 Console prints the exact value under **Agents & keys** → **Set up the bridge →**,
 with its own **Copy** button.
 
-In claude.ai, open Settings → Connectors → **Add custom connector**. Paste the
-address. The dialog also offers a **Client ID** and a **Client Secret**: leave
-both empty. claude.ai then sends you to Postern's own page, headed **Authorize
-agent access**. Paste the agent key under **Paste an agent key from the Console**
-and press **Approve**. claude.ai holds a token that rotates from then on.
-ChatGPT takes a longer path: [Connect ChatGPT](/connect/chatgpt).
+{/* UNWITNESSED: claude.ai's own screen. Nobody has captured its connector dialog.
+ The route "Settings → Connectors → Add custom connector" traces only to Postern's own Console copy
+ (ConnectHostedPage.tsx:91); agents.md §3c heads that finding "The click path — witnessed only as
+ Postern's own copy, not as claude.ai's screen", and the 2026-07-21 run recorded in
+ deploy-and-operations.md:218 corroborates the route, not the labels.
+ The two credential fields trace only to the founder's paraphrase — "On claude ai, we have client
+ idd and secret option, where do i put the key?" (agents.md §3a) — and agents.md §7 records the gap:
+ "the exact label text (Name? Remote MCP server URL? Advanced settings?) has never been captured."
+ So the route is given in lower case as a location, and no claude.ai control is bolded.
+ One screenshot of that dialog closes it. */}
+In claude.ai, open its settings and find its connectors. Add a connector of your
+own. Paste the address into it. If it asks for a client id or a client secret,
+leave both empty. Postern issues neither.
+
+claude.ai then sends you to a page your own Postern serves, headed **Authorize
+agent access**. Paste the agent key under **Paste an agent key from the Console**.
+Press **Approve**. claude.ai holds a token that rotates from then on. ChatGPT
+takes a longer path: [Connect ChatGPT](/connect/chatgpt).
 
 [Revoke a key and every token made from it dies with it](/reference/grants-and-sectors#revoking-rotating-and-removing).
 Postern denies the agent's next call.
@@ -279,7 +291,7 @@ Postern denies the agent's next call.
 
 <Step title="Turn the public port back off" titleSize="h2" id="take-it-down">
 
-Three acts. Do all three: any two leave you half-off — a funnel with no address,
+Three acts. Do all three. Any two leave you half-off — a funnel with no address,
 an address with no funnel, or Postern still on the old one.
 
 On the machine Postern runs on:
@@ -308,7 +320,7 @@ cd postern
 docker compose restart app
 ```
 
-Confirm nothing is left. The output must contain no `AllowFunnel` anywhere:
+Confirm no funnel remains. The output must contain no `AllowFunnel` anywhere:
 
 ```bash
 tailscale serve status --json
@@ -338,9 +350,9 @@ Nothing about [step 3](#your-devices) changes. Your own devices still reach Post
 | `which tailscale` returns nothing, on a Mac | Run `export TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale`, then put `$TS` in front of every `tailscale` command. |
 | `curl` prints a web page instead of three digits, on Windows | In PowerShell, `curl` means something else. Type `curl.exe` instead. |
 | `/api/agents` answers 200 from your tailnet | Port 8787 is open whole. Run both commands in [step 3](#your-devices) again, exactly as written. |
-| The **Public** row still reads **off** after you typed the address | Typing does not save it. Press **Publish this gate** on the confirmation bar ([step 4](#publish)). |
+| The **Public** row still reads **off** after you typed the address | Postern saves the address only when you press **Publish this gate** on the confirmation bar ([step 4](#publish)). |
 | The **Public** row reads **restart to apply** | Postern reads the address only at start-up. Run `docker compose restart app` from the folder that holds `docker-compose.yml`. |
-| A hosted agent says it could not reach you, and your logs show nothing | The funnel is on a port other than 443, so the connection is dropped before it arrives. Run `tailscale funnel status`; the 443 line must read `(Funnel on)`. |
+| A hosted agent says it could not reach you, and your logs show nothing | The funnel is on a port other than 443, so the request never reaches you. Run `tailscale funnel status`; the 443 line must read `(Funnel on)`. |
 
 ## What you have now
 
@@ -360,7 +372,7 @@ Three costs stay with you:
 
 <Columns cols={2}>
   <Card title="Connect ChatGPT" href="/connect/chatgpt">
-    a ChatGPT paid plan + a published address · about ten minutes, once · witnessed end-to-end 2026-08-01
+    a ChatGPT paid plan + a published address · about 10 minutes, once · witnessed end-to-end 2026-08-01
   </Card>
   <Card title="Connect Apple Health" href="/connect/apple-health">
     Health Auto Export on your iPhone · about 10 minutes · push, not pull

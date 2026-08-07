@@ -23,11 +23,21 @@ description: "Stream your Home Assistant devices into Postern. It is the only so
 
 <Step title="Create a token in Home Assistant" titleSize="h2" id="token">
 
-In Home Assistant, click your own name at the very bottom of the left sidebar. Your profile opens.
-Home Assistant's own documentation puts long-lived access tokens at the bottom of that profile's
-Security tab — [Managing account access](https://www.home-assistant.io/docs/authentication/#managing-account-access).
-Older Home Assistant versions show no tabs. There the same section sits at the bottom of the
-profile page.
+{/* WITNESSED 2026-08-07 — evidence/witness/gif-ha.md, the founder's own instance, 38 frames. Every bolded Home Assistant string below is in that file's string table. There is no sidebar item called "Profile"; the create control is `Create token`, lowercase t; the heading is `Long-lived access tokens`, sentence case. Do not re-case any of them. */}
+
+In Home Assistant, click your own name at the very bottom of the left sidebar. It sits below
+**Settings** and **Notifications**, with a small round picture beside it. Nothing reads “Profile”.
+
+Your profile opens on the **General** tab. Click the other tab, **Security**. The address now ends
+`/profile/security`.
+
+Scroll to the bottom of that tab. The section headed **Long-lived access tokens** sits below
+**Change password**, **Multi-factor authentication modules** and **Refresh tokens**.
+
+{/* UNWITNESSED: Home Assistant versions older than the founder's. The tab strip is the only route gif-ha.md covers, so the fallback below stays sourced to Home Assistant's own documentation. */}
+
+Older Home Assistant versions show no tabs. There the same section sits at the bottom of the profile
+page — [Managing account access](https://www.home-assistant.io/docs/authentication/#managing-account-access).
 
 <Warning>
   Home Assistant shows the token once, at the moment you create it. It keeps no copy of the token
@@ -35,13 +45,26 @@ profile page.
   before you create the token.
 </Warning>
 
-{/* UNWITNESSED: nobody has captured Home Assistant's profile page. Needed before any label here is bolded — the tab strip at the top of the profile, the exact label of the control that creates a token, the name field's label, and the reveal screen. Until a capture arrives this step names the outcome and the location and cites Home Assistant's own documentation. */}
+Press **Create token**, at the bottom right of that section. A dialog opens, headed **Create token**,
+with one required field labelled **Name\***. Type `Postern` into it. That name is how you tell this
+token apart from your others in Home Assistant.
 
-Create a long-lived access token there, and name it `Postern`. That name is how you tell this token
-apart from your others in Home Assistant.
+The dialog carries **Cancel**, which creates nothing, and a second **Create token** button. That
+button stays greyed out until the field has something in it.
 
-The token appears in full. Copy it into your password manager. You paste it into the Console in
-step 3, and again whenever you reconnect.
+Press the dialog's **Create token**. Home Assistant replaces the dialog with a screen headed
+**Token created:** followed by the name you typed. It warns *"Copy your access token. It will not
+be shown again."* The token sits in a read-only field, too long to read at that width.
+
+Press **Copy**, to the right of the field. A message reads *"Copied to clipboard"*. Paste the token
+into your password manager. You paste it into the Console in step 3, and again whenever you
+reconnect.
+
+{/* Generate QR code is witnessed as a control (gif-ha.md, screen F). What it produces is not — the founder never pressed it. Say nothing about its behaviour. */}
+
+A **Generate QR code** control sits below the token. Postern has no use for it.
+
+Press **Close**. `Postern` appears at the top of the list, with its creation time beside it.
 
 </Step>
 
@@ -93,7 +116,7 @@ and the connection reads **Instant — connected**.
 
 <Note>
   **Unreachable**, with *"can't reach source — retrying"*: nothing answered at that address. Postern
-  tries again after 0.5 seconds, then doubles the wait after each failure, up to 30 seconds. A Home
+  tries again after 5 seconds, then doubles the wait after each failure, up to 60 seconds. A Home
   Assistant that was not ready yet recovers by itself. A wrong address never does. **Error**, with
   *"auth failed: invalid token"*: Home Assistant refused the token, and Postern will not retry a
   refused token — [Home Assistant throttles repeated sign-in
@@ -125,7 +148,7 @@ restarts the connection within a minute.
 | What you see | What to do |
 |---|---|
 | **Unreachable**, `can't reach source — retrying` | Nothing answered there. Paste the numeric address with `http://` in front — never a `.local` name, `localhost` or `127.0.0.1` — and press **Reconnect Home Assistant**. |
-| **Error**, `auth failed: invalid token` | Create a new token in Home Assistant, paste it on the same card, and press **Reconnect Home Assistant**. Take the same path if you lost the token before it reached the Console. |
+| **Error**, `auth failed: invalid token` | [Create a new token in Home Assistant](#token), paste it on the same card, and press **Reconnect Home Assistant**. Take the same path if you lost the token before it reached the Console. |
 | The connection sits at **Awaiting first push**; or an agent granted `home` lists no actions; or an action returns `home assistant: no live connection for this connection id — nothing was dispatched` | The live connection is not up, and Postern sent nothing to your house. Correct the address as in row 1 — the Console accepts a wrong address of the right shape. |
 | An action returns `admin/system service not permitted (device/entity control only)` | Postern never runs admin or system services. There is nothing to change here. Run that one in Home Assistant yourself. |
 
@@ -153,11 +176,12 @@ device yourself.
 Postern stores the token encrypted on your own machine. It stays exactly as powerful as the Home
 Assistant user who made it: if that account gains permissions, so does this connection.
 
-{/* UNWITNESSED: the control that removes a token from Home Assistant's own list. Needed — a capture of a token row on the profile's Security tab, its remove affordance, and any confirmation it opens. */}
+{/* UNWITNESSED: whether Home Assistant asks anything before it deletes a long-lived token. gif-ha.md hovers that control and never presses it. The control itself is witnessed as icon-only with no label and no tooltip — describe it, never quote a label for it. */}
 
-To stop it at Home Assistant, remove the token from the same profile page you created it on. The
-connection then fails at its next check with `auth failed: invalid token`, and stays in error until
-you paste a new one.
+To stop it at Home Assistant, go back to **Long-lived access tokens** on your profile's **Security**
+tab. Every token's row ends in a trash-can icon, with no words on it. Press the one on the `Postern`
+row. The connection then fails at its next check with `auth failed: invalid token`, and stays in
+error until you paste a new one.
 
 To stop it at Postern instead, go to Console → **Sources** → the **Home Assistant** row. Press
 **Remove token**. A confirm step opens, headed **Remove the token**: *"Deletes the long-lived token

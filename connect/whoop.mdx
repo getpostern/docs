@@ -48,8 +48,8 @@ http://localhost:8787/api/oauth/whoop/callback
 Copy it from the screen, not from this page. It stays correct if you ever change the Console port —
 [the Console prints the address Postern will send, never one it worked out itself](/reference/security-model#the-redirect-address-is-pinned-inside-postern).
 
-The Console calls it a redirect URI. WHOOP names its own field **Redirect URLs**. One address, two
-names.
+The Console calls it a redirect URI. WHOOP's form heads that section **REDIRECT URLS**. One address,
+two names.
 
 <Note>
   The address is missing. Its place is empty, or it holds a sentence. Empty means Postern has not
@@ -63,7 +63,7 @@ names.
 <Step title="Create the app at WHOOP" titleSize="h2" id="create-app">
 
 Go to `developer-dashboard.whoop.com` and sign in with your WHOOP account. The signed-in page reads
-**Your apps**, with **APPS | TEAM | DOCS** across the top.
+**Your apps**, with **APPS**, **TEAM** and **DOCS** across the top right.
 
 <Note>
   The Console's own first step names `developer.whoop.com`. That address is WHOOP's documentation
@@ -87,62 +87,70 @@ Fill the three sections at the top of that form:
   Administrative communications from WHOOP concerning this app will be directed to these emails."
 
 <Warning>
-  Select all five read scopes below. Postern turns on the health sector only if WHOOP grants
+  Tick all five read scopes below. Postern turns on the health sector only if WHOOP grants
   `read:recovery`, `read:sleep` or `read:workout`. Grant none of those three and Postern creates no
   connection at all — [the Console can only report the connection it made](/reference/grants-and-sectors#what-a-grant-covers).
 </Warning>
 
-{/* UNWITNESSED: nobody has captured the create form below CONTACTS. The three names below come from the app's own screen after it exists. The form may render them in capitals, as it does NAME, LOGO and CONTACTS. */}
+{/* WITNESSED: gif-whoop.md — the four sections below CONTACTS, their helper text, the six scope checkboxes, and the submit button. Casing caveat from that witness: the ALL-CAPS headings and button labels are probably a CSS text-transform, so the render is certain and the source string is not. Describe what renders; never assert the underlying string. */}
 
-Three more things go on this form, below **CONTACTS**. Once the app exists, its own screen names them
-**Privacy Policy**, **Redirect URLs** and **Scopes**.
+Scroll down. Four more sections follow **CONTACTS**, in this order: **PRIVACY POLICY**, **REDIRECT
+URLS**, **SCOPES**, **WEBHOOKS**. This form prints every section heading in capitals. The app's own
+screen prints the same names in ordinary case later, so match a section by what it asks for.
 
-**Privacy Policy.** Type a web address. WHOOP will not create the app without one. You do not need a
-real privacy policy, and WHOOP does not check the address. Postern's own WHOOP app carries
-`https://dummy.com/privacy`.
+**PRIVACY POLICY** — type any web address into the one field. WHOOP's note reads "Link to your
+privacy policy. Users will be presented with this link in the OAuth flow.", and the field shows
+`https://example.com/privacy` until you type. Nothing on screen marks the field required. Leave it
+empty and WHOOP will not create the app. You do not need a real privacy policy, and WHOOP does not
+check the address. Postern's own WHOOP app carries `https://dummy.com/privacy`.
 
-**Redirect URLs.** Paste the address you copied in [step 1](#redirect-uri). Never type it by hand.
-The name is plural because WHOOP takes more than one. One is enough. WHOOP's own rule: "You must
-specify at least one redirect URL for each App."
+**REDIRECT URLS** — paste the address you copied in [step 1](#redirect-uri) into **Redirect #1**.
+Never type it by hand. The field shows `https://myapp.com/callback` until you paste. An **ADD**
+button below the field adds another redirect. Postern needs one, so leave **ADD** alone.
 
-That address starts `http://`, not `https://`. WHOOP accepts it. Postern's own WHOOP app is
-registered with that exact address, and it syncs today.
+WHOOP's note here reads "Location to which the user is taken after logging in. A valid redirect URL
+will take the form of https://whoop.com or whoop://example." Your address matches neither of those
+shapes. It starts `http://`, and WHOOP accepts it. Postern's own WHOOP app is registered with that
+exact address, and it syncs today.
 
-**Scopes.** WHOOP's list holds six, each with a description. Select the first five. Leave
-`read:body_measurement` alone: Postern never asks for it.
+**SCOPES** — six checkboxes, one per scope. WHOOP starts every one unticked. Tick the first five.
+Leave `read:body_measurement` unticked: Postern never asks for it.
 
 | scope | WHOOP's own description | what to do |
 |---|---|---|
-| `read:recovery` | Allows access to recovery information, including score, heart rate variability, and resting heart rate | Select |
-| `read:cycles` | Allows access to cycles information, including day strain and average heart rate during a cycle | Select |
-| `read:sleep` | Allows access to sleep information, such as duration and start and end time | Select |
-| `read:workout` | Allows access to workout information, including activity type and accumulated strain | Select |
-| `read:profile` | Allows access to profile information | Select |
-| `read:body_measurement` | Allows access to body measurements, such as height, weight, and max heart rate | Leave it |
+| `read:recovery` | Allows access to recovery information, including score, heart rate variability, and resting heart rate | Tick |
+| `read:cycles` | Allows access to cycles information, including day strain and average heart rate during a cycle | Tick |
+| `read:sleep` | Allows access to sleep information, such as duration and start and end time | Tick |
+| `read:workout` | Allows access to workout information, including activity type and accumulated strain | Tick |
+| `read:profile` | Allows access to profile information | Tick |
+| `read:body_measurement` | Allows access to body measurements, such as height, weight, and max heart rate | Leave unticked |
 
 Scopes are permissions — the list of things your app may read. WHOOP's own rule: "At least one scope
 must be specified to create an App."
 
-`offline` is not in that list of six, and there is nothing to select. Postern asks WHOOP for
-`offline` on the sign-in request itself. The Console's own step reads **Request the offline scope,
-and add this redirect URI:**. Postern makes that request. You register the address.
+`offline` is not one of the six, and there is no checkbox for it. Do not hunt for one. Postern asks
+WHOOP for `offline` on the sign-in request itself. The Console's own step reads **Request the offline
+scope, and add this redirect URI:**. Postern makes that request. You register the address.
 
 `offline` is not data. It lets Postern renew the sign-in without you. Without it the connection dies
 the next day — [WHOOP will not renew a token without it](/reference/security-model#the-credential-vault).
 
-{/* UNWITNESSED: the submit control at the bottom of the create form. WHOOP's documentation describes a Create button, but nobody here has seen that part of the screen. */}
+**WEBHOOKS** — leave this section alone. Postern uses no webhooks. WHOOP renders no field here until
+you press **ADD**, so there is nothing to fill in.
 
-Submit the form at the bottom. Your new app then sits under **Your apps**, and its card carries the
-app name and **CLIENT ID**.
+Press **CREATE APP**, at the bottom of the form. Until you change something on the form that button
+stays dim, and the line beneath it reads "Make a change to enable saving."
+
+Your new app then sits under **Your apps**, and its card carries the app name and **CLIENT ID**.
 
 </Step>
 
 <Step title="Copy the client ID and the client secret" titleSize="h2" id="copy-credentials">
 
 <Warning>
-  Copy the client secret before you leave this screen. WHOOP shows the secret once, at creation.
-  After that the app's **Credentials** section prints **Client Secret** as a row of dots, and there
-  is nothing to reveal. Lose it and you must create the app again.
+  Copy the client secret into your password manager before you leave this screen. WHOOP shows the
+  secret once, at creation. After that the app's **Credentials** section prints **Client Secret** as
+  a row of dots.
 </Warning>
 
 WHOOP hands the new app two values: a client ID and a client secret. Copy both into your password
@@ -151,15 +159,32 @@ manager. Postern needs both in the next step.
 The client secret is a password. WHOOP's own words: it should "never be logged or shared with
 anyone."
 
-{/* UNWITNESSED: whether the app screen offers any way to issue a new client secret, short of a new app. */}
-
-The client ID stays readable. Open the app from **APPS** and **Credentials** prints **Client ID** in
-full. WHOOP's own documentation says you can read both values later. That is true of the client ID
-only. The secret prints as dots.
+The client ID stays readable. Open the app from **APPS**, and **Credentials** prints **Client ID**
+in full. WHOOP's own documentation says you can read both values later. That is true of the client
+ID only. The secret prints as dots.
 
 The same screen carries **Status**. WHOOP's words there: "Apps can be used for development
 immediately with a limit of 10 WHOOP members. To launch your app to all WHOOP members, you must
 submit your app for approval." You are the one member. Leave **Request Approval** alone.
+
+**If you did not copy the secret.** Nothing breaks on its own. A connection that already signed in
+carries on, because Postern holds the secret in the vault and renews the sign-in with it. You need
+the secret again only to sign in again.
+
+Look in your password manager first, then in the browser's saved form entries.
+
+{/* UNWITNESSED: whether WHOOP's app screen offers a control that issues a replacement client secret. The founder's capture of that screen (founder-round2.md §2.2) shows Client ID in full and Client Secret masked; it settles nothing about a replacement control. Do not name one. */}
+
+Then open the app at `developer-dashboard.whoop.com` and read the **Credentials** section. Nobody
+here has seen whether WHOOP offers a replacement secret there. If it does, take it, then paste the
+new pair into the Console.
+
+If it does not, register a second app and leave the first one alone. WHOOP's own rule: "You can
+create up to 5 Apps." Give the second app the same privacy policy address, the same redirect URL
+and the same five scopes. Copy its client ID and secret, then paste the pair into the Console.
+
+The first app holds the old sign-in until you finish. Do not delete it before then. Delete the app
+your connection runs on and the next sync stops.
 
 </Step>
 
@@ -234,14 +259,14 @@ and **API Day Rate Limit** `10000`. A 15m poll is nowhere near either. Postern u
 
 | What you see | What to do |
 |---|---|
-| WHOOP's app form will not submit — it wants a privacy policy | Type any web address into **Privacy Policy**. WHOOP does not check it. [Step 2](#create-app) has the detail. |
-| The app's **Credentials** section prints **Client Secret** as dots | That is normal. WHOOP masks the secret after it creates the app. If your password manager has no copy, [create the app again](#create-app) and copy the new secret. |
+| WHOOP's app form will not submit — it wants a privacy policy | Type any web address into the field under **PRIVACY POLICY**. WHOOP does not check it. [Step 2](#create-app) has the detail. |
+| The app's **Credentials** section prints **Client Secret** as dots | That is normal. WHOOP masks the secret after it creates the app. A connection that already signed in carries on. [Step 3](#copy-credentials) has the recovery path if you have no copy. |
 | No address under **Request the offline scope, and add this redirect URI:** — an empty space, or a sentence | Postern has not answered the Console yet. [Step 1](#redirect-uri) has the check to run. |
 | [**Whoop did not complete the sign-in.**](#sign-in) with a code beneath it | You declined, the app at WHOOP is set up wrong, or the secret does not match the ID. Correct the app at WHOOP or re-paste the pair, then press **Save & sign in with Whoop** again. |
 | A bare `{"error":"invalid or expired state"}` page at the callback address | The 10 minutes ran out, Postern restarted, or you opened the callback link twice. Postern stored nothing. [Start the sign-in again](#sign-in). |
-| [**WHOOP signed in, but granted no sectors. Check the scopes on your app, then sign in again.**](#create-app) | WHOOP granted none of `read:recovery`, `read:sleep`, `read:workout`. Open your app at `developer-dashboard.whoop.com`, select all five read scopes, then sign in again. |
+| [**WHOOP signed in, but granted no sectors. Check the scopes on your app, then sign in again.**](#create-app) | WHOOP granted none of `read:recovery`, `read:sleep`, `read:workout`. Open your app at `developer-dashboard.whoop.com`, tick all five read scopes, then sign in again. |
 | The row reads **Stale**, days after a sign-in that worked | The last sync is late. Open the row and press **Sync now**. |
-| The row reads **Unreachable** or **Disconnected** | **Unreachable**: Postern cannot reach WHOOP and retries on its own. If it persists, check that your app still exists at `developer-dashboard.whoop.com`; create it again if it is gone. **Disconnected**: the credential is gone from the vault. Go to **Add a source** → **Whoop**, paste the client ID and secret again, and sign in. |
+| The row reads **Unreachable** or **Disconnected** | **Unreachable**: Postern cannot reach WHOOP and retries on its own. If it persists, check that your app still exists at `developer-dashboard.whoop.com`. If it is gone, create it again — a new app carries a new client ID and secret, so [paste the new pair into the Console and sign in again](#sign-in). **Disconnected**: the credential is gone from the vault. Go to **Add a source** → **Whoop**, paste the client ID and secret again, and sign in. |
 
 ## What you have now
 

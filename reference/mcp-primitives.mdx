@@ -202,7 +202,7 @@ To turn it on:
 
 1. In the Console, click **Settings**.
 2. Find the **Remote access** band.
-3. Type your address into **Your gate's public address**.
+3. Type your address into **Your gate’s public address**.
 4. Click **Publish this gate**.
 5. Restart Postern.
 
@@ -210,11 +210,11 @@ To turn it on:
 published by default.
 
 **Save the origin only.** Postern refuses an address carrying a path, a query, a
-fragment, or a username and password. Every address Postern publishes is served at the
-root. Postern would then advertise a saved path to agents as an address that answers
-nothing. Meanwhile the boot log, both discovery documents and the Console's own
-indicator would all still read correctly. The refusal names the origin to save instead. A port is fine:
-Postern drops a default port, so `https://host.ts.net:443` is stored as
+fragment, or a username and password. It serves every address it publishes at the root,
+so a saved path would send agents to an address that answers nothing — while the boot
+log, both discovery documents and the Console's own indicator all still read correctly.
+That is why Postern refuses one, and the refusal names the origin to save instead. A
+port is fine: Postern drops a default port, so `https://host.ts.net:443` is stored as
 `https://host.ts.net`, and a non-default port such as `:10000` is legal.
 
 An agent needs that address **plus `/mcp`**. The Console appends the suffix itself, in
@@ -237,7 +237,7 @@ With the bridge on, the internet reaches exactly eight addresses on one port:
 |---|---|
 | Response types | `code` |
 | Grant types | `authorization_code`, `refresh_token` |
-| Challenge method | `S256` only |
+| Challenge method | `S256` only — Postern refuses a sign-in that offers anything else, or none, with `code_challenge_method must be 'S256' (plain is not accepted)` |
 | Token endpoint auth | `none` — registration is dynamic, and there is no client secret |
 | Access token | prefix `pcgat_`, lives 3600 seconds |
 | Refresh token | rotates on use; reusing a rotated-out one revokes the whole chain |
@@ -404,8 +404,8 @@ A sector with more than one object takes the dotted key everywhere an object is 
 `query`, `get_record`, and `fetch_live` with an id. A sector with one object takes the
 bare name.
 
-Field lists are not repeated here. Call `get_schema`: it is the authority, and it is
-filtered to your own grants. Read `notes` and `fieldDocs` — they carry the sign
+This page does not repeat the field lists. Call `get_schema`: it is the authority, and
+it is filtered to your own grants. Read `notes` and `fieldDocs` — they carry the sign
 conventions, enums and unit traps that a field's type and name cannot.
 
 These rules hold across every object:
@@ -491,11 +491,11 @@ probe row rather than from `count === limit`, so a page that fills exactly reads
 
 Groups come back ordered by the aggregate value descending, then by the group columns
 ascending. `count` there is a JSON number. `sum`, `avg`, `min` and `max` are decimal
-strings, or `null` when the aggregated set was empty. Combining `aggregate` with
-`select`, `orderBy` or `offset` is refused, and the refusal names the field.
+strings, or `null` when the aggregated set was empty. Postern refuses `aggregate`
+alongside `select`, `orderBy` or `offset`, and the refusal names the field.
 
 Rows come back ordered by the object's `primaryTime` descending, with `id` ascending as
-the tiebreak, unless you order them yourself. Ordering is deterministic within one
+the tiebreak, unless you order them yourself. The order is deterministic within one
 snapshot, but a later page can shift as a sync lands new rows.
 
 Two clauses are on every query and are not yours to set: the read is scoped to the
@@ -516,7 +516,7 @@ as its flat fields: `raw` on every object, plus `attendees` on `calendar` and
 `attributes` on `home`. That reads a row and its untouched detail in one call, instead
 of a `get_record` follow-up. Projection only — those columns stay out of `where`,
 `orderBy`, `groupBy` and `aggregate`, which validate against the flat fields alone. It
-is opt-in because selecting `raw` costs a fetch and a decompress per row.
+is opt-in because `raw` costs a fetch and a decompress per row.
 
 **Two banks, one row.** When the same account arrives through both SimpleFIN and Plaid,
 Postern serves one merged row and hides the copies. In the Console that bank's row
@@ -671,15 +671,15 @@ daily, so a shorter interval returns rows Postern already holds.
 attachments are never stored. When an agent asks for one message, Postern fetches that
 body from Apple on demand and does not keep it. That survives a change to **Recency
 window**. Envelopes newer than the window stay cached. Older mail is still readable,
-one message at a time, live from Apple. Changing the window clears the marker of how far the
-connection has read, so the next run re-reads the whole window from the start. On a
-large mailbox that is minutes of work, and **Envelopes cached** falls before it climbs.
+one message at a time, live from Apple. Change the window and Postern clears the marker of
+how far the connection has read, so the next run re-reads the whole window from the start.
+On a large mailbox that is minutes of work, and **Envelopes cached** falls before it climbs.
 
 **SimpleFIN's first sync backfills 365 days.** Postern asks for it in windows of 90
 days or less, edge to edge with no gaps, because the Bridge silently caps a longer
 span. Nothing older than a year is ever fetched. Every later sync requests from the
 stored cursor minus a 3-day overlap, which catches a transaction the bank posts a couple
-of days late. Re-reading the overlap changes nothing already stored.
+of days late. A second read of the overlap changes nothing already stored.
 
 **Postern requests posted transactions only.** Pending charges are excluded by request,
 not lost. A card charge appears when the bank finalises it, not when it is authorised —
@@ -752,8 +752,8 @@ comes from the live connection's cache and from nowhere else. An empty catalog f
 
 **The admin and system services Postern never runs.** The `hassio`, `update` and
 `backup` domains, `homeassistant.restart`, `homeassistant.stop`, and every `reload` are
-dropped from the catalog and refused again at dispatch. Naming one directly does not
-get around the omission: the answer is
+dropped from the catalog and refused again at dispatch. Name one directly and Postern
+still refuses it:
 `admin/system service not permitted (device/entity control only)`.
 
 ## invoke_action

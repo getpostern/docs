@@ -1,6 +1,6 @@
 ---
 title: "Connect Plaid"
-description: "Every bank you link becomes its own read-only connection. Plaid bills per bank, so use Plaid for the banks SimpleFIN cannot reach."
+description: "One trip through Plaid's own window links one bank, and each bank becomes its own read-only connection. Plaid bills per bank, so use Plaid for the banks SimpleFIN cannot reach."
 ---
 
 <Info>
@@ -9,27 +9,40 @@ description: "Every bank you link becomes its own read-only connection. Plaid bi
   - **A free Plaid developer account** at [dashboard.plaid.com](https://dashboard.plaid.com).
     Postern includes no Plaid access of its own.
   - **Money, per linked bank.** On Production, Plaid bills Transactions monthly for every bank you
-    keep linked, and Balance per request. Plaid publishes no price list. A new US or Canada team
-    lands on the free Trial plan instead: real bank data, up to 10 linked banks, no security
-    questionnaire.
-  - **Postern up, and the Console open.** The Console answers at
-    [http://localhost:8787](http://localhost:8787). Only the machine Postern runs on can reach it.
-    If that machine has no screen, set up [remote access](/start/remote-access) first.
+    keep linked. It bills Balance per request. Plaid publishes no price list. A new US or Canada
+    team lands on the free Trial plan instead. Trial gives real bank data, up to 10 linked banks,
+    and no security questionnaire.
+  - **Postern up, and the Console open.** Open `http://localhost:8787` in a browser on the machine
+    Postern runs on. Only this computer can reach these addresses. Nothing on your Wi-Fi, and
+    nothing on the internet, can. If that machine has no screen,
+    [set up remote access](/start/remote-access) first.
   - **SimpleFIN first.** One SimpleFIN subscription covers every bank it reaches. Plaid bills per
-    bank, so use Plaid only for the banks SimpleFIN cannot reach —
-    [Connect SimpleFIN](/connect/simplefin).
-  - **Plaid's own words.** Item and Link are Plaid's words. An Item is one bank connection at Plaid.
-    Link is Plaid's connect-your-bank window.
+    bank. Use Plaid for the banks SimpleFIN cannot reach — [Connect SimpleFIN](/connect/simplefin).
+  - **Item and Link are Plaid's words.** An Item is one bank connection at Plaid. Link is Plaid's
+    connect-your-bank window.
 </Info>
+
+This page documents Production, and Production is what the Console saves. The Plaid card says so
+itself: `Console defaults to Production.` Plaid's Sandbox links a fake bank, not yours —
+[it is for testing only](#sandbox-is-for-testing-only).
+
+Every Plaid screen quoted below comes from one recorded run, on 29–30 July 2026. That run was on
+Sandbox, so each Plaid screen in it carries a grey bar that reads
+`You are currently in Sandbox mode.` Plaid's own screens are the same either way. Only your bank's
+sign-in differs, and this page names no control on it. Trust your screen over this page.
+
+{/* UNWITNESSED: a Production (non-Sandbox) run of Plaid Link. Every captured pane carries the
+    Sandbox banner. The founder ruling of 2026-08-07 establishes that Production is the real setup
+    path and that only the bank sign-in in the middle differs; no capture proves the rest. One
+    recording against the live production app would close it. */}
 
 ## Choose your path
 
 | If… | Then |
 |---|---|
-| you have not saved a Plaid app here yet | start at [Create your Plaid developer account](#plaid-account) |
-| your app is saved and you want another bank | Console → **Sources** → the **Plaid** group → **Add a bank**, then [Sign in to your bank in the Plaid window](#link-the-bank) |
-| a bank reads **consent lapsed** | [Reconnect a bank when its consent lapses](#reconnect) |
-| you want to try this without a real bank | [Test on Plaid Sandbox instead](#test-on-plaid-sandbox-instead) |
+| You have not saved a Plaid app here yet | Start at [Create your Plaid developer account](#plaid-account). |
+| Your app is saved and you want another bank | Open **Sources**, find the **Plaid** group, press **Add a bank**, then go to [Get past Plaid's phone screen](#link-the-bank). |
+| A bank's **Cadence** cell reads `consent lapsed` | [Reconnect a bank when its consent lapses](#reconnect). |
 
 <Steps>
 
@@ -37,143 +50,218 @@ description: "Every bank you link becomes its own read-only connection. Plaid bi
 
 <Warning>
   Trial counts 10 banks for the lifetime of the team. A bank you remove does not give the slot back.
-  To try the flow and spend no slot, [test on Plaid Sandbox
-  instead](#test-on-plaid-sandbox-instead).
+  Plaid states it: *"Removing Items created on a Trial plan (using /item/remove) will not allow you
+  to create more Items."*
+
+  A bank you already linked at `my.plaid.com` does not carry over to Postern. Postern reads only
+  the banks you link through its own Plaid Link session. Linking such a bank again here spends
+  another Trial slot.
 </Warning>
 
-Open [dashboard.plaid.com](https://dashboard.plaid.com) and create an account. Plaid's dashboard
-opens when you finish.
+Open [dashboard.plaid.com](https://dashboard.plaid.com) and create an account.
 
 Plaid's Trial plan covers US and Canada teams created on or after 2026-04-15. An older team uses
 paid Production access instead. Which plan you hold decides what this page costs you.
+
+{/* UNWITNESSED: Plaid's sign-up flow. No screen, button or field of it has ever been captured, so
+    no control is named above. One recording of a fresh signup would close it. */}
 
 </Step>
 
 <Step title="Copy your client ID and Production secret" titleSize="h2" id="keys">
 
-<Note>
-  Nobody has captured Plaid's dashboard screens, so this page names addresses rather than buttons.
-</Note>
+The Console tells you where to go. Open **Sources**, press **Add a source**, then press **Plaid**.
 
-In the Plaid dashboard, open
+The card's left column is headed **Register your app**, which the screen prints in capitals. It
+carries 3 numbered lines:
+
+1. `Sign in at dashboard.plaid.com → Team Settings → Keys.`
+2. `Copy your client_id and the Production secret.`
+3. `Request Production access if you haven’t — Plaid approves it.`
+
+Nobody has captured Plaid's dashboard, so this page names no control on it. The address that has
+been walked is
 [dashboard.plaid.com/developers/keys](https://dashboard.plaid.com/developers/keys). Postern's own
-Plaid screen names a different path, **Team Settings → Keys**. Nobody has checked which path Plaid
-shows today, so use the address.
+runbook names that path; the card above names a different one. Nobody has checked which one Plaid
+shows today. Use the address, and trust your screen.
 
-Copy the `client_id`. Then copy the Production secret.
+Copy the `client_id`. Then copy the Production secret, not the Sandbox one.
 
 The `client_id` is the same string in every Plaid environment. Each environment has its own secret.
-The Console can use only the Production one.
+Postern saves what you paste here as a Production app, and the card's own note says so:
+`Console defaults to Production.` A Sandbox secret sent to Plaid's production host fails.
 
-<Note>
-  Some banks send you to their own sign-in page. Those banks can refuse an app whose Application
-  Display Info profile is empty, even on Trial. The refusal appears inside the bank's page, not in
-  Postern. Fill that profile in at Plaid before you link a bank — the app's display name at minimum.
-</Note>
+{/* UNWITNESSED: the Plaid dashboard's nav, and its Keys page. 2 Postern surfaces disagree about the
+    path — the Console card says Team Settings → Keys, the runbook says Developers → Keys — and no
+    Plaid capture settles it. 2 screenshots of the signed-in dashboard would. */}
+
+{/* REMOVED 2026-08-07 and NOT to be re-added without a capture: an "Application Display Info"
+    step, and the troubleshooting row that told a reader to fill in an app display name or a logo.
+    The founder never set either one, no such step appears anywhere in the recorded run, and the
+    banks linked. Plaid's own docs describe a bank-side gate on an EMPTY profile, never a required
+    logo field. Re-add it only with a screenshot of the form and a witnessed refusal. */}
 
 </Step>
 
-<Step title="Paste both into the Console" titleSize="h2" id="paste-the-app">
+<Step title="Save your app and open Plaid Link" titleSize="h2" id="configure">
 
 <Warning>
   Postern encrypts the secret and stores it on your own machine as you save. The Console never shows
-  it again: the field afterwards reads *already sealed — leave blank to keep*. Plaid's dashboard is
+  it again: the field afterwards reads `already sealed — leave blank to keep`. Plaid's dashboard is
   the only other place you can read it.
 </Warning>
 
-Go to Console → **Sources** → **Add a source** → **Plaid**. Paste the `client_id` into **Client
-ID**. Paste the Production secret into **Secret**. Press **Save & add a bank**.
+The card's right-hand panel is headed **Configure the app**, again in capitals on screen. It carries
+**Client ID**, **Secret**, and the button that opens Plaid Link.
 
-Postern creates a Link session at Plaid and opens it in a new tab. The panel switches to **Link your
-banks** and checks every few seconds for the result.
+Paste the `client_id` into **Client ID**. Paste the Production secret into **Secret**.
+Press **Save & add a bank**.
 
-<Frame caption="From a run where the app is already saved: Secret reads already sealed — leave blank to keep, and the button reads Add a bank. On a first run that field is empty and the button reads Save & add a bank.">
+That button reads **Save & add a bank** until you save an app.
+After you save one it reads **Add a bank**, and **Secret** reads
+`already sealed — leave blank to keep`. Leave **Secret** blank to keep the stored secret.
+
+Postern opens Plaid Link in a new browser tab. The Console panel switches to **Link your banks** and
+reads `waiting for the first bank`.
+
+<Frame caption="From a run where an app was already saved: Secret reads already sealed — leave blank to keep, and the button reads Add a bank. Before you save an app, that field is empty and the button reads Save & add a bank.">
   <img
     src="/images/plaid-configure-the-app.png"
-    alt="The Console's Plaid screen, Configure the app: a Client ID field, a Secret field, an Add a bank button, and a line that reads finance — read-only."
+    alt="The Console's Plaid card, Configure the app: a Client ID field, a Secret field that reads already sealed — leave blank to keep, an Add a bank button, and a line that reads finance — read-only, and each bank you link becomes its own connection."
   />
 </Frame>
+
+If no new tab opened, a pop-up blocker stopped it. Press **Re-open Plaid Link** on the panel behind
+it. It opens the same address.
+
+That address works for 3 hours. After that, press **Add a bank** again.
 
 </Step>
 
-<Step title="Sign in to your bank in the Plaid window" titleSize="h2" id="link-the-bank">
+<Step title="Get past Plaid's phone screen and pick your bank" titleSize="h2" id="link-the-bank">
 
-<Warning>
-  Banks you linked at my.plaid.com do not transfer, and there is nothing to import. Link each one
-  again through this window. On a Trial team, each one costs a slot.
-</Warning>
+The new tab carries the title `Connect with Plaid`. Its first screen reads `Postern uses Plaid to
+connect your account`. Every Postern user sees that heading, because Postern sends the name.
 
-The new tab carries the title **Connect with Plaid**. Its first page reads *Postern uses Plaid to
-connect your account*.
+Plaid asks for a phone number first. You do not need one.
 
-Plaid asks for a phone number first. **Continue without phone number** — plain text under the
-**Continue** button, not a button — skips it.
+Press **Continue without phone number**. It sits directly under the **Continue** button.
 
-Choose your bank. Sign in with the bank's own credentials. Finish. Plaid then shows *Success!* over
-*Your information has been successfully shared. It's safe to close the browser now.*
+<Note>
+  Type a number instead and Plaid may refuse it, even a working mobile. The screen then reads
+  `Invalid phone number` over `We couldn't verify that … is a valid number.` Press **Try again**,
+  then press **Continue without phone number**.
+</Note>
 
-You never paste a bank password into Postern. The sign-in happens on Plaid's page, and only a token
-for that one bank comes back.
-[Nothing outside your home has to reach your machine for this to work.](/reference/security-model)
-
-Postern sends the United States as the only country, so Link offers US banks. On a Trial team, every
-real bank you finish here costs one of the 10.
-
-<Frame caption="Continue without phone number is the line under the Continue button, not a button of its own. This capture is from Plaid's Sandbox.">
+<Frame caption="Plaid's phone screen. Continue without phone number is the line under the Continue button. This shot was recorded on Sandbox, which is what the grey bar across the foot marks.">
   <img
     src="/images/plaid-link-phone-pane.png"
-    alt="Plaid's hosted Link page: a phone number field, a grey Continue button, and Continue without phone number as plain text beneath it."
+    alt="Plaid's hosted Link page, recorded on Sandbox: the heading Postern uses Plaid to connect your account, a phone number field, a grey Continue button, Continue without phone number beneath it, and a grey Sandbox-mode bar across the foot."
   />
 </Frame>
 
-Plaid may show a banner that reads *Postern is testing something new*. Plaid builds that line from the
-app name Postern sends. It appears for apps without full Production access, and nothing in the
-Console turns it off.
+Plaid then shows `Select your institution`: a search field placeholdered `Search`, over a grid of
+bank tiles. Press your bank's tile. The recorded run pressed `CHASE`.
+
+Postern sends the United States as the only country, so the grid offers US banks.
+
+Plaid may also show a banner that names your app and says it `is testing something new`. Plaid
+builds that line from the name Postern sends. It appears for an app without full Production access,
+and nothing in the Console turns it off.
+
+{/* UNWITNESSED: that banner's current wording. The only live sighting, 2026-07-25, carried the
+    product's former name — "Personal Context Gateway is testing something new" — so the app name in
+    it is derived, not captured. One screenshot against the current app would close it. */}
 
 A bank can also need time at Plaid before it works with a new app. Minutes to hours is usual.
 Charles Schwab has taken up to about 6 weeks.
 
-If no new tab opened, a pop-up blocker stopped it. The panel behind it carries **Re-open Plaid
-Link**, which opens the same session.
+</Step>
+
+<Step title="Sign in at your bank and choose the accounts" titleSize="h2" id="bank-sign-in">
+
+Plaid hands you to your bank. The handoff screen carries your bank's name. In the recorded run it
+read `Log into Chase`, over `After logging into Chase, make sure you check all these boxes:`.
+
+<Warning>
+  That screen shows one ticked box: `Share all accounts to see all your financial info with
+  Postern`. Plaid's own instruction is to check all the boxes it shows you. Do that at your bank
+  before you finish.
+</Warning>
+
+Press **Continue to login ⧉**. Your bank's own sign-in page opens.
+
+Sign in there with your bank's own credentials. You never paste a bank password into Postern. Only a
+token for that one bank comes back.
+[Nothing outside your home has to reach your machine for this to work.](/reference/security-model)
+
+Your bank then asks which accounts to share. Tick every account you want an agent to read, and
+approve. Your bank names its own screens and its own controls, so this page names none of them.
+
+Whatever your bank offers to share, finance stays read-only. No agent can move money.
+
+{/* UNWITNESSED: any real bank's own sign-in page and its own account picker — their headings, their
+    controls, and what they offer beyond the accounts themselves. The only capture is Plaid's
+    Sandbox test bank, which is a test harness rather than a bank: it showed Username / Password /
+    Sign in, then 9 invented accounts and 2 extra boxes (account-holder name and role; account and
+    routing number). None of that may be named here, and none of it is a claim about a real bank.
+    One recording of a Production run would close it. */}
+
+Plaid takes you back and ends on a success page. The captures of that run hold 2 wordings for it:
+
+- `Success` over `Your account has been successfully linked to Postern`
+- `Success!` over `Your information has been successfully shared. It's safe to close the browser now.`
+
+Plaid may then offer to save the bank to your own Plaid profile. That screen carries your bank's
+name — `Save Chase with Plaid` in the recorded run — over `Connect faster to 8,000+ Plaid-powered
+apps`. Press **Finish without saving** to skip it. That offer is Plaid's, not Postern's.
+
+Close the Plaid tab and go back to the Console tab.
 
 </Step>
 
 <Step title="Watch the bank land in the Console" titleSize="h2" id="first-bank">
 
-Leave the **Link your banks** panel open. It checks every few seconds and shows *waiting for the
-first bank*.
+Leave the **Link your banks** panel open. It checks every few seconds, and reads
+`waiting for the first bank` until something lands.
 
-When you finish at Plaid, the bank appears there with its name and its health. The button changes
+When you finish at Plaid, the bank appears on that panel with the status `ok`. The button changes
 from **Continue in Sources** to **Done — go to Sources**. Press it.
 
-**Sources** now carries a **Plaid** group with that bank beneath it. A bank on its first sync reads
-**Syncing…**. Plaid's first sync commonly returns nothing, and the history arrives over the syncs
-that follow. That is normal.
+**Sources** now carries a **Plaid** group. Its row reads `byo app · finance` and
+`feeds 1 bank · every 6h, all of them`, with **Add a bank** and **Edit app** beside it. Your bank
+sits beneath it as its own row.
 
-Postern checks every Plaid bank at the same rate: every 6 hours, and never faster than 15 minutes. A
-bank's own page shows that rate read-only under **Poll cadence**, with **Change it on the Plaid
-group →** beside it.
-
-<Frame caption="This panel is the Console, not Plaid. Re-open Plaid Link reopens the same session.">
+<Frame caption="This panel is the Console, not Plaid. While it waits it reads waiting for the first bank and its button reads Continue in Sources. When the bank lands, that button reads Done — go to Sources.">
   <img
     src="/images/plaid-waiting-for-the-first-bank.png"
-    alt="The Console's Link your banks panel: an indicator reading waiting for the first bank, a Re-open Plaid Link button and a Continue in Sources button."
+    alt="The Console's Link your banks panel: an indicator that reads waiting for the first bank, a Re-open Plaid Link button and a Continue in Sources button."
   />
 </Frame>
 
-<Note>
-  One session links one bank. The panel says *bank(s)* because that is Plaid's wording.
-  [A multi-bank session needs a Plaid user token Postern cannot get.](/reference/security-model)
+A bank that has not synced yet reads `0 accounts` under **Coverage**, and `never` under
+**Last heard**. The **Finance** sector reads `Awaiting first sync`. That is normal.
+Press **Sync now**, or wait.
 
-  For the next bank, go to Console → **Sources**, find the **Plaid** group header, and press **Add a
-  bank**. **Client ID** is already filled and the secret stays saved, so leave **Secret** blank.
+Postern checks every Plaid bank at the same rate: every 6 hours, and never faster than 15 minutes.
+
+A bank's own page shows that rate under **Poll cadence**, read-only. Beside it sit `— set once, for
+all Plaid banks` and a link **Change it on the Plaid group →**. That link lands on **Sources**, which
+carries no cadence control for Plaid. You cannot change the rate from the Console today.
+
+<Note>
+  One trip through Plaid Link links one bank. The panel says `bank(s)` because that is Plaid's
+  wording.
+  [A multi-bank trip needs a Plaid user token Postern cannot get.](/reference/security-model)
+
+  For the next bank, open **Sources**, find the **Plaid** group header, and press **Add a bank**.
+  **Client ID** is already filled and the secret stays stored, so leave **Secret** blank.
 </Note>
 
 <Note>
-  If you close Plaid's tab before you finish, the session ends empty. The panel still shows *waiting
-  for the first bank*, its button changes to **Done — go to Sources**, and no bank row appears. You
-  linked nothing and spent no slot. A new link lasts 3 hours. Start again from **Add a source** →
-  **Plaid**.
+  Close Plaid's tab before you finish and nothing links. The panel still reads `waiting for the first
+  bank`, its button changes to **Done — go to Sources**, and no bank row appears. You linked nothing
+  and spent no slot. Press **Add a bank** and start again.
 </Note>
 
 </Step>
@@ -184,25 +272,28 @@ Bank consent expires about once a year, per bank. Capital One, Fidelity and Bank
 enforce it. A lapsed bank returns empty pages, which reads like a quiet week. Postern checks each
 bank's standing and shows it instead.
 
-In Console → **Sources**, a lapsed bank reads **consent lapsed** under **Cadence**, and its action
-reads **Reconnect →** rather than **Manage →**. Click **Reconnect →**.
+In **Sources**, a lapsed bank's **Cadence** cell reads `consent lapsed`. Its last cell reads
+**Reconnect →** rather than **Manage →**. Press **Reconnect →**.
 
-On the connection page, press **Reconnect at Plaid**. A new tab opens on Plaid's re-approval page,
-and the Console says *Opened Plaid's re-approval page in a new tab*. Sign in to your bank there and
+On the connection page, press **Reconnect at Plaid**. Postern opens Plaid's re-approval page in a
+new tab and says `Opened Plaid's re-approval page in a new tab.` Sign in at your bank there and
 approve.
 
-That re-approval link lasts about 30 minutes, not 3 hours. This screen carries no re-open button. If
-a pop-up blocker eats the tab, press **Reconnect at Plaid** again.
+<Warning>
+  That re-approval address works for about 30 minutes, not 3 hours. This screen carries no re-open
+  button. If a pop-up blocker eats the tab, press **Reconnect at Plaid** again.
+</Warning>
 
-The re-approval runs against the same bank — no re-paste, no fresh link. The Item keeps its
-identity, carries on from where it stopped, and fills in what it missed. The row clears at the next
-check, up to 6 hours away. **Sync now**, on the same page, checks at once.
+The re-approval runs against the same Item. No re-paste, no fresh trip through Plaid Link. The Item
+keeps its identity,
+carries on from where it stopped, and fills in what it missed. The row clears at the next check, up
+to 6 hours away. **Sync now**, on the same page, checks at once.
 
 <Note>
-  The re-approval flow repairs neither cause of **dead**.
+  Re-approval cannot fix these 2 cases.
 
-  Plaid no longer holds that bank's Item. Link the bank again from **Add a source** → **Plaid**. On
-  a Trial team that costs a slot.
+  Plaid no longer holds that bank's Item. Link the bank again: open **Sources**, then press
+  **Add a bank** on the **Plaid** group. On a Trial team that costs a slot.
 
   Or your Plaid team hit its bank cap, or spent its credits. No re-link can work. Free a slot or
   change your Plaid plan first.
@@ -211,25 +302,32 @@ check, up to 6 hours away. **Sync now**, on the same page, checks at once.
   rather than offer a reconnect that cannot work.
 </Note>
 
+{/* UNWITNESSED: the re-approval flow end to end. Nobody has recorded an update-mode trip through
+    Plaid Link, so no screen inside it is named above. One recording would close it. */}
+
 </Step>
 
 </Steps>
 
-## Test on Plaid Sandbox instead
+## Sandbox is for testing only
 
-Sandbox gives you fake banks and the credentials `user_good` / `pass_good`. It spends no Trial slot.
+Plaid's Sandbox links Plaid's own fake bank, not yours. **It is not the setup path.** Use it only if
+you are testing Postern on a machine with no bank to link. For real use, go back to
+[Copy your client ID and Production secret](#keys).
 
-The Console has no environment picker. **Save & add a bank** always saves your app as Production —
-the screen's own footnote reads *Console defaults to Production*. A Sandbox secret pasted there
-reaches Plaid's production API, which refuses it: no Link session, no new tab, and the Console
-reports Plaid's refusal.
+It does complete — the recorded run of 29–30 July 2026 walked it end to end and left a bank row in
+the Console.
+
+The Console has no environment picker. **Save & add a bank** saves your app as Production whatever
+secret you type — the card's own note reads `Console defaults to Production.` So save the Sandbox app
+past the Console, then use the Console's own button.
 
 <Warning>
-  The command below writes over any Plaid app already saved here. Every bank that uses that app
-  stops until you save an app again.
+  The command below writes over any Plaid app already saved here. Every bank that uses that app stops
+  until you save an app again.
 </Warning>
 
-Save a Sandbox app straight to Postern. Run this on the machine Postern runs on:
+Run this on the machine Postern runs on:
 
 ```bash
 curl -s -X POST http://localhost:8787/api/plaid/app \
@@ -237,45 +335,66 @@ curl -s -X POST http://localhost:8787/api/plaid/app \
   -d '{"clientId":"YOUR_PLAID_CLIENT_ID","clientSecret":"YOUR_PLAID_SANDBOX_SECRET","env":"sandbox"}'
 ```
 
-It answers `{"configured":true,"clientId":"YOUR_PLAID_CLIENT_ID","env":"sandbox"}`. Now go to Console
-→ **Sources** → **Add a source** → **Plaid**, leave **Secret** blank, and press **Add a bank**. That
-button reuses the saved app and leaves its environment alone, so Link opens on Sandbox. Its grey bar
-reads *You are currently in Sandbox mode.*
+It answers `{"configured":true,"clientId":"YOUR_PLAID_CLIENT_ID","env":"sandbox"}`.
 
-`.env` is the other route, and it stops short of a Link session. Set `PLAID_CLIENT_ID`,
-`PLAID_SECRET` and `PLAID_ENV=sandbox` in `.env`, beside `docker-compose.yml`. Run
-`docker compose up -d` again and they point Postern at Plaid's Sandbox host. Postern reads those
-three only until you save a Plaid app. The Console cannot drive them: its Plaid screen still reads *not configured*, and its
-only button saves a Production app.
+Now open **Sources**, press **Add a source**, then press **Plaid**. Leave **Secret** blank. Press
+**Add a bank**. That button reuses the saved app and leaves its environment alone, so Plaid Link
+opens on Sandbox. Every Plaid screen then carries the grey bar `You are currently in Sandbox mode.`
 
-To go back to Production, press **Clear** on the **Plaid** row at Console → **Settings** →
-**Provider apps**, then paste your Production keys. No bank that used the old app refreshes again
-until you save one.
+Walk it as [Get past Plaid's phone screen](#link-the-bank) describes. 3 things belong to Plaid's test
+harness rather than to setup:
+
+- The grey bar names the only number Plaid accepts here:
+  `You are currently in Sandbox mode. Sandbox » phone number: 415-555-0011`. You still do not need
+  one — **Continue without phone number** works.
+- Press any bank tile. Sandbox sends you to its own test bank, `First Platypus Bank`, whichever tile
+  you pressed. Below that bank's sign-in form sits a strip with an `Error Selector` and a
+  `Submit Error` control, for forcing failures on purpose.
+- The test bank takes any sign-in. The recorded run typed a username of its own. Plaid's published
+  test login is `user_good` / `pass_good`, and its published MFA code is `1234`. Its account picker
+  lists several invented accounts, `Plaid Checking ··· ··· 0000` among them. None is a real account.
+
+It ends at `Success`, over `Your account has been successfully linked to Postern`.
+
+`.env` is the other way in, and it dead-ends. Set `PLAID_CLIENT_ID`, `PLAID_SECRET` and
+`PLAID_ENV=sandbox` in `.env`, beside `docker-compose.yml`, then run `docker compose up -d` again.
+Postern reads those 3 variables only until you save a Plaid app. The Console cannot drive them: its
+Plaid screen still reads `not configured`, and its only button saves a Production app, which
+overwrites them. Use the command above instead.
+
+To go back to Production, open **Settings**, find **Provider apps**, and press **Clear** on the
+**Plaid** row. Then paste your Production keys at **Sources** → **Add a source** → **Plaid**. No bank
+that used the old app refreshes again until you save one.
 
 ## Confirm it works
 
-- Console → **Sources** carries a **Plaid** group, one row per linked bank, each with an account
-  count and a **Cadence** cell. The group's own line says how many banks feed it.
-- Each bank's **Cadence** reads a time, not a warning.
-- Console → **Settings** → **Provider apps**: **Plaid** reads *configured*.
-- A bank that also arrives through SimpleFIN carries *also arrives via SimpleFIN — served as one*.
-  Postern merges on its own only when both providers publish the last 4 digits. Otherwise it asks
-  *Is this the same account, seen twice?* on its own screen. Answer **They’re the same account** or
-  **Keep them separate**, and it stays answered.
-- Ask an agent with a **finance** grant: *which finance sources can you see, and how fresh are
-  they?* It names the Plaid bank and its health. It names the consent expiry date too, once
-  Plaid publishes one. You grant **finance** at Console → **Agents & keys** —
+- **Sources** carries a **Plaid** group with one row per linked bank. The group's own line says how
+  many banks feed it.
+- Each bank's **Cadence** cell reads a time, not `consent lapsed`.
+- Open **Settings** and find **Provider apps**: **Plaid** reads `configured`.
+- After the first sync, a bank's **Coverage** reads more than `0 accounts`, and its **Last heard**
+  reads a time rather than `never`.
+- A bank that also arrives through SimpleFIN carries `also arrives via SimpleFIN — served as one`.
+  Postern merges 2 rows on its own only when both providers publish the last 4 digits. Otherwise it
+  asks `Is this the same account, seen twice?` on its own screen. Answer **They’re the same account**
+  or **Keep them separate**, and it stays answered.
+- Ask an agent with a **finance** grant: *which finance sources can you see, and how fresh are they?*
+  It names the Plaid bank and its standing. It names the consent expiry date too, once Plaid
+  publishes one. You grant **finance** at **Agents & keys** —
   [Connect an agent](/start/connect-an-agent).
 
 ## If something went wrong
 
 | What you see | What to do |
 |---|---|
-| No new tab opened, and the Console reports that Plaid refused your keys | You pasted a Sandbox secret; the Console only sends Production. Copy the Production secret from [the Keys page](https://dashboard.plaid.com/developers/keys) and paste it into **Secret** again — [Copy your client ID and Production secret](#keys). |
-| Your bank's own sign-in page refuses the app | Your app's Application Display Info profile is empty. Fill it in at the Plaid dashboard, the display name at minimum, then link the bank again — [Sign in to your bank in the Plaid window](#link-the-bank). |
-| A bank reads **dead**, and **Reconnect at Plaid** does not bring it back | Plaid no longer holds that Item: link the bank again from **Add a source** → **Plaid**. Or your Plaid team hit its bank cap or spent its credits: free a slot or change your Plaid plan — [Reconnect a bank when its consent lapses](#reconnect). |
-| No bank refreshes any more after you pressed **Clear** in **Settings** → **Provider apps** | Postern no longer holds that app. Paste the `client_id` and the Production secret again — [Paste both into the Console](#paste-the-app). |
-| The Console's Plaid screen reads *not configured* after you set the `PLAID_` variables | Environment variables never make that screen ready. Use the POST above — [Test on Plaid Sandbox instead](#test-on-plaid-sandbox-instead). |
+| `Invalid phone number` over `We couldn't verify that … is a valid number.` | Plaid refused the number, and a working mobile can hit this. Press **Try again**, then press **Continue without phone number** — [Get past Plaid's phone screen](#link-the-bank). |
+| No new tab opened after you pressed **Add a bank** | A pop-up blocker stopped it. Press **Re-open Plaid Link** on the **Link your banks** panel — [Save your app and open Plaid Link](#configure). |
+| No Plaid Link tab opens, and the secret you saved was a Sandbox one | The Console saves every app as Production, so a Sandbox secret reaches Plaid's production host. Paste the Production secret into **Secret** — [Copy your client ID and Production secret](#keys). |
+| The bank row reads `0 accounts` and `never` | Nothing has synced yet. Press **Manage →** on that row, then **Sync now** — [Watch the bank land in the Console](#first-bank). |
+| **Reconnect at Plaid** does not bring a bank back | Plaid no longer holds that Item, or your Plaid team hit its bank cap or spent its credits. Link the bank again with **Add a bank**, or free a slot at Plaid — [Reconnect a bank when its consent lapses](#reconnect). |
+| No bank refreshes any more after you pressed **Clear** in **Settings** → **Provider apps** | Postern no longer holds that app. Paste the `client_id` and the Production secret again — [Save your app and open Plaid Link](#configure). |
+| The Console's Plaid screen reads `not configured` after you set the `PLAID_` variables | Environment variables never make that screen ready. Paste your keys at **Sources** → **Add a source** → **Plaid** instead — [Copy your client ID and Production secret](#keys). |
+| `http://localhost:8787` does not open | Postern runs on another machine. [Set up remote access](/start/remote-access), then return to [Save your app and open Plaid Link](#configure). |
 
 ## What you have now
 
@@ -284,10 +403,10 @@ move money, and Postern never held the bank sign-in.
 [Only Home Assistant carries actions today.](/reference/mcp-primitives)
 
 Postern caches accounts, transactions and holdings on your own machine. An agent with a **finance**
-grant answers from that cache. Where a bank also arrives through SimpleFIN, agents get
-one merged row, and both provider rows stay readable.
-[Plaid fixes the 2-year history window when you link the bank, and only a fresh link widens
-it.](/reference/mcp-primitives)
+grant answers from that cache. Where a bank also arrives through SimpleFIN, agents get one merged
+row, and both provider rows stay readable.
+[Plaid fixes the 2-year history window when you link the bank, and only a fresh trip through Plaid
+Link widens it.](/reference/mcp-primitives)
 
 What this costs you from here:
 
@@ -296,9 +415,9 @@ What this costs you from here:
   time: it goes to a Plaid endpoint Plaid bills per call.
 - Consent expires about once a year, per bank. Postern shows the lapse but cannot renew it —
   [Reconnect a bank when its consent lapses](#reconnect).
-- When you disconnect a bank, Postern tells Plaid to cancel that Item. That also stops Plaid's
-  charge for it, and Postern leaves your other Plaid banks alone. It is one-way: you cannot
-  reconnect a bank you disconnected or erased, only link it from the start, on a fresh slot.
+- Disconnect a bank and Postern tells Plaid to cancel that Item. That also stops Plaid's charge for
+  it, and Postern leaves your other Plaid banks alone. It is one-way: you cannot reconnect a bank you
+  disconnected or erased, only link it from the start, on a fresh slot.
 
 ## Next
 

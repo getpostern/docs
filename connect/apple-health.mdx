@@ -262,8 +262,8 @@ You can run the automation again safely. Health Auto Export's export windows ove
 purpose. Postern gives every sample, sleep session and workout a fixed id. The same
 data sent twice updates those rows. It never duplicates them.
 
-Keep the schedule inside two days. After 48 hours without a push the connection reads
-**Stale**. **Stale** is advice, not a fault. Your phone sends data to Postern when it
+Keep the gap between pushes under 48 hours. After 48 hours without a push the connection
+reads **Stale**. **Stale** is advice, not a fault. Your phone sends data to Postern when it
 decides to. Postern cannot ask for it, so there is no **Sync now** button, and Postern
 never calls a device **Unreachable**.
 
@@ -293,9 +293,10 @@ never calls a device **Unreachable**.
 
 - **Console → Sources**: one Apple Health connection, not two.
 - The connection page: **Samples cached** reads above zero.
-- The connection's **Delivery** panel: **Shared secret** reads `•••••••••••• set …`,
-  not *no secret minted yet*, and the button reads **Rotate secret**, not **Mint
-  secret**.
+- The connection's **Delivery** panel: **Shared secret** reads `•••••••••••• set` and a relative
+  time — `•••••••••••• set 3 days ago`, or `just now` on a secret you made this minute. It is not a
+  calendar date. It must not read `no secret minted yet`, and the button beside it must read
+  **Rotate secret**, not **Mint secret**.
 - **Health Auto Export → Automations**: two automations, both on **Automation Type**
   **REST API** and both on the same address. One exports health metrics, one exports
   workouts.
@@ -333,7 +334,7 @@ stored still answers. A paused connection refuses a push exactly as a wrong secr
     publish to production
   </Card>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    a key you minted, granted health · a few minutes, plus a restart of the client · one config
+    a key you created, granted health · a few minutes, plus a restart of the agent · one config
     block to paste
   </Card>
 </Columns>
