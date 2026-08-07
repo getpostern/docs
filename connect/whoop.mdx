@@ -6,110 +6,240 @@ description: "Recovery, sleep, strain, workouts and day-cycles, through a develo
 <Info>
   **Before you start**
 
-  - **A WHOOP membership.** The strap and the subscription are yours; the developer app you build on
-    top of them costs nothing.
-  - **About ten minutes.**
-  - **A confidential client — a client ID and a client secret, both required.** WHOOP has no public
-    client type and ignores PKCE, so the secret is the only proof the request is your app.
-  - **A developer account at developer.whoop.com**, where you create that app.
-  - **Postern installed and running**, with the Console in front of you. Everything on this side
-    happens at Console → Sources → Add a source → WHOOP. If you have not got that far,
-    [install Postern](/start/install) first.
-  - **A browser that reaches the Console at `http://localhost:8787`.** The sign-in comes back to a
-    loopback address, and the gateway refuses a callback that arrives under any other host name, so
-    the whole consent has to finish in a browser that has the Console open at that address. If
-    Postern runs on a NAS, a home server or anything else headless, bring the port to yourself over
-    SSH first: [Set up remote access](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box).
-  - **One uninterrupted run.** Postern holds the pending sign-in in memory for ten minutes and drops
-    it if the gateway restarts, so do not upgrade or bounce the stack in the middle of this.
+  - **A WHOOP membership, and a WHOOP developer account.** The membership is the paid part. The
+    developer account, at `developer-dashboard.whoop.com`, costs nothing.
+  - **A Team at WHOOP, if this is your first app.** WHOOP asks a new developer account to create a
+    Team before its first app. Any name will do, and the Team needs no other members.
+  - **A web address to give WHOOP as your privacy policy.** WHOOP's app form asks for one and will
+    not take an empty field. You do not need a real privacy policy. WHOOP does not check the
+    address: Postern's own WHOOP app carries `https://dummy.com/privacy`.
+  - **Nothing to request from WHOOP.** A new app serves up to 10 WHOOP members without approval. You
+    are one of them. Approval is for an app you hand to other people.
+  - **About 10 minutes, in one sitting.** Postern remembers a sign-in you started for 10 minutes,
+    and lets you finish it once. Do not restart or update Postern while you work.
+  - **Postern started, with the Console open at `http://localhost:8787`.** WHOOP sends you back to
+    that address. Postern refuses a return under any other name, so finish the whole sign-in in that
+    browser. No Postern yet? [Install Postern](/start/install). Postern on a computer with no screen?
+    [Open the Console over SSH](/start/remote-access#ssh-tunnel) first.
+  - **A password manager, open.** WHOOP gives your app two values: a client ID and a client secret.
+    Postern needs both — [WHOOP refuses the sign-in without the secret](/reference/provider-sign-ins#what-each-provider-needs-and-why).
+    WHOOP shows the secret when it creates the app, then masks it. Copy it there and then.
 </Info>
 
 <Steps>
 
 <Step title="Copy the redirect URI out of the Console" titleSize="h2" id="redirect-uri">
 
-Console → Sources → Add a source → WHOOP. The left column of that screen carries the registration
-steps; the second one renders the redirect address with a copy control beside it. Copy it now — it is
-the first thing WHOOP asks for in the next step.
+Open the Console at `http://localhost:8787`. In the left navigation, click **Sources**. On that page,
+click **Add a source**, then the **Whoop** tile.
 
-Read it off that screen rather than off this page. The Console asks your own gateway what address it
-will send and renders the answer verbatim, so the string stays true if you ever move the Console off
-its default port. On a stock install it reads:
+The left column carries the heading **Register your app**. Its second step reads **Request the offline scope,
+and add this redirect URI:**, with an address underneath.
+
+Click **Copy** beside that address. The button answers **Copied**.
+
+A redirect URI is the address the provider sends you back to after you approve. They match it
+exactly, character for character. On a stock install this one reads:
 
 ```text
 http://localhost:8787/api/oauth/whoop/callback
 ```
 
+Copy it from the screen, not from this page. It stays correct if you ever change the Console port —
+[the Console prints the address Postern will send, never one it worked out itself](/reference/provider-sign-ins#the-redirect-address-is-pinned-inside-postern).
+
+The Console calls it a redirect URI. WHOOP's form heads that section **REDIRECT URLS**. One address,
+two names.
+
 <Note>
-  The redirect box is blank, or it holds a sentence where the address should be. The Console prints
-  what the gateway told it: blank means the answer has not come back yet, and a sentence is the
-  gateway's own message about why it could not answer. Reload the screen once `docker compose ps`
-  reports `app` healthy.
+  The address is missing. Its place is empty, or it holds a sentence. Empty means Postern has not
+  answered yet. A sentence is Postern's own error message. Open a terminal on the machine Postern
+  runs on. Go to the folder that holds `docker-compose.yml`. Run `docker compose ps` and wait until
+  `app` reads `healthy`. Then reload the Console screen.
 </Note>
 
 </Step>
 
 <Step title="Create the app at WHOOP" titleSize="h2" id="create-app">
 
-At developer.whoop.com, sign in and create a new app. Put the redirect URI you copied into the app's
-redirect field — paste it, never hand-type it, because WHOOP exact-matches that string and one wrong
-character is a dead consent. Then give the app its scopes.
+Go to `developer-dashboard.whoop.com` and sign in with your WHOOP account. The signed-in page reads
+**Your apps**, with **APPS**, **TEAM** and **DOCS** across the top right.
 
-Postern asks for exactly these six on every sign-in, so the app has to be able to grant all six:
+<Note>
+  The Console's own first step names `developer.whoop.com`. That address is WHOOP's documentation
+  site. You create the app at `developer-dashboard.whoop.com`. Two addresses, one WHOOP.
+</Note>
 
-```text
-read:recovery
-read:cycles
-read:sleep
-read:workout
-read:profile
-offline
-```
+If this is your first app, WHOOP asks you to create a Team before it opens the app form. Give the
+Team any name.
 
-Five of them are reads. The sixth, `offline`, is not data: it is what lets Postern renew the sign-in
-without you. Its refresh request sends `scope=offline`, and WHOOP will not renew a token without it —
-which is why a consent that skips it works this evening and is dead tomorrow.
+Press **CREATE NEW APP**, top right. WHOOP opens a form titled **New App**.
+
+Fill the three sections at the top of that form:
+
+- **NAME** — type `Postern`. WHOOP's note reads "App name displayed to the user in the OAuth flow.",
+  and the field shows `App Name` until you type.
+- **LOGO** — a `.jpg` or a `.png`. WHOOP's note reads "Logo displayed to the user in the OAuth flow.
+  This logo must be either .jpg or .png and will be displayed in 1:1 width/height pixel ratio." You
+  are the only person who ever sees it.
+- **CONTACTS** — type your own email address into **Contact #1**. The field shows
+  `contact@example.com` until you type. WHOOP's note reads "Contact emails for this app.
+  Administrative communications from WHOOP concerning this app will be directed to these emails."
 
 <Warning>
-  Grant every scope on that list. The sectors Postern turns on afterwards are derived from what WHOOP
-  actually granted, not from what was asked for: `read:recovery`, `read:sleep` and `read:workout` are
-  the three that map to the health sector, and a consent granting none of them creates no connection
-  at all. The Console reports the connection it made; it cannot report the scope it did not get.
+  Tick all five read scopes below. Postern turns on the health sector only if WHOOP grants
+  `read:recovery`, `read:sleep` or `read:workout`. Grant none of those three and Postern creates no
+  connection at all — [the Console can only report the connection it made](/reference/grants-and-sectors#which-sectors-a-sign-in-turns-on).
 </Warning>
 
-WHOOP issues the app a client ID and a client secret. Copy both — they go into the Console in the
-next step.
+{/* WITNESSED: gif-whoop.md — the four sections below CONTACTS, their helper text, the six scope checkboxes, and the submit button. Casing caveat from that witness: the ALL-CAPS headings and button labels are probably a CSS text-transform, so the render is certain and the source string is not. Describe what renders; never assert the underlying string. */}
+
+Scroll down. Four more sections follow **CONTACTS**, in this order: **PRIVACY POLICY**, **REDIRECT
+URLS**, **SCOPES**, **WEBHOOKS**. This form prints every section heading in capitals. The app's own
+screen prints the same names in ordinary case later, so match a section by what it asks for.
+
+**PRIVACY POLICY** — type any web address into the one field. WHOOP's note reads "Link to your
+privacy policy. Users will be presented with this link in the OAuth flow.", and the field shows
+`https://example.com/privacy` until you type. Nothing on screen marks the field required. Leave it
+empty and WHOOP will not create the app. You do not need a real privacy policy, and WHOOP does not
+check the address. Postern's own WHOOP app carries `https://dummy.com/privacy`.
+
+**REDIRECT URLS** — paste the address you copied in [step 1](#redirect-uri) into **Redirect #1**.
+Never type it by hand. The field shows `https://myapp.com/callback` until you paste. An **ADD**
+button below the field adds another redirect. Postern needs one, so leave **ADD** alone.
+
+WHOOP's note here reads "Location to which the user is taken after logging in. A valid redirect URL
+will take the form of https://whoop.com or whoop://example." Your address matches neither of those
+shapes. It starts `http://`, and WHOOP accepts it. Postern's own WHOOP app is registered with that
+exact address, and it syncs today.
+
+**SCOPES** — six checkboxes, one per scope. WHOOP starts every one unticked. Tick the first five.
+Leave `read:body_measurement` unticked: Postern never asks for it.
+
+| scope | WHOOP's own description | what to do |
+|---|---|---|
+| `read:recovery` | Allows access to recovery information, including score, heart rate variability, and resting heart rate | Tick |
+| `read:cycles` | Allows access to cycles information, including day strain and average heart rate during a cycle | Tick |
+| `read:sleep` | Allows access to sleep information, such as duration and start and end time | Tick |
+| `read:workout` | Allows access to workout information, including activity type and accumulated strain | Tick |
+| `read:profile` | Allows access to profile information | Tick |
+| `read:body_measurement` | Allows access to body measurements, such as height, weight, and max heart rate | Leave unticked |
+
+Scopes are permissions — the list of things your app may read. WHOOP's own rule: "At least one scope
+must be specified to create an App."
+
+`offline` is not one of the six, and there is no checkbox for it. Do not hunt for one. Postern asks
+WHOOP for `offline` on the sign-in request itself. The Console's own step reads **Request the offline
+scope, and add this redirect URI:**. Postern makes that request. You register the address.
+
+`offline` is not data. It lets Postern renew the sign-in without you. Without it the connection dies
+the next day — [WHOOP will not renew a token without it](/reference/provider-sign-ins#what-each-provider-needs-and-why).
+
+**WEBHOOKS** — leave this section alone. Postern uses no webhooks. WHOOP renders no field here until
+you press **ADD**, so there is nothing to fill in.
+
+Press **CREATE APP**, at the bottom of the form. Until you change something on the form that button
+stays dim, and the line beneath it reads "Make a change to enable saving."
+
+Your new app then sits under **Your apps**, and its card carries the app name and **CLIENT ID**.
+
+</Step>
+
+<Step title="Copy the client ID and the client secret" titleSize="h2" id="copy-credentials">
+
+<Warning>
+  Copy the client secret into your password manager before you leave this screen. WHOOP shows the
+  secret once, at creation. After that the app's **Credentials** section prints **Client Secret** as
+  a row of dots.
+</Warning>
+
+WHOOP hands the new app two values: a client ID and a client secret. Copy both into your password
+manager. Postern needs both in the next step.
+
+The client secret is a password. WHOOP's own words: it should "never be logged or shared with
+anyone."
+
+The client ID stays readable. Open the app from **APPS**, and **Credentials** prints **Client ID**
+in full. WHOOP's own documentation says you can read both values later. That is true of the client
+ID only. The secret prints as dots.
+
+The same screen carries **Status**. WHOOP's words there: "Apps can be used for development
+immediately with a limit of 10 WHOOP members. To launch your app to all WHOOP members, you must
+submit your app for approval." You are the one member. Leave **Request Approval** alone.
+
+**If you did not copy the secret.** Nothing breaks on its own. A connection that already signed in
+carries on, because Postern holds the secret in the vault and renews the sign-in with it. You need
+the secret again only to sign in again.
+
+Look in your password manager first, then in the browser's saved form entries.
+
+{/* UNWITNESSED: whether WHOOP's app screen offers a control that issues a replacement client secret. The founder's capture of that screen (founder-round2.md §2.2) shows Client ID in full and Client Secret masked; it settles nothing about a replacement control. Do not name one. */}
+
+Then open the app at `developer-dashboard.whoop.com` and read the **Credentials** section. Nobody
+here has seen whether WHOOP offers a replacement secret there. If it does, take it, then paste the
+new pair into the Console.
+
+If it does not, register a second app and leave the first one alone. WHOOP's own rule: "You can
+create up to 5 Apps." Give the second app the same privacy policy address, the same redirect URL
+and the same five scopes. Copy its client ID and secret, then paste the pair into the Console.
+
+The first app holds the old sign-in until you finish. Do not delete it before then. Delete the app
+your connection runs on and the next sync stops.
 
 </Step>
 
 <Step title="Paste both halves into the Console and sign in" titleSize="h2" id="sign-in">
 
-Back at Console → Sources → Add a source → WHOOP, under **Configure the app**: paste the client ID
-into **Client ID**, the client secret into **Client secret**, and press **Save & sign in with Whoop**.
-The Console seals both into the vault, hands you to WHOOP's consent page, and — once you approve —
-WHOOP returns you to the Console's Sources page with the new connection on it.
+Go back to Console → Sources → **Add a source** → **Whoop**. The right column carries the heading
+**Configure the app**.
 
-Both halves are required, and the Console stops you before it sends anything if one is missing: the
-field answers **Whoop is a confidential client — paste the client secret too, or the sign-in will be
-refused.** The secret is sealed in the vault from here on and is sent only to refresh the sign-in.
+Paste the client ID into **Client ID**. Paste the client secret into **Client secret**. Leave the
+secret empty and the Console sends nothing. The field answers **Whoop is a confidential client —
+paste the client secret too, or the sign-in will be refused.**
+
+<Warning>
+  Sign in on WHOOP's page with the WHOOP account that wears the strap. A different WHOOP account
+  connects, looks healthy, and holds no data.
+</Warning>
+
+Press **Save & sign in with Whoop**. Postern stores both values encrypted, then sends you to WHOOP's
+consent page. Approve there. WHOOP returns you to the Console's Sources page, and a message reads
+**WHOOP connected — Health.** After this,
+[the secret leaves your machine only to renew the sign-in](/reference/provider-sign-ins#what-each-provider-needs-and-why).
+
+The new row reads **Awaiting first sync** until the first poll runs. It then reads **Syncing…**, with
+a count of the rows so far on that first sync only.
 
 <Note>
-  You land back on the Console's WHOOP screen reading **Whoop did not complete the sign-in.** with a
-  code from WHOOP beneath it, in mono. Postern renders that code exactly as WHOOP sent it and never
-  rewrites it, because it is the thing you match against your registration. Two paths arrive here:
-  WHOOP answered with an error instead of a code — you declined, or the app is misconfigured — or the
-  token exchange failed, which is what a client secret that does not belong to that client ID looks
-  like. The repair is on the screen you are already on: re-read the registration steps, correct the
-  app at WHOOP or re-paste the pair, and press the button again.
+  You land back on the Console's Whoop screen, which reads **Whoop did not complete the sign-in.**
+  with a code beneath it in mono. The code is WHOOP's own. Three causes: you declined, the app at
+  WHOOP is set up wrong, or the client secret does not match the client ID. Correct the app at WHOOP,
+  or re-paste the pair, then press **Save & sign in with Whoop** again.
 </Note>
 
 <Note>
-  A bare page reading `{"error":"invalid or expired state"}` at the callback address, instead of the
-  Console. Postern holds the pending sign-in in memory, one-shot, for ten minutes; leaving the consent
-  page open longer than that, restarting the gateway mid-flow, or opening the same callback link a
-  second time all land here. Nothing was stored and nothing is lost — go back to Console → Sources →
-  Add a source → WHOOP and press the button again.
+  A bare page reads `{"error":"invalid or expired state"}` at the callback address, instead of the
+  Console. You took longer than 10 minutes, restarted Postern part-way, or opened the callback link a
+  second time. Postern stored nothing, and you lost nothing. Go back to Console → Sources → **Add a source**
+  → **Whoop** and press **Save & sign in with Whoop** again.
 </Note>
+
+</Step>
+
+<Step title="Set how often Postern checks" titleSize="h2" id="poll-cadence">
+
+Optional. Postern asks WHOOP for new data on a schedule, and you set it. Console → **Sources** →
+click the WHOOP row. Under **Controls**, **Poll cadence** offers 15m, 30m, 1h, 6h, 12h and 1d. WHOOP
+starts at 6h. 15m is the floor, and Postern clamps a faster value to it.
+
+The first sync fetches the last 30 days, so it takes longer than the syncs after it. Each later sync
+re-reads the last 3 days, so a night WHOOP scored late still lands.
+
+Press **Sync now** on the same page to sync at once, rather than at the next poll.
+
+Your app's own screen prints WHOOP's budget under **Rate Limits**: **API Minute Rate Limit** `100`
+and **API Day Rate Limit** `10000`. A 15m poll is nowhere near either. Postern uses no webhooks, so
+**Webhook URLs** on that screen stays at `No webhooks configured`.
 
 </Step>
 
@@ -117,67 +247,62 @@ refused.** The secret is sealed in the vault from here on and is sent only to re
 
 ## Confirm it works
 
-Everything here is on screens you already have open. The point of the first two is that WHOOP fans
-one credential into one connection, and that a healthy one is quiet.
-
-- Console → Sources lists **one** WHOOP row, under health. One, not two: a second sign-in replaces
-  the stored app rather than adding a connection beside it.
-- That row reads **Syncing…** for a while — with a running count beside it on the very first sync —
-  and then loses its label entirely. There is no healthy badge in this Console, so a WHOOP connection
-  with nothing to say carries no label at all. **Awaiting first sync** means the first poll has not
-  run yet. **Stale**, **Unreachable** and **Disconnected** each mean something to fix.
-- Open the connection and it counts the rows it has cached, a count per kind of record. Sleep
-  sessions, workouts and health samples are the three that fill for WHOOP; recovery and the
-  day-cycle both land in samples.
-- The same page offers **Sync now**. WHOOP is polled rather than pushed, so that button is the way to
-  stop waiting for the next cadence.
-- Console → Sources → Add a source → WHOOP now opens with **Whoop is already connected. Signing in
-  again replaces the stored app and re-runs consent — it won’t create a second connection.**, an
-  intent checkbox reading **Yes — replace the stored app and re-run consent.**, and a button that now
-  says **Reconnect Whoop**. That is the same screen confirming from the other side.
+- Console → **Sources** lists one **WHOOP** row, under Health.
+- That row carries no label at all. There is no healthy badge in this Console.
+- Open the WHOOP row: **Samples cached** reads a number above 0.
+- **Last synced** shows a time, and **Next poll** shows one.
+- Console → **Add a source** → **Whoop** now reads **Whoop is already connected. Signing in again
+  replaces the stored app and re-runs consent — it won’t create a second connection.**, with a
+  checkbox **Yes — replace the stored app and re-run consent.** and a button **Reconnect Whoop**.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| The redirect box on the Console's WHOOP screen is blank, or holds a sentence instead of an address | [Copy the redirect URI out of the Console](#copy-the-redirect-uri-out-of-the-console) |
-| The consent finished, and no WHOOP row appears under Sources | [Create the app at WHOOP](#create-the-app-at-whoop) |
-| `Whoop is a confidential client — paste the client secret too, or the sign-in will be refused.` | [Paste both halves into the Console and sign in](#paste-both-halves-into-the-console-and-sign-in) |
-| `Whoop did not complete the sign-in.` with a code from WHOOP beneath it | [Paste both halves into the Console and sign in](#paste-both-halves-into-the-console-and-sign-in) |
-| A bare page reading `{"error":"invalid or expired state"}` at the callback address | [Paste both halves into the Console and sign in](#paste-both-halves-into-the-console-and-sign-in) |
-| The connection reads **Stale** or **Unreachable** days after a sign-in that worked | [What you have now](#what-you-have-now) |
-| Nothing answers on 8787 from your laptop, and Postern runs on another machine | [Set up remote access](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box) |
+| WHOOP's app form will not submit — it wants a privacy policy | Type any web address into the field under **PRIVACY POLICY**. WHOOP does not check it. [Step 2](#create-app) has the detail. |
+| The app's **Credentials** section prints **Client Secret** as dots | That is normal. WHOOP masks the secret after it creates the app. A connection that already signed in carries on. [Step 3](#copy-credentials) has the recovery path if you have no copy. |
+| No address under **Request the offline scope, and add this redirect URI:** — an empty space, or a sentence | Postern has not answered the Console yet. [Step 1](#redirect-uri) has the check to run. |
+| [**Whoop did not complete the sign-in.**](#sign-in) with a code beneath it | You declined, the app at WHOOP is set up wrong, or the secret does not match the ID. Correct the app at WHOOP or re-paste the pair, then press **Save & sign in with Whoop** again. |
+| A bare `{"error":"invalid or expired state"}` page at the callback address | The 10 minutes ran out, Postern restarted, or you opened the callback link twice. Postern stored nothing. [Start the sign-in again](#sign-in). |
+| [**WHOOP signed in, but granted no sectors. Check the scopes on your app, then sign in again.**](#create-app) | WHOOP granted none of `read:recovery`, `read:sleep`, `read:workout`. Open your app at `developer-dashboard.whoop.com`, tick all five read scopes, then sign in again. |
+| The row reads **Stale**, days after a sign-in that worked | The last sync is late. Open the row and press **Sync now**. |
+| The row reads **Unreachable** or **Disconnected** | **Unreachable**: Postern cannot reach WHOOP and retries on its own. If it persists, check that your app still exists at `developer-dashboard.whoop.com`. If it is gone, create it again — a new app carries a new client ID and secret, so [paste the new pair into the Console and sign in again](#sign-in). **Disconnected**: the credential is gone from the vault. Go to **Add a source** → **Whoop**, paste the client ID and secret again, and sign in. |
 
 ## What you have now
 
-One health connection, on a credential you own, syncing on its own cadence — which you can change on
-the connection's own page. It carries sleep sessions, workouts, recovery, and the physiological
-day-cycle that day-strain comes from: recovery, sleep, strain, workouts and day-cycles, answerable by
-any agent you have granted the health sector. Granting is done on the key, not here —
-[connect an agent](/start/connect-an-agent) is where a key meets this data.
+One health connection, on a credential you own. It carries recovery, sleep, day-strain, workouts and
+day-cycles. Any agent you have granted the health sector can answer from it. You grant on the key,
+not here — [connect an agent](/start/connect-an-agent).
 
-It is read-only in both directions. WHOOP exposes no actions through Postern and the connector
-refuses to execute one, so nothing an agent asks can write back to WHOOP.
+WHOOP fills three kinds of row: sleep sessions, workouts and health samples. Recovery and the
+day-cycle both land in samples, and the Console's **Samples cached** counts all three kinds together.
+An agent asks for the samples by name:
 
-The client secret you pasted stays sealed in the vault, and the access token is renewed by the
-gateway without you — which is what the `offline` scope bought.
+`recovery_score` · `resting_heart_rate` · `hrv_rmssd` · `spo2` · `skin_temperature` · `day_strain` ·
+`day_average_heart_rate` · `day_max_heart_rate` · `day_kilojoule`
 
-What you are carrying from here: the WHOOP membership itself, and an app registration at WHOOP that
-has to keep working. Revoke the app there, or let the sign-in lapse, and the token dies with it — the
-next sync stops and the connection stops being fresh. In the other direction, disconnecting in the
-Console flips this connection and its credential to revoked and deletes the sealed access token, the
-refresh token and the stored client secret from the vault; the connection's page then reads **This
-connection was removed — its credential is gone from the vault. Syncing will not resume on its own;
-re-add the source to start a new connection.** What that does not touch is the data already synced.
-The cached rows are kept — disconnecting removes the credential, not the cache — and re-adding the
-source means pasting the client ID and secret again.
+`spo2` and `skin_temperature` come from the 4.0 strap only. On a 3.0 strap they stay empty.
+`day_kilojoule` stays in kilojoules, while Postern converts workout energy to kcal. A night WHOOP has
+not scored yet produces no rows at all. It appears on a later sync.
+
+WHOOP is read-only. There is nothing here for an agent to act on —
+[WHOOP offers no actions, and Postern refuses to run one](/reference/grants-and-sectors#which-sectors-an-agent-can-act-in).
+
+What you carry from here: the WHOOP membership, and the app registration at WHOOP. Delete that app,
+or let the sign-in lapse, and the next sync stops.
+
+Disconnect in the Console. Postern then deletes the access token, the refresh token and the client
+secret from the vault. [It also marks the connection and its credential revoked](/reference/vault#a-disconnect-removes-the-credential-not-the-data).
+The connection's page then reads **This connection was removed — its credential is gone from the
+vault. Syncing will not resume on its own; re-add the source to start a new connection.** Your synced
+rows stay. To reconnect, paste the client ID and secret again.
 
 ## Next
 
 <Columns cols={2}>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    An agent key, shown once · a few minutes, plus a restart of whatever client you are connecting ·
-    nothing published, unless the client is claude.ai or ChatGPT.
+    An agent key, shown once · a few minutes, plus a restart of the client you connect · nothing
+    opened to the internet, unless the client is claude.ai or ChatGPT.
   </Card>
   <Card title="Connect Apple Health" href="/connect/apple-health">
     Health Auto Export on your iPhone · about 10 minutes · push, not pull. The Console's own WHOOP

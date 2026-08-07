@@ -1,0 +1,245 @@
+---
+title: "The vault and the master key"
+description: "What Postern encrypts and what it does not, where the master key comes from, how to rotate it, and the one command that destroys it for good."
+---
+
+<Info>
+  **Before you start**
+
+  - **Your credentials are encrypted. Your data is not.** The vault holds
+    provider tokens and passwords. The rows Postern syncs are ordinary Postgres
+    columns.
+  - **Either you hold the master key or Postern does.** Which one it is decides
+    half of this page.
+  - **The key file is the whole secret.** There is no passphrase and no escrow.
+    Anything that can read that file can open the vault.
+  - **`docker compose down -v` destroys it.** Every credential encrypted under
+    that key becomes permanently unopenable, and no recovery path exists.
+</Info>
+
+## The credential vault
+
+Postern encrypts every password a source gave you before it reaches the database.
+It never hands a source password to an agent, on any path.
+
+**In the vault:** OAuth access and refresh tokens, app-specific passwords,
+SimpleFIN access URLs, Home Assistant tokens and Plaid item tokens. Postern also
+encrypts the client secrets of the provider apps you register yourself.
+
+They live in one `secrets` table. A credential row holds only a pointer of the
+form `sec_<uuid>`, never the secret. Postern never writes a secret into a data
+row, and no route ever returns one.
+
+| | |
+|---|---|
+| Cipher | AES-256-GCM |
+| Per record | a fresh one-time value, never reused, and a check value stored with the encrypted text |
+| Bound into that check value | the owning context — user, provider, purpose |
+| Checked on the way out | the stored context must equal the one the caller re-derives, and then Postern verifies the check value over it |
+
+A record encrypted for one purpose does not open as another, and a swapped
+pointer fails rather than decrypts. `SECURITY.md` carries the exact algorithm
+parameters and the rest of the cryptographic detail.
+
+**There is no password on the vault.** The master key is 32 raw bytes. Either
+Postern generates them on first use, or you supply them in `PCI_MASTER_KEY` as
+base64 of exactly 32 bytes. Postern refuses a value that decodes to any other
+length outright, and never pads or truncates one. There is no passphrase, no key
+derivation and no escrow. The key file is the secret, and anything that can read
+it can open the vault.
+
+| Order | Where the key comes from | Label |
+|---|---|---|
+| 1 | `PCI_MASTER_KEY` in `.env` — a key you manage yourself | `env`, or whatever you set in `PCI_MASTER_KEY_ID` |
+| 2 | the key file at `PCI_MASTER_KEY_PATH`, default `.pci/master.key` | `file` |
+| 3 | first use — Postern generates one and writes it to that path, mode 0600 under a 0700 directory | `auto` |
+
+Postern generates the key the first time it encrypts a credential, not at first
+boot. A Postern that has connected nothing has no key yet. Under Docker the
+`pci_master_key` volume mounts at `/app/.pci`, so a generated key file is
+`/app/.pci/master.key` — inside that volume, never in your checkout.
+
+<Note>
+  Postern looks an encrypted record up by the **label** of the key that encrypted
+  it, not by the key. So when Postern refuses to start over the vault, read
+  `PCI_MASTER_KEY_ID` in `.env` before you reach for a backup. The key can be
+  perfectly intact with only its label changed: set, unset, or edited. The refusal
+  message names the label it wanted. Set `PCI_MASTER_KEY_ID` back to that label,
+  then run `docker compose up -d app`. Nothing needs to be restored.
+</Note>
+
+### A disconnect removes the credential, not the data
+
+Postern sets the connection and its credential to revoked, so nothing schedules
+another sync. Then it deletes the encrypted access token, the refresh token and
+the stored client secret from the vault. The cached rows are a third thing, and
+Postern leaves them alone.
+
+### Rotating the master key
+
+Rotation is offline. Postern re-encrypts every record under the new key, in place
+under the same pointers, so nothing that points at a secret has to change. An
+interrupted run resumes, because Postern derives the new key's label from the key
+bytes and the same command skips the records it already re-encrypted.
+
+<Warning>
+  Never rotate between the moment you copy the key and the moment you copy the
+  database. After a rotation an older database copy needs the older key. Keep the
+  pre-rotation backup until every connection reads `ok` again.
+</Warning>
+
+```bash
+# 1. Take a full backup first — see /operate/backup-and-export.
+# 2. Stop Postern. Leave Postgres up; the tool needs it.
+docker compose stop app && docker compose up -d db
+
+# 3. Re-encrypt. --new must be inside /app/.pci. Write down the label it prints.
+docker compose run --rm --entrypoint node app \
+  dist/secrets/rotate.js --new /app/.pci/master.key.new
+
+# 4. Read the new key out and base64 it.
+KEYVOL=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/.pci"}}{{.Name}}{{end}}{{end}}' "$(docker compose ps -aq app)")
+docker run --rm -v "$KEYVOL":/k alpine cat /k/master.key.new | base64 | tr -d '\n'
+
+# 5. Put PCI_MASTER_KEY and PCI_MASTER_KEY_ID in .env — both, together — then:
+docker compose up -d app
+curl -fsS http://localhost:8787/healthz    # {"status":"ok"}
+```
+
+`PCI_MASTER_KEY_ID` defaults to the literal `env`, so a key supplied without its
+label matches none of the re-encrypted records and Postern refuses to boot.
+[docs/runbooks/key-rotation.md](https://github.com/getpostern/postern/blob/main/docs/runbooks/key-rotation.md)
+in the repository is the full procedure. It covers the source-checkout form too.
+
+## What the vault does not cover
+
+**Encrypted by Postern:** the credentials above, and nothing else.
+
+**Not encrypted by Postern:** everything it syncs. Your transactions, mail
+envelopes, calendar events, contacts and health samples are ordinary columns in
+your Postgres, readable by anything that can read the database. What protects
+them is database access control and whatever disk encryption the machine
+provides.
+
+Postern ships nothing that encrypts your data at rest, and this page carries no
+procedure for it. Full-disk encryption on the machine Postern runs on is the
+usual answer: FileVault on macOS, LUKS on Linux, BitLocker on Windows. Each
+vendor documents its own.
+
+One narrower fact cuts the other way. The mail table has no column for a message
+body or an attachment. Postern stores who sent it, the subject, the dates and the
+preview line. It never stores the message text. Postern fetches a body from the
+provider when an agent asks for that one message.
+
+## Losing the vault key
+
+<Warning>
+  `docker compose down -v` deletes the named volumes, and `pci_master_key` is one
+  of them. Every credential encrypted under that key becomes permanently
+  unopenable. The ciphertext is all that survives, and no recovery path exists —
+  not in this project, not anywhere. `docker compose down` without the `-v`
+  removes the containers and leaves the volumes alone.
+</Warning>
+
+If Postern cannot open the vault at start-up, it refuses to start rather than
+start broken. The migrations run first. Then, before Postern serves any port, it
+opens one encrypted record per distinct key label among the credentials its live
+connectors need. If any of those fails, Postern refuses to start. It names the
+label, the count and the first pointer that failed, and it reports that it changed
+nothing. No environment variable, flag or setting skips that check.
+
+The check is deliberately narrow, so a real read is still the verification that
+counts. A wrong key restores cleanly and then decrypts nothing.
+
+### The backup banner, and how to stop it
+
+Postern prints a banner headed `VAULT KEY IS NOT BACKED UP` on its own log at
+every start. Three things have to be true for it: Postern generated the key
+itself, the key file is there, and no marker file sits beside it. That is the
+whole check. Postern never looks at your backup. It never reads the marker's
+contents, and it never hashes or fingerprints the key.
+
+The banner's last line tells you to acknowledge in the Console. **No such control
+ships today** — no button, no page, no route. The function that would write the
+marker exists in Postern's code, and nothing calls it. The banner is a reminder,
+not an error, and Postern starts anyway.
+
+Take your copy of the key first.
+[Back up, export and erase](/operate/backup-and-export) is the procedure. Then
+stop the banner one of these two ways.
+
+**Write the marker yourself.** The marker is a file beside the key. Its name is
+the key's own filename plus `.backed-up`, so on a stock Docker install it is
+`/app/.pci/master.key.backed-up`. In the folder that holds `docker-compose.yml`,
+run:
+
+```bash
+docker compose exec app sh -c \
+  'date -u +%Y-%m-%dT%H:%M:%SZ > /app/.pci/master.key.backed-up && chmod 600 /app/.pci/master.key.backed-up'
+```
+
+Postern only checks that the file is there. Write the date into it anyway, so a
+later you knows when you took the copy. If you set `PCI_MASTER_KEY_PATH`, use
+that path plus `.backed-up` instead. The marker sits in the same volume as the
+key on purpose. `docker compose down -v` takes both, and a marker that outlived
+its key would be a lie.
+
+<Warning>
+  **Hold the key yourself** — but only on a Postern that has connected nothing
+  yet, or through [the rotation above](#rotating-the-master-key). Set
+  `PCI_MASTER_KEY` in `.env` to a base64 32-byte value you keep, then restart.
+  Postern then treats the key as yours: no marker, and the banner never prints
+  again. Point a new key at a vault an old key filled, and Postern refuses to
+  start.
+</Warning>
+
+The banner comes back after every restore. A restore seeds the key into a new,
+empty volume, and the marker was in the old one. Write it again.
+
+### Behaviours you will meet
+
+| Behaviour you will meet | Why |
+|---|---|
+| `scripts/backup.sh` exits with `refusing a keyless backup` and writes nothing | It reads the key from a host path, `.pci/master.key`. Under Docker the key is inside the `pci_master_key` volume, so no such file exists. When you manage the key yourself it writes a note that records that, and you still archive the value yourself. |
+| The database copy needs no password | The command runs inside the database container and connects over that container's own socket. The database service opens no port to the machine at all. |
+| Migrations are harmless on a restored database | They see an already-current schema and change nothing. The vault check runs before Postern serves any port, which is why `/healthz` answers nothing for the first few seconds after `docker compose up -d app`. |
+| You can run the same erase twice | The deletes run as independent statements, not one transaction, and a repeated delete does nothing. An erase that stops partway is fully recovered by the same command again. |
+| A restore pipes the key through standard input | That keeps the key off any folder shared between your machine and the container. |
+
+`/api/export` answers on this computer only, like every other admin route —
+[what protects each route group](/reference/ports#the-console-has-no-authentication).
+
+## Confirm it works
+
+- `docker compose ps` shows `app` as `healthy`, so the vault check passed at
+  start-up.
+- A source you connected reads `ok` in the Console, which is a real decryption
+  rather than the narrow start-up check.
+- If you took your own copy of the key, the marker file sits beside it and the
+  `VAULT KEY IS NOT BACKED UP` banner no longer prints at start.
+
+## If something went wrong
+
+| What you see | What to do |
+|---|---|
+| Postern refuses to start and names a key label | Read `PCI_MASTER_KEY_ID` in `.env`. Set it back to the label the message names — `env`, `file` or `auto` — then run `docker compose up -d app`. The key is usually intact and only its label changed. |
+| `VAULT KEY IS NOT BACKED UP` on every start, after you took a backup | Expected. No Console control writes the acknowledgement marker today. Write the marker yourself, or hold the key yourself: [the backup banner](#the-backup-banner-and-how-to-stop-it). |
+| Postern restored cleanly and then every source fails | The key does not match the database copy. A wrong key restores cleanly and then decrypts nothing. Restore the key that belongs to that copy, or the pre-rotation key if you rotated after taking it. |
+
+## What you have now
+
+Your credentials are encrypted and your data is not. The master key is 32 raw
+bytes with no passphrase behind it, so your own copy of that file is the only
+recovery path there will ever be — and `docker compose down -v` ends it for good.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Back up, export and erase" href="/operate/backup-and-export">
+    the copy to take, the order to take it in, and what erase leaves behind
+  </Card>
+  <Card title="Provider sign-ins" href="/reference/provider-sign-ins">
+    what each provider needs, and the three credentials that behave like
+    passwords
+  </Card>
+</Columns>

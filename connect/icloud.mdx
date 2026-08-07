@@ -1,155 +1,208 @@
 ---
 title: "Connect iCloud"
-description: "Three read-only connections — mail, calendar, contacts — from one app-specific password, over IMAP, CalDAV and CardDAV. No app to register, nothing to enable."
+description: "One app-specific password from Apple gives Postern three read-only connections: mail, calendar and contacts."
 ---
 
 <Info>
   **Before you start**
 
   - **An Apple Account with two-factor authentication already on.** App-specific
-    passwords do not exist without it, and nothing on Postern's side can add one
-    for you.
-  - **About five minutes.**
-  - **One app-specific password**, generated at Apple and pasted here. It is the
-    only iCloud credential Postern ever holds — your Apple Account password is
-    never asked for and never stored.
-  - **Apple shows that password once**, on the screen that generates it. Open
-    your password manager before you start.
-  - **Postern installed, with the Console in front of you.** The Console answers
-    on `127.0.0.1:8787` and only on the machine Postern runs on, so if it lives
-    on a NAS or a home server, bring it to yourself over SSH first:
-    [Reach the Console over SSH](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box).
-  - **Outbound TLS from that machine.** The gateway connects out to
-    `imap.mail.me.com:993`, `caldav.icloud.com` and `contacts.icloud.com`.
-    Nothing has to reach you: iCloud is pulled, and no port is published for it.
-  - **Three connections, or none.** One credential always creates mail, calendar
-    and contacts together, in one transaction. iCloud has no per-sector scopes,
-    so there is nothing to pick and no way to take only one of the three.
-  - **Read-only.** Postern reads iCloud and never writes to it — no sending, no
-    editing an event, no adding a contact.
+    passwords do not exist without it, and Postern cannot add one for you. If it is
+    off, turn it on first — [step 1](#app-password) says where.
+  - **About 5 minutes, and your password manager open.** Apple shows the password
+    once, on a screen with no copy button, and cannot show it again.
+  - **Postern installed, with the Console open** at `http://127.0.0.1:8787`. The
+    Console answers only on the machine Postern runs on. That machine must reach
+    the internet; behind a strict firewall, allow `*.icloud.com` and
+    `imap.mail.me.com:993` —
+    [the hosts iCloud needs](/reference/ports#what-postern-connects-out-to). If Postern runs on another
+    machine, open the Console from your own computer over SSH first:
+    [Open the Console over SSH](/start/remote-access#ssh-tunnel).
+  - **Three connections, or none.** One password creates mail, calendar and
+    contacts together. You cannot connect only one, and all three are read-only.
 </Info>
 
 <Steps>
 
-<Step title="Generate an app-specific password at Apple" titleSize="h2" id="app-password">
+<Step title="Create an app-specific password at Apple" titleSize="h2" id="app-password">
 
-This part happens entirely at Apple. Sign in at
-[account.apple.com](https://account.apple.com/), then open **Sign-In and
-Security → App-Specific Passwords**. That section only exists on an account with
-two-factor authentication turned on; if it is not on the page, two-factor is off,
-and turning it on is what puts it there. Apple's own instructions name
-`account.apple.com` and the Console's on-screen steps still name the older
-`appleid.apple.com` — if one of them does not land you on your account page, use
-the other.
+Sign in at
+[account.apple.com/account/manage](https://account.apple.com/account/manage).
+
+In the left rail, select **Sign-In & Security**. Under the **App-Specific
+Passwords** card, select **View details**.
+
+A window opens, titled **App-Specific Passwords**. A line under the title counts
+the ones you already have. The heading **Passwords** sits over the list, one row
+each: the name you gave that password, and the date you made it. The list holds
+those two things only, never the password itself.
+
+{/* UNWITNESSED: the screen that turns two-factor authentication on. Apple's help article names a web control and a device path for it, but that is documentation prose — nobody has captured the screen. No control is named below. To close it: one capture of that flow on an account that has two-factor authentication off. */}
+
+<Note>
+  **No App-Specific Passwords card?** Two-factor authentication is off on the
+  account. App-specific passwords do not exist without it, and Postern cannot turn
+  it on for you. Turn it on first — on the web at
+  [account.apple.com](https://account.apple.com/), or in your Apple Account
+  settings on an iPhone, iPad or Mac. Apple's own help article calls the web
+  control *Upgrade Account Security*; nobody here has seen that screen, so look
+  for the wording your account shows. Come back here afterwards and the card is
+  there.
+</Note>
+
+Open your password manager before you go on.
+
+Press the **+** at the right-hand end of the **Passwords** heading.
+
+The **Generate App-Specific Password** window opens. It holds one field. **Create**
+below it is pale, and it does nothing while the field is empty.
+
+Type `Postern` into the field. The field carries no label. Its placeholder,
+**e.g. Bill Pay**, floats up into the corner as you type and becomes the label.
+The name only helps you find this password later in Apple's list. **Create** turns
+solid.
+
+Press **Create**. The window dims and shows **Updating…**.
 
 <Warning>
-  The password is shown once, on the screen that generates it, and there is no
-  way to read it back afterwards. If you lose it, the only route forward is to
-  generate a second one and paste that instead — the lost one cannot be
-  recovered, only removed. Have somewhere to put it open before you press
-  Generate.
+  **Apple now stops you and asks for your Apple Account password. The flow has not
+  broken.**
+
+  A window headed **Confirm Your Password** takes over. Under the heading it reads
+  **For your security, enter the password for:** and then the address of your Apple
+  Account. One field, placeholder **Password**. Two buttons, **Cancel** and
+  **Continue**. **Continue** stays pale until the field has text.
+
+  Type your Apple Account password here, not an app-specific password, and press
+  **Continue**. This is Apple's screen on Apple's site. Postern never sees this
+  password.
 </Warning>
 
-Generate an app-specific password and name it `Postern`. The name is for you
-alone: it is how you find this one in Apple's list when you want to remove it,
-and it is never sent anywhere. Apple prints the password as four groups of four
-characters — `xxxx-xxxx-xxxx-xxxx` — and that whole string, hyphens included, is
-what the Console takes. Copy it now.
+The **Generate App-Specific Password** window comes back, your name still in it,
+and shows **Updating…** again. Then Apple prints the password:
+
+- The heading reads **Your app-specific password is:**
+- Under it, the password itself: 4 groups of 4 lowercase letters, joined by
+  hyphens — `xxxx-xxxx-xxxx-xxxx`.
+- Under that: **Enter this password into the password field of the app you would
+  like to sign in to. Password is case-sensitive.**
+- One button, **Done**.
+
+<Warning>
+  **There is no copy control on this screen.** No copy button, no copy icon, no
+  link. Select the password text yourself and copy it by hand, hyphens included.
+  Put it in your password manager now.
+
+  **Done** is the only control on the screen, and it is one-way. Apple cannot show
+  you this password again.
+</Warning>
+
+Press **Done**. You land back in the **App-Specific Passwords** window. The count
+under the title has gone up by one. A new row at the foot of the list carries the
+name you typed and today's date.
+
+<Note>
+  Postern never asks for your Apple ID password. Everything on this step happens on
+  Apple's own site, so anything Apple asks you here goes to Apple, not to Postern.
+
+  The Console's own steps still name `appleid.apple.com`. Both addresses open the
+  same account page today. Apple's own instructions name `account.apple.com`, so
+  this page does too.
+</Note>
 
 </Step>
 
-<Step title="Paste it into the Console with your Apple ID" titleSize="h2" id="paste">
+<Step title="Paste it into the Console" titleSize="h2" id="paste">
 
-In the Console, go to **Sources → Add a source → iCloud**. It is the first card
-under *Paste a token*. The card takes two things: **Apple ID**, which is the
-address you sign in to Apple with, and **App-specific password**, which is
-masked as you type it.
+In the Console at `http://127.0.0.1:8787`, go to **Sources** → **Add a source** →
+**iCloud**. It is the first card under **Paste a token**.
 
 <Warning>
-  Paste the app-specific password, never your Apple Account password. Postern
-  does not check which one you gave it — it seals whatever you paste into the
-  local vault, so a primary password ends up stored on your machine and then
-  fails anyway, because Apple refuses a primary password for IMAP and DAV on a
-  two-factor account. If you have already pasted one, generate an app-specific
-  password and paste that over it. And if you decide to change that primary
-  password at Apple afterwards, change it **before** you generate the
-  app-specific password, because a password change revokes every app-specific
-  password on the account.
+  Paste the app-specific password, never your Apple ID password. Postern stores
+  whatever you paste and does not check it, and Apple then refuses it —
+  [why Postern cannot tell the two passwords apart](/reference/provider-sign-ins#three-credentials-that-behave-like-passwords).
+
+  If you also plan to change your Apple ID password, change it **first**. An Apple
+  ID password change revokes every app-specific password on the account, at once
+  and without notice.
 </Warning>
 
-With both fields filled, press **Connect iCloud**. The Console reports
-`iCloud connected.` and moves you to Sources, where a single iCloud group now
-holds three connections — mail, calendar and contacts — behind one credential.
+Fill the two boxes:
 
-That message means the password is sealed and the three connections exist. It
-does not mean Apple accepted it: this step never contacts Apple. The first sync
-is the test, and it is the next step.
+- **Apple ID** — your `@icloud.com` mail address, even when you sign in to Apple
+  with an address somewhere else. Mail accepts no other address. Calendar and
+  contacts accept either one.
+- **App-specific password** — masked as you type.
+
+Press **Connect iCloud**. The Console shows `iCloud connected.` and moves you to
+Sources, where one iCloud group now holds three connections.
+
+That message means Postern stored the password and created the three connections.
+It does not mean Apple accepted it. This step never contacts Apple. The first sync
+is the test.
 
 <Note>
-  Both fields are shape-checked in the browser before anything leaves the
-  machine. An Apple ID that is not an email address is refused with
+  Postern checks both boxes before it sends anything. An Apple ID that is not an
+  email address gets
   `That doesn’t look like an Apple ID — it should be an email like you@icloud.com.`
-  An empty password field is refused with
+  An empty password box gets
   `Paste the app-specific password you generated — four groups of four. Postern never sees your Apple ID password, only this one.`
-  Both are Postern's own refusals rather than Apple's — nothing has been sent
-  yet. Correct the field and press the button again.
+  Both are Postern's own refusals. Postern sent nothing. Correct it and press
+  **Connect iCloud** again.
 </Note>
 
 </Step>
 
 <Step title="Watch the first sync land" titleSize="h2" id="first-sync">
 
-In the Console, go to **Sources → the iCloud group** and open any of the three
-connections. Each one starts at **Awaiting first sync**. You do not have to wait
-out the poll cadence for that first run: the gateway re-scans for new
-connections about once a minute, and a connection that has never synced runs
-almost as soon as it is seen. The label moves to **Syncing…** with a running
-count while the first pass fills, and then to nothing at all.
+In the Console, go to **Sources** → the iCloud group, and open the mail connection.
+It starts at **Awaiting first sync**. The first sync starts within about a minute.
+The label moves to **Syncing…** with a count that climbs, then to nothing at all.
 
-**There is no healthy badge.** A working connection shows no status word — the
-absence is the signal, and anything that appears in that slot (Stale,
-Unreachable, Error, Paused) is telling you about a problem.
+A healthy connection shows no status word. **Stale**, **Unreachable**, **Error**,
+**Paused** or **Disconnected** means a problem.
 
-The first pass is the long one, and it is worth knowing what it does and does
-not collect. Mail fetches envelopes only — sender, subject, dates, flags — from
-**INBOX and Sent**, and no other folder; bodies and attachments are never
-stored, and are fetched from Apple on demand when an agent asks for a specific
-message. It reaches back 180 days by default, which the connection's **Recency
-window** control sets to 3, 6 or 12 months — changing that clears the
-connection's cursor, so the following run re-reads the whole window from
-scratch.
+On a large mailbox the first pass runs for minutes. Reload the page and watch the
+count under **Envelopes cached** climb.
 
-Calendar takes every calendar the account serves over CalDAV, and expands
-repeating events into individual occurrences from 90 days back to about 400 days
-ahead; a repeating event further out than that is not written until the event
-next changes. Contacts takes every address book. On a large mailbox the first
-pass runs for minutes.
+**Sync now** waits 30 seconds for the run to finish, then reports
+`Synced — 0 updated.` even when the run has not finished. On a first pass that means
+the sync is still at work, not that the mailbox is empty.
 
-If you would rather not wait for the scheduler, press **Sync now** on any of the
-three — and know what it will tell you. The gateway waits thirty seconds for
-that run to finish and then answers that the sync is still running; the Console
-reads a still-running answer the same way it reads a finished one and reports
-`Synced — 0 updated.` On a first pass over a real mailbox that message means the
-run is still going, not that there was nothing to fetch. The count under
-**Envelopes cached** is the honest signal — reload the page and watch it climb.
+| Connection | What it collects | Checked every |
+|---|---|---|
+| Mail | Who sent it, the subject, the dates and the flags, from **INBOX** and **Sent** only. Postern never stores the message text — an agent that asks for one message pulls it from Apple on demand. Reaches back 180 days. | 10 minutes |
+| Calendar | Every calendar on the account. Postern stores every date of an event that repeats as its own row, from 90 days back to about 400 days ahead. It does not store a date further out until that event next changes. | 15 minutes |
+| Contacts | Every address book. | 15 minutes |
+
+**Poll cadence**, on each connection's own page under **Controls**, sets how often
+Postern checks. The floor is 5 minutes —
+[why these intervals](/reference/mcp-freshness#what-the-cache-holds-by-source).
+
+<Warning>
+  **Recency window** sets mail to 3, 6 or 12 months. It appears on the mail
+  connection's page only — the calendar and contacts pages do not have it. Change
+  it and Postern re-reads the whole window from the start, so **Envelopes cached**
+  falls before it climbs again.
+</Warning>
 
 <Note>
-  All three connections turn to **Error**, with `icloud-mail: sync failed` on the
-  mail row and `apple: DAV connect failed` or `apple: DAV account discovery
-  failed` on calendar and contacts. Those messages are deliberately blunt:
-  the connectors mask anything the upstream said so that a password can never
-  reach a log, which means the message names the stage, not the cause. The cause
-  is nearly always the credential — either the paste was never checked and the
-  password was wrong from the start, or Apple has since revoked it. **Any change
-  to your Apple Account password revokes every app-specific password you hold,
-  at once and without notice**, so three connections that stopped on the same
-  day after weeks of working is that, and nothing else. The way back is a fresh
-  password, not the connection page: **Sync now** is disabled while a connection
-  is in Error, with *Syncing is held until the connection is restored* beside
-  it. Generate a new app-specific password at Apple, return to **Sources → Add a
-  source → iCloud**, tick **Yes — replace the stored app-specific password**,
-  and paste it. That replaces the stored credential and puts all three
-  connections back to active; it never creates a second copy.
+  All three connections turn to **Error**. Mail shows `icloud-mail: sync failed`.
+  Calendar and contacts show `apple: DAV connect failed` or
+  `apple: DAV account discovery failed`. These messages name the stage, not the cause — Postern
+  never logs what Apple said.
+
+  The cause is nearly always the password: either it was wrong from the start, or
+  Apple has revoked it. Three connections that stop on the same day after weeks of
+  normal syncs is an Apple ID password change and nothing else.
+
+  The Console disables **Sync now** while a connection sits in Error, with *Syncing
+  is held until the connection is restored* beside it. Repair it at Apple instead.
+  Make a new app-specific password —
+  [Create an app-specific password at Apple](#app-password). Go to **Sources** →
+  **Add a source** →
+  **iCloud**, tick **Yes — replace the stored app-specific password.**, and paste
+  it. All three connections go back to active. It never creates a second copy.
 </Note>
 
 </Step>
@@ -158,70 +211,45 @@ run is still going, not that there was nothing to fetch. The count under
 
 ## Confirm it works
 
-Each of these is visible in the Console, and each is a place this connection
-quietly does less than it looks like it does.
-
-- **Sources holds one iCloud group with three connections in it** — mail,
-  calendar and contacts, under a single credential. They are created in one
-  transaction, so the count is three or nothing.
-- **None of the three shows a status word.** That slot is empty when a
-  connection is healthy, and a word in it — Stale, Unreachable, Error — is the
-  only thing it ever says.
-- **Each connection reports a `Last synced` clock, a `Next poll` of about ten
-  minutes, and a count under `Envelopes cached`, `Events cached` or
-  `Contacts cached`.** A zero count with a healthy clock is a real answer, not a
-  failure: it means the account has nothing inside the window that connection
-  covers.
-- **An agent whose key already carries mail, calendar or contacts can read
-  them now.** Sectors are granted when a key is minted, not here, so a key that
-  already holds those three needs nothing further —
-  [Connect an agent](/start/connect-an-agent) covers the other direction.
+- Sources holds one iCloud group with three connections: mail, calendar and
+  contacts.
+- None of the three shows a status word.
+- Each shows a `Last synced` clock, a `Next poll` time, and a count under
+  `Envelopes cached`, `Events cached` or `Contacts cached`. A zero count with a
+  healthy clock is a real answer, not a failure — that connection has nothing
+  inside the window it covers.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| There is no App-Specific Passwords section on Apple's account page | [Generate an app-specific password at Apple](#generate-an-app-specific-password-at-apple) |
-| You closed Apple's screen before copying the password | [Generate an app-specific password at Apple](#generate-an-app-specific-password-at-apple) |
-| `That doesn’t look like an Apple ID — it should be an email like you@icloud.com.` | [Paste it into the Console with your Apple ID](#paste-it-into-the-console-with-your-apple-id) |
-| `Paste the app-specific password you generated — four groups of four. Postern never sees your Apple ID password, only this one.` | [Paste it into the Console with your Apple ID](#paste-it-into-the-console-with-your-apple-id) |
-| You pasted your Apple Account password instead of the app-specific one | [Paste it into the Console with your Apple ID](#paste-it-into-the-console-with-your-apple-id) |
-| `iCloud connected.`, and then no data on any of the three connections | [Watch the first sync land](#watch-the-first-sync-land) |
-| `icloud-mail: sync failed` | [Watch the first sync land](#watch-the-first-sync-land) |
-| `apple: DAV connect failed`, or `apple: DAV account discovery failed` | [Watch the first sync land](#watch-the-first-sync-land) |
-| All three connections stop on the same day, after weeks of working | [Watch the first sync land](#watch-the-first-sync-land) |
-| `Synced — 0 updated.` on a mailbox that is not empty | [Watch the first sync land](#watch-the-first-sync-land) |
-| Sync now is greyed out, with *Syncing is held until the connection is restored* beside it | [Watch the first sync land](#watch-the-first-sync-land) |
-| Nothing anywhere says a connection is healthy | [Watch the first sync land](#watch-the-first-sync-land) |
-| Mail from a folder other than INBOX or Sent is missing | [Watch the first sync land](#watch-the-first-sync-land) |
-| Mail older than about six months is missing | [Watch the first sync land](#watch-the-first-sync-land) |
-| A repeating event more than a year ahead is missing | [Watch the first sync land](#watch-the-first-sync-land) |
+| No **App-Specific Passwords** card under **Sign-In & Security** | Two-factor authentication is off on the account. Turn it on at `account.apple.com`, or in your Apple Account settings on an iPhone, iPad or Mac — [Create an app-specific password at Apple](#app-password). |
+| **Confirm Your Password** appears after you press **Create** | Apple wants your Apple Account password, not an app-specific one. Type it and press **Continue**. The flow carries on where it stopped — [Create an app-specific password at Apple](#app-password). |
+| No copy button on the screen that shows the password | Apple does not put one there. Select the password text yourself and copy it by hand, hyphens included — [Create an app-specific password at Apple](#app-password). |
+| You closed Apple's screen before you copied the password | Apple cannot show it again. Make a second one and paste that. Take the lost one out of Apple's list with the **⊖** on its row — [Create an app-specific password at Apple](#app-password). |
+| Mail stays empty while calendar and contacts fill up | The **Apple ID** box holds an address that is not `@icloud.com`. Mail accepts your `@icloud.com` address only. Paste again with that address — [Paste it into the Console](#paste). |
+| `icloud-mail: sync failed`, `apple: DAV connect failed`, or `apple: DAV account discovery failed` | The password is wrong, or Apple revoked it. Make a new one, then re-paste it with **Yes — replace the stored app-specific password.** ticked — [Watch the first sync land](#first-sync). |
+| `Synced — 0 updated.` on a mailbox that is not empty | The sync has not finished. Reload the connection's page and watch **Envelopes cached** climb — [Watch the first sync land](#first-sync). |
 
 ## What you have now
 
-Three read-only connections behind one credential: mail envelopes, calendar
-events and contacts, kept current by a poll about every ten minutes that cannot
-be driven faster than every five. Apple publishes no rate limits for these
-protocols, so that cadence is deliberately conservative, and a collection that
-has not changed costs one cheap probe rather than a full read. The cadence is
-per connection, on the connection's own page.
+Three read-only connections behind one password: mail envelopes, calendar events
+and contacts.
 
-Any agent whose key carries mail, calendar or contacts can read them, and can
-pull the body of a specific message on demand even though no body is stored.
-None of them can write: all three connectors ship with no actions at all, so
-nothing an agent does can send mail, change an event, or edit a contact.
+Any agent whose key carries mail, calendar or contacts can read them now, and can
+pull the body of a single message on demand. None can write: all three connectors
+ship with no actions at all, so no agent can send mail, change an event or edit a
+contact. You choose what an agent can read when you create its key, not here —
+[a grant is one agent's permission for one area of your life](/reference/grants-and-sectors#what-a-grant-covers).
 
-What you are carrying from here is one password, at Apple. It is scoped to this
-use and revocable there at any time, and it is the only iCloud credential the
-vault holds. Remove it at Apple and Postern stops reading — the three
-connections fail their next sync and ask to be reconnected — while nothing else
-of yours moves: your account, and every other app-specific password on it, are
-untouched. Changing your Apple Account password does the same thing without
-asking you. Either way, what Postern has already cached keeps answering. Pulling
-the credential in the Console is the deliberate version: it darkens all three
-connections at once and deletes the sealed password from the vault, and the rows
-already cached stay behind as read-only history until you remove them
-separately.
+You now carry one app-specific password at Apple. Apple allows up to 25 active
+app-specific passwords. The **⊖** on a row takes that one password back. **Revoke
+all**, below the list, takes back every one.
+Take this one back and Postern stops: the three connections fail their next sync,
+and nothing else on your Apple Account moves. An Apple ID password change does the
+same, with no warning. A disconnect in the Console stops all three at once and
+deletes the stored password. Either way, what Postern already cached stays as
+read-only history until you remove it separately.
 
 ## Next
 
@@ -231,7 +259,7 @@ separately.
     re-consent until you publish to production
   </Card>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    a key you have already minted · a few minutes, plus a restart of the client ·
+    a key you have already created · a few minutes, plus a restart of the client ·
     paste one config block
   </Card>
 </Columns>

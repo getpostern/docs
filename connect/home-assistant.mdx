@@ -1,106 +1,133 @@
 ---
 title: "Connect Home Assistant"
-description: "Entity states stream in over one authenticated socket, and an agent granted home runs the services you would run yourself. The one source that acts."
+description: "Stream your Home Assistant devices into Postern. It is the only source an agent can act on."
 ---
 
 <Info>
   **Before you start**
 
-  - **A running Home Assistant on your own network.** Postern reaches it directly, from the machine
-    Postern runs on — there is no cloud relay in between and no account to create.
-  - **About five minutes.**
-  - **A long-lived access token**, created in Home Assistant in the first step below. It is shown
-    once, at the moment it is created. Open your password manager before you start.
-  - **The LAN address of the machine Home Assistant runs on** — an IP and a port. A `.local` name
-    will not work here, and neither will `localhost`. The second step is finding it.
-  - **Postern installed, with the Console in front of you.** The Console answers on the loopback
-    address of the machine Postern runs on, so if that is a NAS or a home server, bring it to
-    yourself first: [reach the Console over SSH](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box).
+  - **A Home Assistant that is up on your own network, and about 5 minutes.** Postern connects to it
+    directly. No cloud service, no account.
+  - **Postern installed, with the Console open.** Open `http://localhost:8787` in a browser on the
+    machine Postern runs on. If that machine has no screen,
+    [open the Console over SSH](/start/remote-access#ssh-tunnel).
+  - **Your password manager open.** Home Assistant shows the token once, in step 1, and nothing
+    re-reveals it.
   - **A Home Assistant account you are willing to lend.** The token carries exactly what that user
-    can do, and Postern acts as that user — never as more.
-  - **This connection acts, and does not only read.** An agent granted the `home` sector can
-    dispatch any service on the catalog, with no per-action confirmation and nothing narrower than
-    the sector to grant. Admin and system services are refused; everything else is yours to lend.
+    can do, and Postern acts as that user. A sector is one area of your life: finance, mail,
+    calendar, contacts, health, home. An agent you grant `home` can run any device action here, with
+    no confirmation for each one.
 </Info>
 
 <Steps>
 
-<Step title="Create a long-lived token in Home Assistant" titleSize="h2" id="token">
+<Step title="Create a token in Home Assistant" titleSize="h2" id="token">
 
-In Home Assistant, open your profile — bottom-left in the sidebar — and scroll to **Long-lived
-access tokens**.
+{/* WITNESSED 2026-08-07 — evidence/witness/gif-ha.md, the founder's own instance, 38 frames. Every bolded Home Assistant string below is in that file's string table. There is no sidebar item called "Profile"; the create control is `Create token`, lowercase t; the heading is `Long-lived access tokens`, sentence case. Do not re-case any of them. */}
+
+In Home Assistant, click your own name at the very bottom of the left sidebar. It sits below
+**Settings** and **Notifications**, with a small round picture beside it. Nothing reads “Profile”.
+
+Your profile opens on the **General** tab. Click the other tab, **Security**. The address now ends
+`/profile/security`.
+
+Scroll to the bottom of that tab. The section headed **Long-lived access tokens** sits below
+**Change password**, **Multi-factor authentication modules** and **Refresh tokens**.
+
+{/* UNWITNESSED: Home Assistant versions older than the founder's. The tab strip is the only route gif-ha.md covers, so the fallback below stays sourced to Home Assistant's own documentation. */}
+
+Older Home Assistant versions show no tabs. There the same section sits at the bottom of the profile
+page — [Managing account access](https://www.home-assistant.io/docs/authentication/#managing-account-access).
 
 <Warning>
-  The token is shown once, at the moment it is created, and nothing re-reveals it afterwards. There
-  is no way back to it, only a new one. Copy it into your password manager before you leave that
-  dialog, and keep it there: you paste it into the Console in the last step of this page, and again
-  every time you have to reconnect.
+  Home Assistant shows the token once, at the moment you create it. It keeps no copy of the token
+  string, so nothing re-reveals it and the only remedy is a new token. Open your password manager
+  before you create the token.
 </Warning>
 
-Create the token and name it `Postern`. The name is for you — it is what you look for in this list
-on the day you want Postern's access to stop. The token appears in full, once, and it carries
-exactly what your own Home Assistant user can do.
+Press **Create token**, at the bottom right of that section. A dialog opens, headed **Create token**,
+with one required field labelled **Name\***. Type `Postern` into it. That name is how you tell this
+token apart from your others in Home Assistant.
+
+The dialog carries **Cancel**, which creates nothing, and a second **Create token** button. That
+button stays greyed out until the field has something in it.
+
+Press the dialog's **Create token**. Home Assistant replaces the dialog with a screen headed
+**Token created:** followed by the name you typed. It warns *"Copy your access token. It will not
+be shown again."* The token sits in a read-only field, too long to read at that width.
+
+Press **Copy**, to the right of the field. A message reads *"Copied to clipboard"*. Paste the token
+into your password manager. You paste it into the Console in step 3, and again whenever you
+reconnect.
+
+{/* Generate QR code is witnessed as a control (gif-ha.md, screen F). What it produces is not — the founder never pressed it. Say nothing about its behaviour. */}
+
+A **Generate QR code** control sits below the token. Postern has no use for it.
+
+Press **Close**. `Postern` appears at the top of the list, with its creation time beside it.
 
 </Step>
 
-<Step title="Find the LAN address of the Home Assistant machine" titleSize="h2" id="address">
+<Step title="Find the address of the Home Assistant machine" titleSize="h2" id="address">
 
-Write down the address of the machine Home Assistant runs on: its IP on your network, and the port
-Home Assistant answers on there. The Console's own example of the whole thing is
-`http://192.168.1.50:8123`. What you write down has that shape:
+Open Home Assistant in a browser and read the address bar. You need that machine's numeric
+address and its port, in the shape of the Console's own example:
 
 ```text
-http://<ha-lan-ip>:8123
+http://192.168.1.50:8123
 ```
 
-Postern dials that address from inside its own container, not from your browser, and the two do not
-resolve names the same way.
+`8123` is Home Assistant's own default port. Keep whatever port your address bar shows.
+
+If the address bar shows a name instead of numbers, open your router's settings page. Its list of
+connected devices gives each one a numeric address.
 
 <Warning>
-  A `.local` name that works in your browser does not work here: mDNS does not resolve from inside a
-  container. Neither does `localhost` or `127.0.0.1` — inside the container those name the container
-  itself rather than the machine, even when Home Assistant is running on that same machine. Nothing
-  rejects a wrong-but-well-formed address at the moment you paste it: the Console accepts it, the
-  connection is created, and the stream then never comes up. Use the LAN IP, and give the Home
-  Assistant machine a static lease so it stays true.
+  Postern runs inside its own sandbox, a Docker container. From in there a `.local` name resolves to
+  nothing. `localhost` and `127.0.0.1` name the sandbox itself, not your Home Assistant — even when
+  both run on one machine. The Console accepts a wrong address of the right shape without
+  complaint, creates the connection, and the connection never starts. Use the numbers.
 </Warning>
+
+Recommended. Reserve that address for the Home Assistant machine on your router's settings page.
+Routers call it a DHCP reservation, a static lease, or an address reservation. Otherwise the address
+changes weeks later and this connection stops.
 
 </Step>
 
 <Step title="Paste the address and the token into the Console" titleSize="h2" id="paste">
 
-Console → **Sources** → **Add a source** → **Home Assistant**. The card asks for two values:
-**Instance URL** takes the address from the last step, and **Long-lived token** takes the token from
-the first. The scheme is not optional — the Console checks the shape before it spends a round trip,
-and a bare host comes back as *"That isn’t a URL — your Home Assistant address starts with http://
-or https://, e.g. http://192.168.1.50:8123."*
+In the Console, go to **Sources** → **Add a source** → **Home Assistant**. The card has two fields.
 
-Press **Connect Home Assistant**. A message reads *"Home Assistant connected."*, the Console returns
-to Sources, and the new connection appears under home carrying the badge **Awaiting first push**.
+Put the address from step 2 into **Instance URL**. It must start with `http://` or `https://`.
+Without that the Console answers *"That isn’t a URL — your Home Assistant address starts with
+http:// or https://, e.g. http://192.168.1.50:8123."*
 
-That badge is expected, and it does not clear the instant it appears. Postern opens the socket from
-a scan of its own connection table that runs every 60 seconds, so a connection made now starts
-streaming within about a minute — no restart, and nothing for you to press. When it does, the badge
-goes away, because a healthy connection carries none, and the connection reads **Instant —
-connected** instead.
+Put the token from step 1 into **Long-lived token**. An empty field answers *"Paste the long-lived
+access token you copied from Home Assistant."*
 
-<Note>
-  The connection reads **Unreachable**, with *"can't reach source — retrying"*: nothing answered at
-  that address. Postern keeps trying, backing off from five seconds to a minute and staying there,
-  so a Home Assistant that was merely still booting comes good on its own. A wrong address never
-  does — check it against the warning above, then paste the corrected one here.
-</Note>
+Press **Connect Home Assistant**. A message reads *"Home Assistant connected."* The Console returns
+to **Sources**. The new connection appears under **home** with the badge **Awaiting first push**.
+
+That badge is normal. Home Assistant sends changes the moment they happen, and nothing has arrived
+yet. There is no schedule to set. Postern rescans its connections every 60 seconds, so the
+connection comes up within about a minute. No restart, nothing to press. The badge then disappears
+and the connection reads **Instant — connected**.
 
 <Note>
-  The connection reads **Error**, with *"auth failed: invalid token"*: Home Assistant refused the
-  token. Postern does not retry that one, deliberately — Home Assistant throttles repeated
-  authentication failures, so a bad token is treated as terminal and no timer will bring it back.
-  Paste a new token on this same card. It says *"Home Assistant is already connected. Connecting
-  again replaces the stored credential — it won’t create a second copy."*, you tick **Yes — replace
-  the stored credential**, and the button reads **Reconnect Home Assistant**. The next scan sees the
-  changed credential and starts the connection over within a minute. The same path repairs a wrong
-  address.
+  **Unreachable**, with *"can't reach source — retrying"*: nothing answered at that address. Postern
+  tries again after 5 seconds, then doubles the wait after each failure, up to 60 seconds. A Home
+  Assistant that was not ready yet recovers by itself. A wrong address never does. **Error**, with
+  *"auth failed: invalid token"*: Home Assistant refused the token, and Postern will not retry a
+  refused token — [Home Assistant throttles repeated sign-in
+  failures](/reference/provider-sign-ins#a-refused-source-credential-is-not-retried). Neither state clears
+  on a timer; a changed address or token is what clears it.
 </Note>
+
+To correct either value, paste it on this same card. The card reads *"Home Assistant is already
+connected. Connecting again replaces the stored credential — it won't create a second copy."* Tick
+**Yes — replace the stored credential.** and press **Reconnect Home Assistant**. The next scan
+restarts the connection within a minute.
 
 </Step>
 
@@ -108,82 +135,72 @@ connected** instead.
 
 ## Confirm it works
 
-These five prove the socket is open, the cache is filling, and an agent can find something to do.
-The first four are in the Console; the last one needs an agent you have already granted `home`.
-
-- Console → **Sources**: the Home Assistant connection carries no badge at all, and reads **Instant
-  — connected**.
-- Open that connection. Under **Live stream**, the words **Stream down** are absent, and the line
-  beneath reads *last event* with a time on it rather than *no events yet*.
-- The same screen counts what it holds: **Entities cached** with a number on it, and **Stream**
-  reading **live**.
-- Change something in Home Assistant — a light, a switch — and that *last event* time drops back to
-  seconds ago. That is the open socket, not a poll; there is no cadence to tune anywhere in this
-  connection.
-- Ask an agent granted `home` what it can do in the house. The catalog comes back with ids of the
-  form `home.<domain>.<service>` — `home.light.turn_on`, `home.lock.lock`. An empty catalog means
-  the socket is not up, because the catalog is served from the live connection's cache and from
-  nowhere else.
+- Console → **Sources** → the **Home Assistant** row: under **Live stream**, the words **Stream
+  down** are absent.
+- The line beneath reads *last event* with a time on it, not *no events yet*.
+- **Entities cached** shows a number above 0.
+- Change a light or a switch in Home Assistant. That *last event* time drops to seconds ago.
+- Ask an agent granted `home` what it can control in your house. It answers with action ids such as
+  `home.light.turn_on` and `home.lock.lock`.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| `That isn’t a URL — your Home Assistant address starts with http:// or https://` | [Paste the address and the token into the Console](#paste-the-address-and-the-token-into-the-console) |
-| `Paste the long-lived access token you copied from Home Assistant.` | [Paste the address and the token into the Console](#paste-the-address-and-the-token-into-the-console) |
-| The connection reads **Error**, `auth failed: invalid token` | [Paste the address and the token into the Console](#paste-the-address-and-the-token-into-the-console) |
-| The connection reads **Unreachable**, `can't reach source — retrying` | [Find the LAN address of the Home Assistant machine](#find-the-lan-address-of-the-home-assistant-machine) |
-| The Console accepted the address, and the stream never came up | [Find the LAN address of the Home Assistant machine](#find-the-lan-address-of-the-home-assistant-machine) |
-| The connection sits at **Awaiting first push** and stays there | [Paste the address and the token into the Console](#paste-the-address-and-the-token-into-the-console) |
-| An agent granted `home` lists no actions at all | [Paste the address and the token into the Console](#paste-the-address-and-the-token-into-the-console) |
-| An agent's action comes back `home assistant: no live connection for this connection id — nothing was dispatched` | [Paste the address and the token into the Console](#paste-the-address-and-the-token-into-the-console) |
-| An agent's action comes back `admin/system service not permitted (device/entity control only)` | [What you have now](#what-you-have-now) |
-| The token was lost before it reached the Console | [Create a long-lived token in Home Assistant](#create-a-long-lived-token-in-home-assistant) |
+| **Unreachable**, `can't reach source — retrying` | Nothing answered there. Paste the numeric address with `http://` in front — never a `.local` name, `localhost` or `127.0.0.1` — and press **Reconnect Home Assistant**. |
+| **Error**, `auth failed: invalid token` | [Create a new token in Home Assistant](#token), paste it on the same card, and press **Reconnect Home Assistant**. Take the same path if you lost the token before it reached the Console. |
+| The connection sits at **Awaiting first push**; or an agent granted `home` lists no actions; or an action returns `home assistant: no live connection for this connection id — nothing was dispatched` | The live connection is not up, and Postern sent nothing to your house. Correct the address as in row 1 — the Console accepts a wrong address of the right shape. |
+| An action returns `admin/system service not permitted (device/entity control only)` | Postern never runs admin or system services. There is nothing to change here. Run that one in Home Assistant yourself. |
 
 ## What you have now
 
-The home sector, reading and acting. Any agent you have granted `home` sees entity states, browses
-the service catalog, and dispatches the services you would use yourself — lights, scenes, switches,
-scripts, automations and buttons are all one kind of thing to Home Assistant, and all of them are on
-the catalog. Postern computes which services apply to which entity, which Home Assistant will not
-tell you, and serves that join from cache, so discovery costs an agent no round trip to your house.
+The `home` sector, for reads and for actions. Any agent you grant `home` sees your devices' states,
+reads the action list, and runs the actions you would run yourself: lights, scenes, switches,
+scripts, automations and buttons. Postern works out which actions apply to which device, so the list
+arrives instantly. [Home Assistant does not offer that mapping itself](/reference/mcp-actions#where-the-home-assistant-catalogue-comes-from).
 
-What it can never do, by construction, is touch an admin or system service. The `hassio`, `update`
-and `backup` domains, `homeassistant.restart` and `homeassistant.stop`, and every `reload` are
-dropped from the catalog and refused again at dispatch, so naming one directly does not get around
-the omission: the answer is `admin/system service not permitted (device/entity control only)`.
+Postern never runs an admin or system service. An agent that names one gets `admin/system service
+not permitted (device/entity control only)` back — [the domains and services Postern
+drops](/reference/mcp-actions#the-admin-and-system-services-postern-never-runs).
 
-The permission has one shape and it is the sector. A granted sector covers reading and acting
-together; there is no narrower grant, no per-action tier, and no confirmation step between an
-agent's decision and your house. Your instruction to the agent is the authorization, the grant is
-what bounds it, and Console → **The ledger** is what records it: every call lands there under that
-agent's own name, `invoke_action` among them, and the ledger only appends.
+Postern grants permission per sector only. A granted sector covers reads and actions together, with
+no narrower grant and no confirmation step — [what a grant
+covers](/reference/grants-and-sectors#what-a-grant-covers).
+Console → **The ledger** holds a row for every call, `invoke_action` among them, under that agent's
+own name. Postern only ever adds to the record.
 
-Each dispatch is sent once and never re-sent. If the connection breaks mid-call Postern reports
-`unknown — not retried` rather than trying again, because it cannot know whether Home Assistant
-acted before the wire went, and a second send could act twice on a real device.
+Postern sends each action once and never repeats it. A break mid-action returns `unknown — not
+retried` — [Postern cannot know whether Home Assistant acted](/reference/mcp-actions#invoke_action). Check the
+device yourself.
 
-What you are carrying from here is one standing credential. The token sits sealed in Postern's vault
-on your own machine, and it stays exactly as powerful as the Home Assistant user who made it — if
-that account gains permissions, so does this connection. Revoke the token in Home Assistant and the
-socket dies at its next authentication with *auth failed: invalid token*, and the connection stays
-in error until you paste a new one. Take it away from the Postern side instead — the connection's
-own screen has **Remove token** — and, in the Console's words, *"Deletes the long-lived token from
-the vault. Home stops immediately."*
+Postern stores the token encrypted on your own machine. It stays exactly as powerful as the Home
+Assistant user who made it: if that account gains permissions, so does this connection.
 
-One asymmetry to keep in mind when the socket is down: entity reads keep answering from the cache
-Postern already holds, while the catalog and dispatch do not, because both are served from the live
-connection. An agent can still say what the house was, and cannot change it.
+{/* UNWITNESSED: whether Home Assistant asks anything before it deletes a long-lived token. gif-ha.md hovers that control and never presses it. The control itself is witnessed as icon-only with no label and no tooltip — describe it, never quote a label for it. */}
+
+To stop it at Home Assistant, go back to **Long-lived access tokens** on your profile's **Security**
+tab. Every token's row ends in a trash-can icon, with no words on it. Press the one on the `Postern`
+row. The connection then fails at its next check with `auth failed: invalid token`, and stays in
+error until you paste a new one.
+
+To stop it at Postern instead, go to Console → **Sources** → the **Home Assistant** row. Press
+**Remove token**. A confirm step opens, headed **Remove the token**: *"Deletes the long-lived token
+from the vault. Home stops immediately."* Type `Home Assistant` into the field labelled *"Type Home
+Assistant to confirm"*, then press **Remove token** again. That second button stays greyed out
+until the typed name matches exactly, and reads *"Working…"* while it runs. **Cancel** leaves the
+connection as it is. On success the Console reads *"Revoked the Home Assistant credential."*
+
+When the connection is down, an agent still reads device states from cache. The action list and
+every action stop.
 
 ## Next
 
 <Columns cols={2}>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    a key in hand and the Console in front of you · a few minutes, plus a restart of whatever client
-    you are connecting
+    a key in hand and the Console open · a few minutes, plus a restart of the client you connect
   </Card>
   <Card title="Connect Google and Gmail" href="/connect/google">
-    your own Google Cloud app + one app password · about 20 minutes · weekly re-consent until you
+    your own Google Cloud app and one app password · about 20 minutes · weekly re-consent until you
     publish to production
   </Card>
 </Columns>

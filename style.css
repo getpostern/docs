@@ -96,3 +96,159 @@ pre span {
   font-family: "Courier Prime", "Courier New", ui-monospace, Menlo, Consolas,
     "DejaVu Sans Mono", monospace;
 }
+
+/* ==========================================================================
+ * READABILITY
+ *
+ * Founder ruling, 2026-08-07: soul.md governs the Postern app and
+ * getpostern.com. It does NOT govern this documentation. Here we do whatever
+ * reads best.
+ *
+ * Body text was EB Garamond, a book face. It sets beautifully at 40px on a
+ * poster and poorly at 16px on a screen: small x-height, thin strokes, tight
+ * apertures. Source Serif 4 is Adobe's screen-reading serif — larger x-height,
+ * sturdier stems, wider apertures — and it keeps the warm bookish register the
+ * headings carry. Cormorant Garamond stays on headings, where it is large
+ * enough to be an asset.
+ *
+ * Everything below stays local. This site still fetches no font from anywhere.
+ * ========================================================================== */
+
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/source-serif-4-var.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/source-serif-4-italic-var.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --postern-body: "Source Serif 4", "EB Garamond", Georgia, serif;
+  --postern-measure: 74ch;
+}
+
+/* Body copy. 17px is the floor for a serif at this x-height; 1.7 gives the
+ * line enough room that a 74-character measure does not become a wall. */
+#content-area p,
+#content-area li,
+#content-area td,
+#content-area th,
+#content-area blockquote {
+  font-family: var(--postern-body);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+/* Measure. Long lines are the commonest readability fault in docs: the eye
+ * loses the return sweep past about 75 characters. Tables, code and images are
+ * exempt — they need every pixel. */
+#content-area p,
+#content-area ul,
+#content-area ol,
+#content-area blockquote {
+  max-width: var(--postern-measure);
+}
+
+/* Vertical rhythm. Space belongs ABOVE a heading, not below it: that binds the
+ * heading to the text it governs instead of letting it float between two
+ * blocks. */
+#content-area h2 {
+  margin-top: 2.75em;
+  margin-bottom: 0.6em;
+  letter-spacing: -0.01em;
+}
+#content-area h3 {
+  margin-top: 2em;
+  margin-bottom: 0.5em;
+}
+#content-area h2 + p,
+#content-area h3 + p {
+  margin-top: 0;
+}
+
+/* Tables carry a third of this corpus, so they get real attention. Tighter
+ * leading than body text, a smaller size, and a monospace-friendly first column
+ * for the many tables whose left column is a screen string or an error. */
+#content-area table {
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+#content-area th {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+#content-area td,
+#content-area th {
+  padding-top: 0.6em;
+  padding-bottom: 0.6em;
+  vertical-align: baseline;
+}
+/* A wide table scrolls inside itself rather than pushing the page sideways. */
+#content-area .prose > table,
+#content-area table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Callouts. Some pages stack ten of them. Full-strength borders on every one
+ * turn a page into a warning label, so the frame gets quieter and the text
+ * inside drops to the reading size — the callout earns attention by what it
+ * says, not by how loudly it is drawn. */
+#content-area .callout,
+#content-area [class*="callout"] {
+  border-width: 1px;
+  border-radius: 3px;
+}
+#content-area .callout p,
+#content-area [class*="callout"] p {
+  font-size: 16px;
+  line-height: 1.65;
+  max-width: none;
+}
+
+/* Inline code sits inside body text, so it must not tower over it. Courier
+ * Prime runs small for its point size, hence the nudge up rather than down. */
+#content-area p code,
+#content-area li code,
+#content-area td code {
+  font-size: 0.94em;
+  padding: 0.1em 0.32em;
+  border-radius: 2px;
+}
+
+/* Bolded control labels are the spine of every connect guide — a reader scans
+ * for them. Weight alone is weak in a serif, so they get colour too. */
+#content-area p strong,
+#content-area li strong,
+#content-area td strong {
+  font-weight: 600;
+  color: var(--postern-strong, inherit);
+}
+
+/* Steps: the number is furniture, the title is the instruction. */
+#content-area h2:has(+ p) {
+  text-wrap: balance;
+}
+
+@media (max-width: 900px) {
+  #content-area p,
+  #content-area li,
+  #content-area td,
+  #content-area th,
+  #content-area blockquote {
+    font-size: 16px;
+  }
+  #content-area h2 {
+    margin-top: 2.25em;
+  }
+}

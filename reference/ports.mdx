@@ -1,0 +1,263 @@
+---
+title: "Which computers can reach Postern"
+description: "The two ports Postern opens, the one line in docker-compose.yml that protects them, what guards each route group, and the one route the internet may reach."
+---
+
+<Info>
+  **Before you start**
+
+  - **Postern opens two ports, and it opens both to this computer only.** Only
+    this computer can reach these addresses. Nothing on your Wi-Fi, and nothing on
+    the internet, can.
+  - **The Console port has no password.** Which computers can reach it is the
+    whole of its protection.
+  - **The protection is one line in `docker-compose.yml`.** Both `ports:` lines
+    for the `app` service must begin `127.0.0.1:`.
+  - **One route is meant to be reachable from outside.** The push-ingest route,
+    and it carries its own secret.
+</Info>
+
+## The two ports, and the one Postern never opens
+
+| Port | Carries | Reachable from | What protects it |
+|---|---|---|---|
+| 8787 — the Console port | the Console, the admin routes, the OAuth and Plaid routes, the audit read, the export, erase | this computer only | its address, and nothing else |
+| 8788 — the agent port | the tools an agent calls over MCP | this computer only, until you turn on remote access | an agent key on every call |
+| Postgres | your synced rows | Postern only | it is not opened at all |
+
+The database gets no port in the compose file Postern ships. Only Postern reaches
+it, over the private network Docker Compose creates. A port there would buy you
+`psql -h localhost` and cost you a listener that holds every row Postern has
+cached. If you need one to inspect the data, add it temporarily and keep it on
+this computer: `ports: ["127.0.0.1:5432:5432"]`. Postern serves the Console, the
+Console's backend and the agent port from one address.
+
+## The Console has no authentication
+
+Port 8787 serves the Console and the admin routes together. Three of those routes
+matter most: onboarding, credential paste, and the route that creates an agent
+key. The group carries no key, no password and no session.
+
+The `ports:` line in `docker-compose.yml` is what protects it. Open that file in
+the folder you unpacked, find the `app` service, and look under `ports:`. Both
+lines must begin `127.0.0.1:`.
+
+<Warning>
+  Never drop the `127.0.0.1:` prefix, and never put a tunnel service in front of
+  that port. Without the prefix the port answers on every network interface. On
+  Linux, Docker's rules sit ahead of most host firewall rules, so `ufw deny 8787`
+  does not close it again. No supported configuration makes that port safe on a
+  network.
+</Warning>
+
+```yaml
+ports:
+  - "127.0.0.1:${REST_PORT:-8787}:${REST_PORT:-8787}"   # correct — this computer only
+  - "${REST_PORT:-8787}:${REST_PORT:-8787}"             # WRONG — your whole network
+```
+
+A `Host` check sits in front of those routes: `localhost`, `127.0.0.1`, `::1`,
+plus anything you add to `REST_ALLOWED_HOSTS` in `.env`. It checks the address
+your browser used, and it stops a malicious web page that tries to reach Postern
+through your own browser.
+
+It is not a password. The `Host` header is a string the caller chooses, so it
+identifies nobody. Anyone who can open a connection to that port can send
+`Host: localhost:8787` and create an agent key in one request. That request needs
+no credential, and the key comes back in the answer. `REST_ALLOWED_HOSTS` only
+widens which `Host` values Postern accepts, so it cannot make the port safe. Add a
+tailnet name to it and every admin route opens to every device on your tailnet.
+
+To reach the Console from another computer, leave the `ports:` line alone. Put
+something that authenticates in front of it. It has to land on this computer: an
+SSH tunnel, `tailscale serve`, or a reverse proxy that authenticates first.
+[Set up remote access](/start/remote-access) is the procedure for each.
+
+A tunnel does not move the Console. Your browser connects to your own computer.
+SSH carries that connection to the machine Postern runs on, and it arrives from
+the machine itself — the only kind of request Postern answers. The port stays
+local and the tunnel carries the identity.
+
+The rule is per route, not per port. Four other route groups share port 8787, and
+Postern protects each one differently.
+
+| Route group on 8787 | What protects it |
+|---|---|
+| the admin, OAuth and Plaid routes | nothing but the address |
+| the REST read mirror | an agent key on every request |
+| `/healthz` | nothing, deliberately, so a container check can reach it — it returns only a status |
+| `/api/export` | nothing but the address. The bundle is the whole store, and no agent's grant narrows it, so its reachability is the only thing that bounds it |
+| `POST /api/ingest/:connectionId` | a per-connection secret, described below |
+
+## The agent port authenticates every call
+
+Port 8788 is the agent port. MCP is the standard way AI assistants connect to
+outside tools. Postern speaks it, so Claude, ChatGPT and Cursor connect the same
+way. Every call carries a per-agent key in an `Authorization: Bearer` header, and
+Postern resolves it to a grant before anything runs. Postern refuses a missing,
+unknown or revoked key at the handshake, before any tool exists to call.
+
+Port 8788 is opened to this computer only. To let an agent reach it from
+elsewhere, go to Console → **Settings** → **Remote access**. Do not edit the
+`ports:` line.
+
+A grant is the sector list attached to one agent's key. A sector is one area of
+your life: finance, mail, calendar, contacts, health, home. It is the smallest
+thing you can grant. A new key can reach nothing until you tick a sector.
+Postern denies an ungranted sector before it issues any SQL. It also refuses a
+target whose first word is not one of the six, rather than map it onto a sector
+you did grant.
+
+A granted sector covers reads and actions together. Today only home has anything
+to act on. [What a grant covers](/reference/grants-and-sectors#what-a-grant-covers)
+is the full model.
+
+## There is no rate limit and no lockout
+
+A wrong key costs the sender nothing, on the agent port or on the REST read
+mirror. Nothing counts failures, nothing locks out an agent or an address, and
+nothing slows the next attempt. The defence is the 256 bits of randomness in the
+key. There is no second layer behind it.
+
+Postern records refused keys rather than drops them silently. The agent port
+writes a deny line for every key a caller presents and Postern refuses. The cap
+is 30 a minute, and one combined line stands in for whatever the cap swallowed. A
+caller that presents no key at all leaves no line, unless the OAuth bridge is on.
+The REST read mirror records no refused key at all —
+[what does not get a row](/reference/audit-log#what-does-not-get-a-row) has the
+split.
+
+Postern has exactly one rate limiter and it is not here. It sits on the OAuth
+bridge's own routes — registration, authorize, token — at 120 requests a minute.
+Postern sized it for availability, not for defence.
+
+Behind a Tailscale Funnel there is no client address to count against. The tunnel
+lands locally and Docker rewrites every connection to one source, so a per-caller
+limit becomes one global limit for the whole internet. `MCP_TRUSTED_PROXIES` in
+`.env` changes that only when you run your own proxy in front, and only when that
+proxy supplies a real client address. Leave it unset otherwise.
+
+The cost is narrow: a stranger who finds your address can disrupt connection
+setup. That exposes no data and puts no key at risk, and every read and action
+still needs a key.
+
+## The push-ingest route
+
+`POST /api/ingest/:connectionId` sits outside the `Host` check on purpose. The
+device that pushes to it is a phone, and a phone is never the machine Postern
+runs on. So whatever address you put in front of the path works. Three route
+groups on 8787 carry no `Host` check: this one, `/healthz`, and the agent read
+mirror. This is the only one of the three with neither the check nor a key.
+
+A per-connection secret stands in for both. It is 32 random bytes, made the same
+way an agent key is, and stored only as its SHA-256. A device sends it in either
+an `Authorization: Bearer` header or an `X-PCI-Webhook-Secret` header. The Console
+shows it once when it creates it. Postern cannot show you this secret again — not
+the connection screen, not the log, not the database. If you lose it, press
+**Rotate secret** on the connection. That creates a new one, and it stops every
+device that still sends the old one.
+
+Four properties make an internet-reachable route acceptable here:
+
+- **Postern checks the secret before it reads the body.** Send a bad secret with
+  a huge or malformed payload and Postern refuses it. It never holds that payload
+  and never parses it.
+- **The comparison takes the same time whether the secret is right or wrong**, so
+  a guesser learns nothing from the speed of the answer. Postern compares two
+  32-byte digests, never two strings. A stored hash of the wrong length fails
+  closed rather than throws.
+- **Every failure answers identically.** Five causes all return the same `401` and
+  the same body, `{"error":"unauthorized"}`. They are an unknown connection id, a
+  paused connection, a connection with no secret set, a wrong secret, and a
+  malformed id. Nobody can use the route to learn what exists. That is also why a
+  stuck device tells you nothing: the answer is in the record, on the machine
+  Postern runs on.
+- **Ownership comes from the connection row, never from the payload.** Postern
+  reads the user, the sector and the destination table from the database, against
+  the id in the path. A pusher cannot choose whose account its records land in, or
+  which table.
+
+The exemption unguards nothing else. The admin, OAuth and Plaid routes stay
+behind the `Host` check.
+
+## What Postern connects out to
+
+Postern pulls from your sources. No source has to reach the machine Postern runs
+on, and Postern opens no port for one. The push-ingest route above is the
+exception.
+
+Behind a strict outbound firewall, iCloud needs `*.icloud.com` and
+`imap.mail.me.com:993`. A fixed list of hostnames is not enough. Apple spreads
+accounts across partition hosts, and Postern follows Apple's own discovery onto
+`p##-caldav.icloud.com` and `p##-contacts.icloud.com`, where `##` is your
+account's partition. Postern re-discovers that host on every call and stores none.
+
+Postern checks every request address against `*.icloud.com` before it attaches
+the app-specific password. That covers Apple's internal discovery hops too. It
+takes redirects one at a time, and it refuses any redirect that leaves
+`*.icloud.com` rather than send the password again. Postern requires HTTPS and
+refuses a downgrade to HTTP.
+
+## Reaching Postern from another network
+
+Your tailnet is the private network Tailscale builds between the devices signed
+into your account. Nothing else can reach it. Postern documents Tailscale and
+nothing else, for four reasons:
+
+- Tailscale encrypts it end to end;
+- it needs no port forwarded on your router;
+- it works on internet connections that block traffic from outside;
+- the certificate keys never leave the machine Postern runs on.
+
+Postern documents no content-delivery-network route on purpose. A CDN in front of
+Postern decrypts every request at its own edge. That would put your mail and your
+money in readable form on somebody else's network.
+
+| Fact | What it costs you |
+|---|---|
+| A Tailscale Funnel opens exactly three ports: 443, 8443 and 10000. A hosted agent makes outgoing connections on 443 only. | Use 443. A funnel on either other port never gets the request out of the vendor's network, so the agent reports it could not connect and nothing at all appears in your record. |
+| `serve` and `funnel` are last-command-wins per port. | Scope the funnel permission to one machine's tag in your tailnet policy. If every machine holds it, a mistyped command on any of them can make something reachable from the internet. |
+| A public address is permanent in a certificate log. | Certificate Transparency is a public list of every secure-website certificate ever issued. Anyone can read it, and entries cannot be removed. |
+
+Three costs stay with you: that permanent hostname, a Tailscale account to keep,
+and an address that stays live until you turn it off.
+[Set up remote access](/start/remote-access) is the procedure.
+
+## Confirm it works
+
+- Both `ports:` lines for the `app` service in `docker-compose.yml` begin
+  `127.0.0.1:`.
+- On the machine Postern runs on,
+  `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8787/healthz` prints
+  `200`.
+- From another computer on your network, the same command with that machine's LAN
+  address in place of `127.0.0.1` fails to connect.
+- Console → **Agents & keys** lists every key that can reach port 8788, and no
+  others.
+
+## If something went wrong
+
+| What you see | What to do |
+|---|---|
+| A push to `/api/ingest/…` returns `401` and `{"error":"unauthorized"}` | Every cause answers the same way, so check all four: wrong secret, wrong connection id, paused connection, no secret set. Press **Rotate secret** on the connection and re-enter the new secret on the device. |
+| The Console answers from another computer on your network | A `ports:` line has lost its `127.0.0.1:` prefix. Put it back and run `docker compose up -d app`. A host firewall rule will not close it for you. |
+| A hosted agent reports it could not connect, and nothing appears in your record | The funnel is on 8443 or 10000. A hosted agent connects out on 443 only. |
+
+## What you have now
+
+Two ports, both opened to this computer only, and a database with no port at all.
+The Console port's protection is its address, so anything that widens which
+computers can reach it removes the protection entirely. The agent port asks for a
+key on every call. One route — push-ingest — is meant to be reachable from
+outside, and it carries its own secret.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Set up remote access" href="/start/remote-access">
+    Tailscale + optional Funnel · about 20 minutes, once · off by default
+  </Card>
+  <Card title="Agent keys" href="/reference/agent-keys">
+    what a key is, when it dies, and the four operator verbs
+  </Card>
+</Columns>

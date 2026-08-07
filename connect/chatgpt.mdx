@@ -1,195 +1,224 @@
 ---
 title: "Connect ChatGPT"
-description: "ChatGPT signs in through Postern's own OAuth bridge and holds a rotating token. It needs a public address on port 443 before you start."
+description: "ChatGPT connects from OpenAI's cloud, so Postern needs a public HTTPS address on port 443 before you start."
 ---
 
 <Info>
   **Before you start**
 
-  - **A ChatGPT paid plan with Developer mode available.** Developer mode is what allows a custom
-    MCP server at all, and step 3 is where you turn it on.
-  - **A public HTTPS address on port 443, already published.** ChatGPT connects from OpenAI's own
-    cloud. It can never reach `localhost`, it can never reach your tailnet, and it egresses on port
-    443 only. Postern publishes nothing by default, so this is a job you do first:
-    [Set up remote access](/start/remote-access) is the whole of it — *Tailscale + optional Funnel ·
-    about 20 minutes, once · off by default*.
-  - **About ten minutes**, once that address is up.
-  - **An agent key with an expiry on it, and somewhere safe to keep it.** The key is shown once, and
-    ChatGPT asks for it at the **end** of the sign-in, in a popup, in another application, after you
-    have copied something else over it. Open your password manager before you start. A key that
-    never expires is refused by the bridge.
-  - **Postern installed and running, with the Console in front of you.** Everything on this side
-    happens at Console → Agents & keys. If Postern runs on a NAS, a home server or anything else
-    headless, bring the Console to yourself over SSH first:
-    [Set up remote access](/start/remote-access).
-  - **Witnessed end to end on 2026-08-01.** Every ChatGPT label quoted below is what was on screen
-    that day. OpenAI renames these; where this page and your screen disagree, your screen is newer.
+  - **A paid ChatGPT plan that offers Developer mode.** It is what lets ChatGPT call a server of your
+    own. Step 3 turns it on.
+  - **A public HTTPS address on port 443, already set up.** ChatGPT connects from OpenAI's cloud on
+    port 443 only. It cannot reach `localhost` or your private Tailscale network. Nothing on the
+    internet can reach Postern until you set this up, and it is off by default: [Set up remote
+    access](/start/remote-access) — Tailscale plus Funnel, about 20 minutes, once.
+  - **Postern running, and the Console at [http://localhost:8787](http://localhost:8787).**
+    Everything on this side happens at **Agents & keys**.
+  - **Your password manager open.** Postern shows the key once. ChatGPT asks for it at the **end** of
+    the sign-in, in another window, after step 2 has replaced it on your clipboard.
 </Info>
 
-## Choose your path
+About 10 minutes, once the address is up. Every ChatGPT label below comes from a real run on
+1 August 2026. Where that run recorded no label, this page names none. OpenAI renames these screens,
+so trust your screen over this page.
 
-Where you start depends on whether you already have a key ChatGPT can use.
-
-| If… | Then |
-|---|---|
-| You have no agent key in hand, or the only one you have never expires | Mint one — [step 1](#mint-a-key-and-save-it-before-you-go-on) |
-| You are standing on the reveal screen from a key you have this minute minted, and the key is already saved somewhere | Start at [step 2](#copy-the-endpoint-from-the-console) |
+If you already saved an agent key that expires, start at [step 2](#copy-the-endpoint).
 
 <Steps>
 
-<Step title="Mint a key and save it before you go on" titleSize="h2" id="mint-a-key">
+<Step title="Create a key that expires, and save it" titleSize="h2" id="mint-a-key">
 
-Console → Agents & keys → **Mint a key**. Name it: the name is what the ledger prints under **Who**,
-and `chatgpt` reads well there. Then tick the sectors ChatGPT may reach. Granting a sector grants
-**read and act** across every provider in it — there is nothing narrower to grant, and a key with no
-sectors at all still mints, still connects, and is denied on every read.
+Open the Console at [http://localhost:8787](http://localhost:8787). Go to **Agents & keys** and press
+**Mint a key**.
 
-Leave **Expires** on one of the day chips. The chips are **Never**, **30 days**, **60 days** and
-**90 days**; once this gateway has an address saved, the form starts on **90 days** and prints
-**This gate is published. A key you paste into a hosted client should expire.** underneath. A key
-that never expires is not merely unwise here — the bridge refuses it at the sign-in, and you find
-out four steps from now.
+In **Name**, type `chatgpt`. That name is what the record prints under **Who**.
+
+Under **Grant which sectors**, tick each sector ChatGPT may reach. The six toggles read **Finance**,
+**Mail**, **Calendar**, **Contacts**, **Health** and **Home**. A grant covers read and act across
+every provider in the sector, and only **Home** has anything to act on today —
+[what a grant covers](/reference/grants-and-sectors#what-a-grant-covers). A key with no sectors
+ticked still connects, and Postern then denies every read.
+
+Under **Expires**, press **30 days**, **60 days** or **90 days**. Do not press **Never**: the
+sign-in in step 5 refuses a key that never expires. Once you save an address, the form starts on
+**90 days** and prints `This gate is published. A key you paste into a hosted client should expire.`
 
 <Warning>
-  The key is shown once and Postern keeps only a hash of it, so there is nothing to re-reveal and
-  the only remedy is minting again. The very next step then puts your endpoint on the clipboard,
-  over the key. Witnessed 2026-08-01: the endpoint went into the key box at the end of the flow and
-  the sign-in answered `That agent key was not accepted. Check the key in the Console and try again.`
-  Put the key in your password manager before you touch anything else.
+  Postern cannot show you this key again. It keeps a scrambled copy it can check against, never the
+  key itself. The only remedy is a new key. Step 2 then puts your address on the clipboard, over the
+  key, and ChatGPT does not ask for the key until step 5.
 </Warning>
 
-Press **Mint the key**. The reveal screen opens, headed with the agent's name and the words
-**is ready**, and the key sits under **Agent key — shown once** with a **Copy** button beside it.
+Press **Mint the key**. A screen opens headed `chatgpt is ready`, with the key under
+**Agent key — shown once**. Press the **Copy** beside it, then paste and save it in your password
+manager.
 
 </Step>
 
-<Step title="Copy the endpoint from the Console" titleSize="h2" id="copy-the-endpoint">
+<Step title="Copy the address ChatGPT connects to" titleSize="h2" id="copy-the-endpoint">
 
-From the reveal screen you are standing on, follow
-**Connect a hosted client (claude.ai, ChatGPT) →**. From anywhere else: Console → Agents & keys →
-**Set up the bridge →**. Both open the same page, headed **Connect claude.ai or ChatGPT**.
+On that same screen, follow **Connect a hosted client (claude.ai, ChatGPT) →**. From anywhere else:
+**Agents & keys** → **Set up the bridge →**. Both open **Connect claude.ai or ChatGPT**.
 
-When your address is one a hosted client can use, that page prints it under **Paste this into
-claude.ai or ChatGPT** with a **Copy** button beside it. Take it from there rather than from this
-page. What ChatGPT needs is your published origin **plus `/mcp`** — the address Postern saves in
-Settings is the bare origin, and the Console appends that suffix itself, in one place, so the two
-can never drift. The shape it prints is:
+If your address works for ChatGPT, that page prints it under **Paste this into claude.ai or
+ChatGPT**. Press **Copy** there. It ends in `/mcp`, which the Console adds itself —
+[the endpoint](/reference/mcp-primitives#the-endpoint):
 
 ```text
 https://gateway.example-tailnet.ts.net/mcp
 ```
 
-The endpoint block on the reveal screen, above the link you followed, prints this gateway's **local**
-address instead. ChatGPT can never reach that one.
+<Warning>
+  The **MCP endpoint** block on the previous screen prints the address on the machine Postern runs
+  on, which ChatGPT can never reach. It still reads that way after you save a public address. Copy
+  only from **Paste this into claude.ai or ChatGPT**.
+</Warning>
 
 <Note>
-  The page offers no **Copy** button, and prints a pattern such as
-  `https://your-mac.tailnet.ts.net/mcp` where your address should be. The sentence beside it says
-  which of five things is true, and they have different fixes. `Bridge is off — agents can only
-  reach this gate with a pasted key` means nothing has ever been published —
-  [set up remote access](/start/remote-access). `Bridge is off — an address is saved but not
-  published yet` means the address is saved and the gateway has not restarted into it; restart it.
-  `Bridge is off — this gateway couldn't read its own exposure setting` sends you to Settings →
-  Remote access, which says why. `This gateway didn’t answer with its bridge status` is a fact about
-  the Console's own request and says nothing about the box; reload. And where an address is saved
-  that a cloud client cannot use, the page names the reason — a loopback address, plain `http`, or a
-  port that is not 443: `Hosted clients egress on port 443 only; on any other port the connection is
-  reset with nothing you'll see.`
+  No **Copy** button, and the pattern `https://your-mac.tailnet.ts.net/mcp` in place of your address?
+  One sentence on that page says which of five things is true.
+
+  | What the page says | What to do |
+  |---|---|
+  | `Bridge is off — agents can only reach this gate with a pasted key` | Nothing was ever published. [Set up remote access](/start/remote-access). |
+  | `Bridge is off — an address is saved but not published yet` | In the folder that holds `docker-compose.yml`, run `docker compose restart app`. |
+  | `Bridge is off — this gateway couldn't read its own exposure setting` | Open Settings → **Remote access**, which says why. |
+  | `This gateway didn’t answer with its bridge status` | About the Console's own request, not about Postern. Reload. |
+  | `Hosted clients egress on port 443 only; on any other port the connection is reset with nothing you'll see.` | Your address is local, plain `http`, or off port 443. Fix it in Settings → **Remote access**. |
 </Note>
 
 </Step>
 
 <Step title="Turn on Developer mode in ChatGPT" titleSize="h2" id="developer-mode">
 
-In ChatGPT: Settings → **Plugins** → the **Developer mode** row, at the bottom of that list. It
-lands you in **Security and login**, wearing an **ELEVATED RISK** badge. The badge is expected. It
-is the switch that allows a custom MCP server at all, and a custom MCP server is a program you have
-pointed ChatGPT at rather than one OpenAI reviewed. Turn it on, and the row reads on from then.
+Open ChatGPT's settings, then **Plugins**. Scroll to the bottom of that list, past **Browse
+plugins**, and press **Developer mode**.
+
+ChatGPT moves you to **Security and login**, and the address ends
+`#settings/Security?section=developer-mode`. The **Developer mode** row there carries a red
+**⊘ ELEVATED RISK** badge and the line *Allows you to add unverified connectors that could modify
+or erase data permanently. Use at your own risk.*
+
+That badge is correct. Developer mode is what lets ChatGPT call a server you point it at, rather
+than one OpenAI reviewed. Turn **Developer mode** on.
 
 <Note>
-  Nothing in ChatGPT's menus is called **Connectors**, and you will go looking for it. The settings
-  rail says **Plugins**, ChatGPT's own banner says connectors are now called **Apps**, and the URLs
-  still say Connectors. Three names, one thing. Go by what the rail says.
+  No menu in ChatGPT says **Connectors**. The settings rail says **Plugins**, ChatGPT's banner says
+  **Apps**, and the addresses still say Connectors. Three names, one thing. Go by the rail.
+
+  The run behind this page met that screen with **Developer mode** already on. Nobody wrote down
+  the switch's own name, or what it reads afterwards. Go by the row's name.
 </Note>
 
 </Step>
 
-<Step title="Create the connector and point it at your address" titleSize="h2" id="create-the-connector">
+<Step title="Create the plugin and point it at your address" titleSize="h2" id="create-the-connector">
 
-At chatgpt.com/plugins, press the **+** button, top right. In the **New Plugin** form: **Name**
-`Postern`; **Server URL**, the endpoint you copied in step 2; **Authentication**, **OAuth**. Under
-the red warning, tick **I understand and want to continue** — it is alarming by design, and what it
-is telling you is true: you are pointing ChatGPT at a server of your own rather than one OpenAI
-vouches for. Press **Create**, and a sign-in popup opens on your own hostname.
+Open `chatgpt.com/plugins`. The page carries the heading *Plugins — Work with ChatGPT across your
+favorite tools.* Press the **+** button, top right. The **New Plugin** form opens.
+
+- **Name** — type `Postern`. Its placeholder reads `Custom Tool`.
+- **Connection** — leave the toggle on **Server URL**, not **Tunnel**, and paste the address you
+  copied in step 2. Its placeholder reads `https://example.com/sse`.
+- **Authentication** — already reads `OAuth`. Leave it.
+- **Icon** and **Description** are optional. Skip both.
+
+Watch **Advanced OAuth settings** as you paste. It starts at *Enter a valid MCP Server URL to review
+discovered OAuth settings*. Once your address goes in, it changes to *Review discovered OAuth
+settings, or enter them manually, then choose a client setup method and configure default scopes*.
+That change means ChatGPT reached your Postern.
+
+Under the red *⚠ Custom MCP servers introduce risk* warning, tick **I understand and want to
+continue**. **Create** stays greyed out until you do. Press **Create**.
+
+The button shows a spinner. ChatGPT then lands on **App Preferences**, where **Permissions** reads
+`Allow low-risk`. That setting decides when ChatGPT asks you before it uses a plugin, not what
+Postern allows. The run behind this page changed nothing there. The address still says `Connectors`,
+as it does everywhere in ChatGPT's settings.
+
+{/* UNWITNESSED: whether the sign-in tab opens from Create itself or from a control on App Preferences. Frame f037 of the 1 August 2026 run records the App Preferences landing and nothing after it, so no control is named here. */}
+
+A second tab opens on your own address, served by your own Postern. Step 5 happens in that tab.
 
 <Note>
-  ChatGPT answers that it could not reach your server, and nothing at all appears in your logs.
-  Nothing arrived: a Funnel on any port but 443 is reset before the request leaves OpenAI's network,
-  so there is no request to log. Fix the address first. Then wait before you retry — a hosted client
-  remembers a failed check for a few minutes, and the Console says so in its own words: **If
-  claude.ai or ChatGPT says it can't connect, fix the address, wait five minutes, and try once.**
-  Re-submitting the form immediately reads the same cached failure back to you.
+  If no tab opens, your browser blocked it. Allow pop-ups for `chatgpt.com`, then press **Create**
+  again. You can also close that tab before you approve: press **Create** again to reopen it.
+
+  If ChatGPT says instead that it could not reach your server, and nothing appears in your logs:
+  nothing arrived, so there was nothing to log. Fix the address in step 2, then wait five minutes
+  before you retry. The Console says the same thing under the address:
+  `If claude.ai or ChatGPT says it can't connect, fix the address, wait five minutes, and try once: a
+  hosted client remembers a failed check for a few minutes.`
 </Note>
 
 </Step>
 
 <Step title="Approve the sign-in on your own machine" titleSize="h2" id="approve-the-sign-in">
 
-The popup is served by your own Postern, on your own hostname, and it is plain and unstyled — that
-is what it looks like today, not a failure. It is headed **Authorize agent access**, then names the
-client that asked — **ChatGPT** *is asking to connect to your gateway.* — then states where
-approving sends you: *Approving sends a sign-in code to* **chatgpt.com/connector/oauth**. *If you
-did not start this from that app, close this page.*
+Your own Postern serves this tab. It opens blank, then resolves to your own address. It is plain
+and unstyled, in a system font on a white background — nothing like the Console. That is normal.
+
+{/* UNWITNESSED: the name and the callback address ChatGPT registers with Postern. Postern prints both from what the app registered, and the 1 August 2026 run recorded neither. The claude.ai pair IS witnessed — `Claude` and `claude.ai/api/mcp/auth_callback` — so the shape is certain and ChatGPT's own two strings are not. */}
+
+It carries the heading **Authorize agent access**, then two lines. The first is the name ChatGPT
+registered with your Postern, followed by `is asking to connect to your gateway.` The second reads
+`Approving sends a sign-in code to`, then the address that code goes to, then `. If you did not
+start this from that app, close this page.` Postern prints both from what ChatGPT registered.
 
 <Warning>
-  Read that destination line before you approve. The bridge accepts a client registration from
-  anyone who can reach your published address — that is what the OAuth standard requires of it, not
-  a choice Postern made — so the client name and the destination on that page are the only two
-  things telling you this request came from the application you started it from. Approving sends a
-  one-time sign-in code to whatever that destination is. If either line is not ChatGPT's, close the
-  page.
+  Read both lines before you approve. Anyone who can reach your address can ask to connect, so those
+  two lines are your only check —
+  [why the bridge cannot refuse an unknown client](/reference/oauth-bridge#anyone-can-register-a-client). If the name
+  is not the app you started this from, or the address does not belong to OpenAI, close the page.
 </Warning>
 
-Paste the key from step 1 into **Paste an agent key from the Console**, and press **Approve**. The
-popup closes and ChatGPT reads **✓ Postern is installed.** Directly after installing it also reads
-**No app actions available yet.** — that is what a newly installed connector says, not a broken
-connection.
+Paste the key from step 1 into **Paste an agent key from the Console**, then press **Approve**.
+
+{/* UNWITNESSED: the wording of ChatGPT's green confirmation, and the label and empty-state text where the plugin lists its actions. Both were described from the 1 August 2026 run, neither was transcribed. */}
+
+The tab goes black with a spinner and returns to ChatGPT. Postern shows no page of its own to say it
+worked. ChatGPT confirms instead, with a green message over your plugin's own page. That page lists
+no actions yet. That is what a new plugin shows, not a broken connection.
 
 <Note>
-  Your browser's password manager pops over the key field, offering to save or replace a login.
-  Dismiss it. It can cover the **Approve** button underneath, and an agent key does not belong in a
-  password entry — it is a bearer token for your own machine, not a login for ChatGPT.
+  Your browser's password manager pops over the key field. Dismiss it. It can cover the **Approve**
+  button underneath, and the key is not a login.
 </Note>
 
 <Note>
-  The page answers **This agent key never expires. Keys used with a cloud client must have an expiry
-  — mint or rotate a key with a 30/90/365-day expiry in the Console, then try again.** The key
-  itself is good; its lifetime is not, and the bridge is the only place that rule is enforced, which
-  is why a key minted before this gateway was published arrives here rather than failing earlier.
-  Rotate that agent's key in the Console with an expiry on it — the chips on offer are **Never**,
-  **30 days**, **60 days** and **90 days** — and run this step again with the new key. Rotating
-  keeps the agent's name and its grants, hands you a fresh secret once, and deletes the old key's
-  derived tokens in the same act.
+  The page answers `This agent key never expires. Keys used with a cloud client must have an expiry —
+  mint or rotate a key with a 30/90/365-day expiry in the Console, then try again.` The key is good;
+  its lifetime is not. Ignore the 365: the Console offers **Never**, **30 days**, **60 days** and
+  **90 days**, and nothing else.
+
+  Rotate it. Console → **Agents & keys** → `chatgpt` → **Rotate**. The form opens headed
+  `Rotate chatgpt`. Press **90 days**, then **Rotate the key**, then **Copy**. Save the new key and
+  run this step again with it. A rotation keeps the name and the sectors, so you do not tick the
+  sectors again.
 </Note>
 
 </Step>
 
-<Step title="Ask ChatGPT something, then read the ledger" titleSize="h2" id="ask-and-check">
+<Step title="Ask ChatGPT something, then read the record" titleSize="h2" id="ask-and-check">
 
-In a chat, open the composer's **+** menu → **Postern**. A `[P] Postern` chip lands in the composer
-and you type after it. ChatGPT shows its own humanised progress — **Describing the Current Context**
-where Postern was asked for `describe_context` — never the raw tool name, and it asks no permission
-per call: the sectors you ticked in step 1 are the whole of the ceremony, once and in advance. The
-**Sources** rail gaining a **Postern** entry is the sign that a call landed.
+{/* UNWITNESSED: the control in ChatGPT's message box that attaches a plugin. The 1 August 2026 run recorded the `[P] Postern` chip it produces, not the click that produced it. */}
+
+In a chat, attach the plugin you named `Postern`. A `[P] Postern` chip lands in the message field.
+Type your question after it.
+
+ChatGPT shows plain-English progress, never tool names: **Describing the Current Context** means
+ChatGPT called `describe_context`. On the `Allow low-risk` setting from step 4 it asked no
+permission per call. A **Postern** entry in the **Sources** rail is the sign that a call landed.
 
 <Warning>
-  ChatGPT can narrate work it never did. Witnessed 2026-08-01: fifty seconds of **Calculating your
-  weekly Postern total…**, then an answer that said it had no data, and a ledger in which no call
-  had ever arrived. Your ledger is the only witness there is — when an answer smells empty, open
-  Console → The ledger before you change anything else. And that failure carries its own wrong
-  remedy: the link it offers points at chatgpt.com/apps, the public directory, where a connector you
-  created yourself can never appear. Yours is on the plugins page, under **Personal → Created by
-  me**.
+  ChatGPT can narrate work it never did. On the 1 August 2026 run it printed a progress line about a
+  weekly total, then `Worked for 50s`, then: *Postern didn't provide any transaction data in this
+  chat, so I can't calculate the total without guessing.* No call for it reached the record. When an
+  answer looks empty, open Console → **The ledger** before you change anything.
+
+  That failure also offers the wrong fix: its link points at `chatgpt.com/apps`, the public
+  directory, where a plugin you made yourself never appears. Yours is on the plugins page, under
+  **Personal → Created by me**.
 </Warning>
 
 </Step>
@@ -198,65 +227,49 @@ per call: the sectors you ticked in step 1 are the whole of the ceremony, once a
 
 ## Confirm it works
 
-The first three are ChatGPT telling you about itself. The last two are the only ones that prove a
-call reached your machine.
-
-- ChatGPT's plugins page lists **Postern** under **Personal → Created by me**.
-- In a chat, the composer's **+** menu offers **Postern**, and picking it drops a `[P] Postern` chip
-  into the composer.
-- The **Sources** rail carries a **Postern** entry after an answer.
-- Console → The ledger holds a row with your agent's own name under **Who** and the tool it called
-  under **Tool**. Leave the sector filter alone while you look: **One sector at a time also leaves
-  out every call that belonged to no sector — an agent asking what the gate holds, or a handshake
-  the gate refused.**
-- An empty answer **with** a ledger row beside it means the key is connected, the grant is working,
-  and this gateway has no sources yet. An empty answer with **no** row means nothing arrived.
+- `chatgpt.com/plugins` lists **Postern** under **Personal → Created by me**.
+- Console → **The ledger** holds a row with `chatgpt` under **Who**.
+- That row names the tool ChatGPT called under **Tool**.
+- Leave the sector filter alone. The Console says why: `One sector at a time also leaves out every
+  call that belonged to no sector — an agent asking what the gate holds, or a handshake the gate
+  refused. Those are still recorded; they just cannot match a sector.`
+- An empty answer **with** a row means Postern has no sources yet. No row means nothing arrived.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| `That agent key was not accepted. Check the key in the Console and try again.` | [Mint a key and save it before you go on](#mint-a-key-and-save-it-before-you-go-on) |
-| `This agent key never expires. Keys used with a cloud client must have an expiry` | [Approve the sign-in on your own machine](#approve-the-sign-in-on-your-own-machine) |
-| The Console page offers no address and no **Copy** button | [Copy the endpoint from the Console](#copy-the-endpoint-from-the-console) |
-| `Bridge is off — an address is saved but not published yet` | [Copy the endpoint from the Console](#copy-the-endpoint-from-the-console) |
-| `Bridge is off — agents can only reach this gate with a pasted key` | [Copy the endpoint from the Console](#copy-the-endpoint-from-the-console) |
-| `This gateway didn’t answer with its bridge status` | [Copy the endpoint from the Console](#copy-the-endpoint-from-the-console) |
-| There is no menu item called Connectors anywhere in ChatGPT | [Turn on Developer mode in ChatGPT](#turn-on-developer-mode-in-chatgpt) |
-| ChatGPT says it could not reach your server, and your logs show nothing | [Create the connector and point it at your address](#create-the-connector-and-point-it-at-your-address) |
-| The approval popup is plain and unstyled, and you cannot tell whether it is yours | [Approve the sign-in on your own machine](#approve-the-sign-in-on-your-own-machine) |
-| The password manager is covering the key field or the **Approve** button | [Approve the sign-in on your own machine](#approve-the-sign-in-on-your-own-machine) |
-| `No app actions available yet.` immediately after installing | [Approve the sign-in on your own machine](#approve-the-sign-in-on-your-own-machine) |
-| ChatGPT describes work it did and the ledger shows no call | [Ask ChatGPT something, then read the ledger](#ask-chatgpt-something-then-read-the-ledger) |
-| Your connector is not listed at chatgpt.com/apps | [Ask ChatGPT something, then read the ledger](#ask-chatgpt-something-then-read-the-ledger) |
-| Nothing answers on 8787 from your laptop, and Postern runs on another machine | [Set up remote access](/start/remote-access) |
+| `That agent key was not accepted. Check the key in the Console and try again.` | You pasted the address, not the key. Paste the key from your password manager into **Paste an agent key from the Console**. |
+| `This agent key never expires. Keys used with a cloud client must have an expiry` | Console → **Agents & keys** → `chatgpt` → **Rotate** → **90 days** → **Rotate the key** → **Copy**. Approve again with the new key. |
+| ChatGPT could not reach your server, and your logs show nothing | The request never arrived. Fix the address in Settings → **Remote access**, wait five minutes, try once. |
+| Nothing answers at `http://localhost:8787`, and Postern runs on another machine | Open the Console over SSH first: [Set up remote access](/start/remote-access). |
 
 ## What you have now
 
-ChatGPT holds a rotating token minted by your own machine, never the key itself. The bridge issues a
-short-lived access token and a refresh token beside it, and both resolve to the same grant row your
-key resolves to — so ChatGPT sees exactly the sectors you ticked in step 1, and appears in the
-ledger under exactly the name you gave it. A chain of refreshes can never outlive the key's own
-expiry.
+ChatGPT holds a temporary pass issued by your own machine, never the key itself. It sees exactly the
+sectors you ticked in step 1, and appears in the record under the name you gave it. Its access ends
+when the key expires —
+[the OAuth bridge, for hosted agents](/reference/oauth-bridge).
 
-Revoke or rotate that key in the Console and every token derived from it stops working. The grant
-row is the living authority and is read on every call, so a revoked key is refused at the next
-request; rotating goes further and deletes that agent's bridge tokens outright, in the same
-transaction that replaces the key.
+Revoke the key and Postern refuses ChatGPT's next call. Rotate it and its passes die at the same
+moment — [revoking and rotating a key](/reference/agent-keys#revoking-rotating-and-removing).
 
-Three standing costs come with this. The key you pasted now lives on OpenAI's infrastructure and
-dies on the date you chose — when it does, ChatGPT stops being answered, and a replacement is this
-page again from step 1. The address stays published until you stop publishing it, and stopping is
-what turns the sign-in off: **Stop publishing and the sign-in disappears — nothing else about this
-gate changes.** And ChatGPT asks no permission per call, so the sector list you ticked is the entire
-boundary between it and your data for as long as that key lives.
+Three standing costs come with this.
 
-Reads are answered from Postern's cache, on your own machine. A wait you feel in ChatGPT is the
-model thinking; it is not the gateway you are waiting for.
+- The key now lives on OpenAI's infrastructure and dies on the date you chose. Postern then refuses
+  ChatGPT's calls, and to replace the key you work this page again from step 1.
+- Your address stays reachable from the internet until you turn it off in Settings → **Remote
+  access**. That is also what turns the sign-in off: `Stop publishing and the sign-in disappears —
+  nothing else about this gate changes.`
+- ChatGPT asked no permission per call on the run behind this page, so the sectors you ticked are
+  its whole boundary for as long as the key lives.
+
+Any wait you feel comes from ChatGPT, not Postern. Postern answers reads from its cache, on your
+own machine.
 
 ## Next
 
-ChatGPT can only answer from sources this gateway already holds. Pick the one you can finish now.
+ChatGPT can only answer from sources Postern already holds. Pick the one you can finish now.
 
 <Columns cols={2}>
   <Card title="Connect Google and Gmail" href="/connect/google">
@@ -264,6 +277,6 @@ ChatGPT can only answer from sources this gateway already holds. Pick the one yo
     publish to production
   </Card>
   <Card title="Connect Apple Health" href="/connect/apple-health">
-    Health Auto Export on your iPhone · about ten minutes · push, not pull
+    Health Auto Export on your iPhone · about 10 minutes · push, not pull
   </Card>
 </Columns>

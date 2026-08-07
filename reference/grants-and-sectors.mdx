@@ -1,385 +1,279 @@
 ---
 title: "Grants and sectors"
-description: "How Postern decides what an agent may reach: six sectors, default-deny, read and act granted together, and the check that runs before any query."
+description: "The six sectors, which sectors a sign-in turns on, what one grant covers, and where every control that changes a grant lives in the Console."
 ---
 
 <Info>
   **Before you start**
 
-  - **A running Postern, and the Console in front of you** — every control this
-    page describes is at Console → Agents & keys.
-  - **An agent key.** A grant is not an object of its own: it is the sector list
-    attached to one named agent's key, in one row, and it comes into existence
-    when that key is minted.
-  - **The sector is the smallest thing there is to grant.** No per-source,
-    per-object, per-field or per-action grant exists, and there is no read-only
-    version of a sector. If what you need is narrower than a sector, Postern
-    cannot express it today.
-  - **None of this constrains you at the Console.** Whatever reaches Postern
-    over loopback is the operator: it holds every sector, carries no key, and
-    is never asked for one. The gateway is not a guard against you on your own
-    machine. Grants constrain agents.
-  - **Editing a grant ends that agent's live sessions.** The change lands at the
-    agent's next session, not inside the one it is holding. If an agent is
-    working, expect to watch it stop.
+  - **Every control on this page is in one place.** Open the Console and click
+    **Agents & keys**.
+  - **A grant is the sector list on one agent's key.** It is not a separate
+    object. It exists from the moment you create that key.
+  - **A sector is one area of your life: finance, mail, calendar, contacts,
+    health, home. It is the smallest thing you can grant.**
+  - **A change to a grant cuts that agent's live sessions.** The new sectors
+    apply at the agent's next session, never inside the one it holds.
+  - **Two neighbouring pages carry the rest.** The key itself — its deadline, and
+    how to revoke, rotate or remove it — is on
+    [Agent keys](/reference/agent-keys). What an agent sees when a grant says no is
+    on [Why an agent was refused](/reference/refusals).
 </Info>
 
 ## The six sectors
 
-Postern sorts everything it holds into six sectors: **finance**, **health**,
-**mail**, **contacts**, **calendar** and **home**. They are not a list somebody
-typed into a permission screen. They are derived from the schema registry — one
-sector per leading segment of every object key — so an object cannot exist
-outside a sector, and a sector cannot exist without an object in it.
+Postern sorts everything it holds into six sectors. The six are fixed: you
+cannot add one, rename one or split one.
 
-| Sector | What an agent reads in it |
-|---|---|
-| `finance` | `finance.account`, `finance.transaction`, `finance.holding` |
-| `health` | `health.sample`, `health.workout`, `health.sleep_session` |
-| `mail` | `mail` — message envelopes; bodies and attachments are never cached |
-| `contacts` | `contacts` — one address-book entry per source |
-| `calendar` | `calendar` — event occurrences, one row per instance |
-| `home` | `home` — the last known state of each device or entity |
+| Sector | What an agent reads in it | Sources that fill it |
+|---|---|---|
+| `finance` | `finance.account`, `finance.transaction`, `finance.holding` | Plaid, SimpleFIN |
+| `health` | `health.sample`, `health.workout`, `health.sleep_session` | WHOOP, Apple Health |
+| `mail` | message envelopes. Postern never caches bodies or attachments | Gmail, Microsoft, iCloud |
+| `contacts` | one address-book entry per source | Google, Microsoft, iCloud |
+| `calendar` | event occurrences, one row per instance | Google, Microsoft, iCloud |
+| `home` | the last known state of each device or entity | Home Assistant |
 
-Which sources fill a sector is a different question from which sectors a key
-opens, and the two are never joined. Each connector declares the sector it
-writes into: Plaid and SimpleFIN write finance; WHOOP and Apple Health write
-health; Gmail, Microsoft and iCloud write mail; Google, Microsoft and iCloud
-write calendar and contacts; Home Assistant writes home. Granting `mail` grants
-every mail source connected now and every mail source connected later. There is
-no way to grant one and withhold another inside the same sector.
+A grant names a sector, never a source. You choose what an agent reads when you
+create its key, not when you connect a source. Grant `mail` and that key reads
+every mail source you have now, and every one you add later. There is no way to
+grant one and withhold another. Disconnect a source and the grant does not
+change — the sector holds less. A key that holds none of a source's sectors sees
+nothing, however many sources you connect.
 
-A granted sector with no connection behind it is still granted, and answers
-nothing. `describe_context` returns the sectors the key was **granted**, not the
-sectors that have data — the tool says so itself, because an agent that reads
-the two as the same thing concludes a source exists when none does. A `query`
-against a granted, unconnected sector comes back empty rather than refused;
-`fetch_live` answers `no active connection for sector '<name>'`. Neither is a
-permission problem, and neither looks like one in the ledger.
+### Which sectors a sign-in turns on
+
+Postern reads the scope list the provider returns with the token, not the list
+Postern asked for. It creates one connection per sector that list covers.
+
+- **Google** — one sign-in becomes two connections, `calendar` and `contacts`,
+  because the consent covered two sectors.
+- **Microsoft** — Postern requests exactly `Mail.Read`, `Calendars.Read`,
+  `Contacts.Read` and `offline_access`, and nothing else on any sign-in. That
+  gives three connections. A consent that grants fewer gives fewer connections;
+  sign in again and approve the whole set.
+- **WHOOP** — `read:recovery`, `read:sleep` and `read:workout` each map to
+  `health`. `read:cycles`, `read:profile` and `offline` map to no sector at all.
+  A consent that returns none of the three health scopes creates no connection. The
+  Console then answers `WHOOP signed in, but granted no sectors. Check the scopes
+  on your app, then sign in again.` It can only report the connection it made. It
+  cannot name the scope it did not get.
+
+### Two sources inside one sector
+
+SimpleFIN arrives as one connection that holds every bank linked at the Bridge.
+The Console has no bank picker. SimpleFIN Bridge decides which banks it covers,
+and a bank added or dropped there appears or disappears on the next sync. The
+**Sources** row says so, with your own bank count in place of `<n>`:
+`One link carries all <n> — which banks are in it is chosen at SimpleFIN Bridge ↗`.
+
+Connect Plaid as well and the same account can arrive through both. Postern's
+dedup engine matches on the institution's domain plus the last 4 digits in the
+account name, and serves one account rather than two. It merges on its own only
+when both providers report a last 4. When one does not, it refuses to guess and
+asks `Is this the same account, seen twice?` Answer once with **They're the same
+account** or **Keep them separate**, and it stays answered.
+
+### A granted sector with no source behind it
+
+It is still granted, and it answers nothing. `describe_context` returns the
+sectors the key was **granted**, not the sectors that hold data. A `query` there
+comes back empty rather than refused, and `fetch_live` answers `no active
+connection for sector '<name>'`. Neither is a permission problem, and neither
+looks like one in the record.
 
 ## What a grant covers
 
-A grant is domain-level: the same sector list gates reads and actions, with no
-finer per-action, per-tier or per-confirmation gating anywhere beneath it.
-Postern tells every agent so in the instructions it sends at connection time —
-*"`list_actions` / `invoke_action` act on a source; a granted sector covers both
-reading and acting"* — and the Console says the same thing under the sector
-toggles: `Each granted sector covers read and act across every provider in it.`
+A grant works at the level of a whole sector. The same sector list gates reads
+and actions, with nothing per-action, per-tier or per-confirmation beneath it.
+The Console says so under the sector toggles: `Each granted sector covers read
+and act across every provider in it.`
 
-The grant reaches all seven tools, though not in the same way in each.
+There is no confirmation step between an agent's decision and your house, and a
+hosted agent asks no permission per call. Your instruction to the agent is the
+authorization. The sectors you tick at creation are the whole boundary between
+that agent and your data, for as long as the key lives.
+
+### Which sectors an agent can act in
+
+| Sector | Can an agent act in it? |
+|---|---|
+| `home` | **Yes.** Home Assistant serves a live action catalogue, built from its own entity-and-service registry. |
+| `finance`, `health`, `mail`, `contacts`, `calendar` | **No.** Every connector in these five declares an empty action list, so `list_actions` returns nothing and `invoke_action` has nothing to call. |
+
+The **Mint a key** form states it before you grant anything: `A grant covers read
+and act, but only Home has a catalogue to act on today; Finance, Mail, Calendar,
+Contacts, Health are read-only.`
+
+So no agent can move money through Postern, whatever its grant says. Google's
+`calendar` and `contacts` are read-only twice over: the two scopes Postern
+requests are read-only, and the connector refuses to run an action. WHOOP is the
+same.
+
+That is a statement about connectors, not about the permission model. If a source
+adds actions later, keys that already hold that sector can use them. Nothing in a
+grant names an action, so Postern re-issues nothing and asks nobody again.
+
+### What the grant decides, tool by tool
 
 | Tool | What the grant decides |
 |---|---|
-| `describe_context` | Answers with the granted sector list, and with connections only inside those sectors |
-| `get_schema` | Objects in ungranted sectors are **absent** from the answer rather than refused, so nothing leaks about what exists |
-| `query` | Denied before any SQL is composed |
-| `get_record` | Denied before any SQL is composed |
-| `fetch_live` | Denied before any SQL is composed, and before anything upstream is touched |
-| `list_actions` | Enumerates the granted sectors; naming an ungranted one is denied |
-| `invoke_action` | Action ids are sector-namespaced (`home.light.turn_on`), and that sector decides the call |
+| `describe_context` | Answers with the granted sector list, and only connections inside it |
+| `get_schema` | Objects in ungranted sectors are absent rather than refused, so nothing leaks about what exists |
+| `query`, `get_record` | Denied before Postern composes any SQL |
+| `fetch_live` | Denied before any SQL, and before Postern touches anything upstream |
+| `list_actions` | Lists the granted sectors; a named ungranted one is denied |
+| `invoke_action` | Every action name starts with its sector (`home.light.turn_on`), and that sector decides the call |
 
-The act half of a grant is real in one sector today. Home Assistant serves a
-live action catalogue built from its own entity-and-service registry; every
-other connector that ships declares an empty action list, so a key granted
-finance, health, mail, contacts or calendar can act on nothing there. The
-permission is conferred and there is nothing to spend it on. The Console states
-this on the mint form rather than leaving it to be discovered: `A grant covers
-read and act, but only Home has a catalogue to act on today; Finance, Mail,
-Calendar, Contacts, Health are read-only.`
+Nothing is narrower than a sector. There is no per-connector, per-tool or
+per-call gating underneath a grant. Parameters and returns are on
+[MCP tools](/reference/mcp-primitives).
+[Refused, or quietly filtered](/reference/refusals#refused-or-quietly-filtered)
+carries the exact wording an agent gets back in each row of that table.
 
-Read that as a statement about connectors, not about the permission model. A
-connector that grows an action surface later is covered by grants that already
-exist — nothing in a grant names an action, so nothing is re-issued and nobody
-is asked again.
+An agent whose key opens `finance` is served the accounts, transactions and
+holdings in the local cache, plus each connection's health. Once Plaid reports
+one, Postern also serves the date that bank's consent expires.
 
-To read what a key holds today, open Console → Agents & keys and pick the agent.
-The granted sectors are the lit toggles; the same page carries the key's
-deadline and its recent passage through the ledger. From the agent's own side,
-`describe_context` answers the same question.
+## Read a grant, and change it
 
-One agent name holds one grant. The name you give an agent is its identity
-everywhere else — it is what the ledger records against every call it makes —
-and the table is unique on the pair of user and agent name. Minting is an
-upsert, so minting under a name that already exists replaces that agent's key
-hash, its sector list and its deadline, and clears its revocation. That is the
-rotate path, and the Console offers it under that name.
+**To read what a key holds.** Click **Agents & keys**, then the agent's name. The
+lit toggles under **Grants** are its sectors. The line under the name reads
+`never expires` or `expires in 60d`. The section headed **Recent passage** lists
+that key's last calls.
 
 <Warning>
-  Minting under an agent name that already exists replaces that agent's key. The
-  previous secret stops being accepted at once, every OAuth-bridge code and token
-  derived from it is deleted in the same transaction, and the sessions it was
-  holding are ended. Only a hash of the old key was ever stored, so there is no
-  copy of it anywhere and no way back to it: every client still holding the old
-  secret has to be handed the new one.
+  A change to a grant cuts that agent's live sessions. Postern applies the new
+  sectors at the agent's next session, never inside the one it holds. If the
+  agent is at work, expect to watch it stop.
 </Warning>
+
+**To change the sectors.** On that same page, tap a sector under **Grants**.
+Postern saves at once — there is no Save button. The hint under the toggles then
+reads `Tap to toggle; the change applies at the agent's next session.`
+
+**To create a key.** Click **Agents & keys**, then **Mint a key**. Type a name.
+Tap sectors under **Grant which sectors**. Pick a chip under **Expires**. Press
+**Mint the key**. Postern cannot show you this key again. It keeps a scrambled
+copy it can check against, never the key itself.
+
+One agent name holds one grant, and the record stores that name against every
+call the key makes. A second key under an existing name is a rotate — see
+[Revoking, rotating, and removing](/reference/agent-keys#revoking-rotating-and-removing).
+
+**Through the API instead.** `POST /api/agents` creates or replaces a grant, and
+`PATCH /api/agents/<name>` edits one. Both take a `sectors` array of strings and
+an optional `expiresInDays` between 1 and 3650. Both answer only on the machine
+Postern runs on.
+
+The deadline on the **Expires** row, and the four verbs that end a key, are on
+[Agent keys](/reference/agent-keys).
 
 ## Default-deny
 
-The sector column defaults to the empty array, and the schema states what the
-empty array means: nothing. A key resolves, authenticates and connects with an
-empty grant, and then every sector check denies it.
+A new key can reach nothing until you tick a sector.
 
-Postern does not treat that as an error, and the Console does not block it — the
-mint button needs a name and nothing else. The form says so before you mint:
-`Nothing is granted until you pick it. Tap a sector to toggle it.`, with
-`no sectors — this key is denied everything` beside the recap, and after minting,
-`No sectors granted yet — this key would be denied everything until you edit its
-grants.` That is the intended shape rather than a defect, and it is why a
-connection that succeeds can still answer nothing at all.
+The sector list starts empty. A key with an empty list resolves, authenticates
+and connects, and then every sector check denies it. A freshly installed Postern
+answers on the agent port and grants nothing at all.
 
-Two further behaviours of the stored list are worth knowing before you write one
-through the API:
+Postern does not treat that as an error, and the Console does not block it:
+**Mint the key** needs a name and nothing else. The form says so three times.
 
-- **A sector name Postern does not recognise is dropped, silently.** The stored
-  list is intersected with the six real sectors when the key resolves, so a
-  grant of `finance` and `bogus` grants finance and raises nothing. The mint
-  endpoint validates the field as an array of strings and does not check the
-  strings against the sector list; the intersection at resolve time is what makes
-  a typo harmless rather than dangerous.
-- **`*` expands to every sector.** A stored grant of `["*"]` resolves to all six
-  at connection time. The Console cannot write one — its toggles are built from
-  the six named sectors — so a wildcard grant can only arrive through the
-  loopback API.
+| Where on the form | What it reads |
+|---|---|
+| Under the sector toggles | `Nothing is granted until you pick it. Tap a sector to toggle it.` |
+| Beside the recap | `no sectors — this key is denied everything` |
+| Under **Mint the key** | `No sectors granted yet — this key would be denied everything until you edit its grants.` |
 
-## Where the check happens
-
-One function is the chokepoint. Every read primitive calls it as its **first**
-statement: it maps the target to its coarse sector and requires a grant before
-any SQL is composed, before any connection is looked up, and before anything
-upstream is touched. A denial therefore costs no database work and leaves no
-partial read.
-
-Four properties of that check matter to anyone reasoning about it.
-
-- **It is an in-memory set membership test, not a database read.** The sector
-  list is resolved once per session into a set and every later call tests
-  against that set. A per-call database read was considered and rejected;
-  keeping the check free is what allows it to sit in front of everything.
-- **It is fail-closed on an unknown target.** A target whose leading segment is
-  not one of the six raises the same access denial as an ungranted sector, so a
-  typo'd or invented object name can never be mapped onto a real grant.
-- **The presented key is never compared as itself.** Postern stores a sha256
-  hash of the key and looks the grant up by that hash. The raw key is not
-  stored, not logged, and not part of any lookup.
-- **Every read is scoped to the owning user as well as the sector.** The
-  generated SELECT always carries a user clause, so a row belonging to another
-  user comes back as absent rather than as a refusal.
-
-On the REST agent mirror the refusals are two distinct answers, and the
-difference is worth reading carefully when you are debugging a client: a missing
-or malformed bearer is `401` with the body `{"error":"unauthorized"}`, while an
-unknown, revoked or expired key — and an ungranted sector — is `403` with
-`{"error":"access denied"}`. The first means the request never presented a
-credential Postern could parse. The second means it did, and the answer is no.
-
-Inside Postern the two kinds of "no" stay separate on purpose. A denial carries
-either a **sector**, when a real credential was refused a real sector, or a
-**reason** from a fixed vocabulary — `unknown agent`, `revoked`, `expired` —
-when the credential itself failed. They are never conflated, which is what keeps
-the ledger's sector column meaning a sector on both paths.
-
-The loopback operator sits outside all of it. A request that arrives over
-loopback on an operator route resolves to the seeded user with every sector and
-the agent name `operator`, with no key and no database round-trip. Those routes
-never consult an `Authorization` header, and the agent routes are never
-satisfied by arriving on loopback: two disjoint resolvers on two disjoint path
-spaces, so neither can become an escalation path into the other.
-
-## Expiry
-
-A grant carries a deadline, and its default is none. Stored as null, the key
-never expires. Through the loopback API the deadline is set as a whole number of
-days from now, between 1 and 3650; sent absent at mint time, the key is
-never-expiring. The Console offers a small set of day presets plus **Never**, and
-which one the form starts on depends on whether this gateway has been published
-to the public internet — a key that will leave the machine should not sit at
-Never.
-
-Four behaviours follow the deadline once it exists.
-
-- **A key is dead at its expiry instant, not after it.** The comparison is
-  inclusive: a deadline one millisecond in the past refuses.
-- **Revocation wins over expiry.** A key that is both revoked and lapsed reports
-  `revoked`, because the revocation check runs first. The deny reason stays
-  honest about which thing actually stopped the key.
-- **The deadline rides on the resolved session and is re-checked on every call.**
-  A key that lapses inside a live session stops there, at its deadline, rather
-  than lasting until the client happens to disconnect.
-- **Tokens derived from a grant cannot outlive it.** A hosted client holds a
-  rotating token issued by Postern's own OAuth bridge against this same grant
-  row; its effective deadline is the earlier of its own and the grant's.
-
-Moving the deadline of a dead key is refused by the gateway itself, not only by
-the Console: the update carries a liveness clause that is the exact complement of
-the resolve-time check, so a revoked or lapsed key cannot have its expiry
-extended back into life. The Console explains the refusal where it happens —
-`This key is revoked, so its deadline is fixed where it stopped — moving it
-would let the old key back in. Rotate to mint a fresh key with a new deadline.`
-
-Editing **sectors** on a dead key is a different case, and the two surfaces
-differ. The gateway accepts a sectors-only edit on a revoked or lapsed grant —
-the sectors of a key that cannot resolve are inert — while the Console disables
-the toggles once a key is revoked and says so. Either way there is no next
-session for new sectors to apply in, and rotation is the only route back.
-
-<Note>
-  An agent that worked yesterday and is refused today, with nothing changed on
-  either side, has usually met its deadline. The refusal is `403`, and on the MCP
-  edge the ledger records the deny reason `expired`. Rotating the agent mints a
-  fresh secret under the same name with a new deadline, and the client has to be
-  handed that secret; moving the deadline on the lapsed key is refused.
-</Note>
-
-## Revoking, rotating, and removing
-
-Four operator verbs act on a grant. All four are on the loopback admin surface
-and none of them is available to an agent.
-
-| What you do | What changes in the row | What the agent gets |
-|---|---|---|
-| **Revoke** | A revocation stamp is written, idempotently | The key stops being accepted; live sessions are cut |
-| **Rotate** — mint again under the same name | New key hash, new sectors, new deadline, revocation cleared | The old secret stops at once; derived tokens are deleted |
-| **Edit grants** | The sector array is replaced | The current session ends; the next one carries the new sectors |
-| **Remove** | The row is deleted, and only after a revoke | Nothing further; the ledger history survives |
-
-Postern has two agent-facing edges and they learn about a revocation
-differently. That is why the revoke path does two things instead of one.
-
-The **REST agent mirror** re-resolves the presented bearer on every single
-request. A revoked key fails on the next request, and there is nothing to sweep.
-
-The **MCP edge** resolves the key once, at session initialize, and caches the
-resulting context against the session id — deliberately, because the grant check
-is meant to be an in-memory test rather than a per-call database read. A
-revocation written after that point would never be seen by a session already
-open. So it is delivered as a push instead of waited for as a read: the revoke
-route writes the row **first**, then sweeps the session registry and evicts every
-cached session belonging to that agent, across every mounted edge, closing each
-session's transport as it goes.
-
-The order is load-bearing. A sweep before the write would leave a window in
-which a fresh initialize legitimately re-resolves a not-yet-revoked row and
-binds afterwards. Write-then-sweep closes that direction, and a session that is
-midway through initializing at the instant of the sweep is refused its binding
-rather than allowed to outlive it. The route reports how many live sessions it
-ended.
-
-The sentence to carry away: **a revoked key stops working immediately on both
-edges, and the sessions the agent was holding are cut in the same act.** The
-Console says as much when it is done — `<agent> revoked — every token derived
-from it died too.`
-
-What the code settles is that the session is gone and that no further call on it
-resolves. It does not settle what becomes of a call already executing inside the
-gateway at the instant of the sweep, and this page will not guess at it.
-
-Derived tokens are covered by the same row rather than by a second rule. A
-hosted client never holds the agent key; it holds a rotating token from
-Postern's OAuth bridge. Resolving one of those tokens joins the grant row every
-time, so a revoked or expired grant refuses the derived token whatever life the
-token has left of its own. Rotation goes further and deletes the derived codes
-and tokens outright, in the same transaction that writes the new key hash,
-because rotation is the response to a compromise and derived credentials must
-not outlive the key they came from.
-
-Removing an agent is gated on having revoked it first, so a live agent is never
-deleted out from under an in-flight session. The audit history survives the
-removal: the ledger's agent column is plain text with no foreign key to the
-grant, so deleting the grant does not delete the trail.
+That is the intended shape rather than a defect, and it is why a connection that
+succeeds can still answer nothing.
 
 <Warning>
-  A key cannot be un-revoked. The revocation stamp is written once and no path
-  clears it except minting a fresh key under the same name, which is a different
-  secret that every client has to be given. Revoking is the right move when a key
-  may be loose; understand before you press it that nothing any client currently
-  holds survives it.
+  A key granted no sectors connects successfully and is denied on every read. The
+  connection is fine and the answers are empty, so nothing in your agent looks
+  wrong. `describe_context` gives it away: it comes back with `sectors: []`. To
+  fix it, click **Agents & keys**, click that agent's row to open its own page,
+  and look under **Grants**. No sector switched on is the fault. Switch one on
+  there. Nothing about the agent's config changes.
 </Warning>
 
-## What the ledger records
+Two behaviours of the stored list matter if you write one through the API.
 
-Every core call appends one row — reads and actions, allowed and denied alike.
-Each row carries the tool, the sector, the decision, a deny reason where there
-was one, the validated arguments with sensitive values redacted, the number of
-rows returned, an outcome, and a request id. The table is append-only in
-practice: the only statement Postern's own code runs against it is an insert.
-Nothing in the source updates a row, nothing deletes one, and there is no
-retention job — and the operator's data-destruction verb, which hard-deletes
-domain rows, deliberately leaves the ledger standing, because the ledger records
-the act rather than the values.
-
-The write is asynchronous and off the response path, never awaited. That is a
-deliberate posture rather than an optimisation detail, and it has a consequence
-worth stating plainly: **the ledger is detective, not preventive.** It records
-what happened; it decides nothing. And because the write is fire-and-forget and
-droppable by design, the ledger is a lower bound on activity rather than a
-guarantee of completeness.
-
-A denial appears as an ordinary row with the decision reading `deny`, the sector
-that was refused, and the reason. A key that is presented to the MCP edge and
-refused at connection time is recorded too, against the `initialize` tool, with
-the reason and no agent name — throttled per minute so that an edge exposed to
-the internet cannot have its bot traffic flood the table, and with a
-single coalesced line standing in for whatever the cap swallowed. An anonymous
-probe carrying no bearer at all stays silent while the OAuth bridge is off.
-
-One asymmetry to know when you are reading the ledger rather than a client's
-error message: on the REST agent mirror the audit entry is written by the
-handler **after** the bearer has resolved, so a bearer that never resolves there
-leaves no row, while an ungranted sector — which is refused after the key
-resolved — does.
+- **A sector name Postern does not recognise is dropped, silently.** Postern
+  intersects the stored list with the six real sectors when the key resolves. A
+  grant of `finance` and `bogus` grants finance and raises nothing. The endpoint
+  checks only that the field is an array of strings. If a sector you wrote does
+  not appear on the key, check its spelling against the six above.
+- **`*` expands to every sector.** A stored grant of `["*"]` resolves to all six
+  at connection time. The Console cannot write one, because its toggles are built
+  from the six named sectors. A wildcard grant can only arrive through
+  `POST /api/agents`.
 
 ## What Postern cannot express
 
-The grant row is short, and its shortness is the model. It holds a user, an
-agent name, a hash of the key, an array of sectors, a creation stamp, a
-revocation stamp and a deadline. There is nothing else in it, and so there is:
+A grant row holds a user, an agent name, a hash of the key, an array of sectors,
+a creation stamp, a revocation stamp and a deadline. Nothing else. So there is:
 
 - no grant of one source inside a sector while another in the same sector is
   withheld;
 - no per-object, per-field or per-row grant;
-- no read-only grant — read and act travel together, and the only thing limiting
-  action today is that five of the six sectors have no action catalogue behind
-  them;
+- no read-only grant — read and act travel together, and the only thing that
+  limits action today is that five of the six sectors have no action catalogue
+  behind them;
 - no per-call approval, no confirmation tier, no rate limit, no budget, no
   time-of-day window;
-- no per-sector deadline — one deadline covers the whole key;
+- no per-sector deadline. One deadline covers the whole key;
 - one grant per agent name, so two policies mean two agents.
 
-The audit ledger is the compensating control for all of that, and it is
-detective by construction: it tells you what an agent did, after it did it.
+The record is the compensating control for all of that. It tells you what an
+agent did, after it did it. It never stops anything.
 
-Per-user separation is real in the code — every read is scoped to a user id, and
-a key belonging to one user cannot reach another's rows — but the self-hosted
-gateway seeds a single operator user and treats its id as a constant. The source
-names multi-user as future work rather than shipped behaviour, and this page
-describes the single-user shape you actually have.
+Per-user separation is real in the code. Every read is scoped to a user id, and a
+key that belongs to one user cannot reach another's rows. But a self-hosted
+Postern seeds a single operator user and treats its id as a constant. Multi-user
+is future work, not shipped behaviour, and this page describes the single-user
+shape you have.
+
+## Confirm it works
+
+- Console → **Agents & keys** lists the agent, and its line reads `never expires`
+  or `expires in <n>d`.
+- Click the agent. The toggles under **Grants** are lit for exactly the sectors
+  you meant to grant.
+- Ask the agent what it can see. It names those same sectors and no others.
+- Ask the agent for something in a sector you did not grant. It is refused, and a
+  row appears under **Recent passage** with `deny`.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| The client connected, and every read comes back denied | [Default-deny](#default-deny) |
-| `{"error":"access denied"}`, or HTTP `403` | [Where the check happens](#where-the-check-happens) |
-| `{"error":"unauthorized"}`, or HTTP `401` | [Where the check happens](#where-the-check-happens) |
-| A ledger row reading `deny` with reason `expired` | [Expiry](#expiry) |
-| A ledger row reading `deny` with reason `unknown agent` | [Revoking, rotating, and removing](#revoking-rotating-and-removing) |
-| The agent worked yesterday and is refused today, with nothing changed | [Expiry](#expiry) |
-| A sector is granted and every query comes back empty | [The six sectors](#the-six-sectors) |
-| `no active connection for sector '<name>'` | [The six sectors](#the-six-sectors) |
-| You changed the grants and the agent still behaves the old way | [Revoking, rotating, and removing](#revoking-rotating-and-removing) |
-| You asked an agent to act and it reports there is nothing to act on | [What a grant covers](#what-a-grant-covers) |
-| A revoked agent is still listed in the Console | [Revoking, rotating, and removing](#revoking-rotating-and-removing) |
-| A sector you granted through the API does not appear on the key | [Default-deny](#default-deny) |
+| The agent connected, and every read comes back denied | The key has no sectors. Click **Agents & keys**, click the agent, tap a sector under **Grants**, then restart the agent. |
+| A sector is granted and every query comes back empty, or `no active connection for sector '<name>'` | Nothing is connected in that sector. Click **Sources** and connect one. This is not a permission problem. |
+| You asked an agent to act and it reports there is nothing to act on | Only `home` has an action catalogue today. The other five sectors are read-only, and no grant changes that. |
+| The agent worked yesterday and is refused today, with nothing changed | The key met its deadline, not a grant. [Expiry](/reference/agent-keys#expiry) carries the fix. |
+
+## What you have now
+
+The six sectors, which sectors a sign-in turns on, what one grant covers, and
+where every control that changes a grant lives in the Console. A grant covers
+read and act, and only `home` has anything to act on today. Nothing is granted
+until you tick it.
 
 ## Next
 
 <Columns cols={2}>
-  <Card title="Connect an agent" href="/start/connect-an-agent">
-    a running Postern and a key you minted · a few minutes, plus a restart of
-    whatever client you are connecting
+  <Card title="Agent keys" href="/reference/agent-keys">
+    the deadline on a key, and the four verbs that end one: revoke, rotate, edit
+    and remove
   </Card>
-  <Card title="Install Postern" href="/start/install">
-    Docker and a terminal · about ten minutes · no cloud account, because there
-    is no cloud
+  <Card title="The audit log" href="/reference/audit-log">
+    what one row holds, what gets a row, and the honest limits of a record the
+    database does not enforce
+  </Card>
+  <Card title="Connect an agent" href="/start/connect-an-agent">
+    a running Postern and a key you created · a few minutes, plus a restart of
+    whatever client you are connecting
   </Card>
 </Columns>

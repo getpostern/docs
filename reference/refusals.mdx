@@ -1,0 +1,150 @@
+---
+title: "Why an agent was refused"
+description: "Where the sector check happens, the two refusal shapes on each surface, the three reasons a key itself fails, and which refusals leave a row."
+---
+
+<Info>
+  **Before you start**
+
+  - **Two different things say no.** Either the key failed, or the key was fine
+    and the sector was not granted. The wording, and the record, differ.
+  - **The surface changes the answer.** The REST read mirror on the Console port
+    and the agent port answer the same refusal in opposite shapes.
+  - **Read the agent's own status first.** Click **Agents & keys**, click the
+    agent, and look at its line and its lit toggles.
+</Info>
+
+## Where the check happens
+
+Every read goes through one check first. It maps the target to its sector and
+requires a grant before Postern composes any SQL, looks up any connection, or
+touches anything upstream. A denial costs no database work and leaves no partial
+read.
+
+- **It fails closed on an unknown target.** A target whose leading segment is not
+  one of the six raises the same access denial as an ungranted sector. A typo'd or
+  invented object name can never map onto a real grant.
+- **Postern never compares the presented key as itself.** It stores a sha256 hash
+  of the key and looks the grant up by that hash. The raw key is not stored, not
+  logged, and not part of any lookup.
+- **Every read carries the owning user as well as the sector.** Postern puts a
+  user clause into every SELECT it builds. A row that belongs to another user
+  comes back as absent rather than as a refusal.
+
+## The two refusals
+
+Both of these come from the REST read mirror, on the Console port. The agent port
+answers its own refusals differently — see below.
+
+| What the agent sees | What it means | Does it write a row? | What to do |
+|---|---|---|---|
+| `401` with `{"error":"unauthorized"}` | The request presented no key Postern could read. | No. A missing or malformed key writes nothing. | Check the `Authorization: Bearer` line in the agent's config. |
+| `403` with `{"error":"access denied"}` | Postern read the key and said no: an unknown, revoked or expired key, or an ungranted sector. | It depends which. An **ungranted sector** writes a `deny` row. An unknown, revoked or expired **key** writes nothing here, because the mirror resolves the key before it reaches the code that records anything. | Click **Agents & keys**, click the agent, and check its status and its lit toggles. |
+
+**The agent port is the other way round.** It answers `Unauthorized` (`401`) to a
+key it refuses, and it does write a row — against the tool `initialize`, with the
+reason and no agent name. So a bad key is visible in the record from one surface
+and invisible from the other. [What does not get a row](/reference/audit-log#what-does-not-get-a-row)
+carries the split.
+
+Postern keeps the two kinds of "no" apart inside as well. A denial carries a
+**sector** when Postern refused a real key a real sector. It carries a **reason** —
+`unknown agent`, `revoked` or `expired` — when the key itself failed, and then the
+row holds no sector at all. A reason never travels in the sector column, so a
+refused key never appears under a sector filter.
+[What one row holds](/reference/audit-log#what-one-row-holds).
+
+### The three reasons a key itself fails
+
+Three states refuse a key: unknown key, revoked key, expired key. Postern puts
+which one it was in the record, rather than telling the caller. On the agent port
+the refusal names it:
+
+| Refusal | What it means |
+|---|---|
+| `access denied: unknown agent` | No grant carries that hash. |
+| `access denied: revoked` | The grant was revoked. |
+| `access denied: expired` | The key is past its expiry. |
+
+A key that is both revoked and lapsed reports `revoked`, because the revocation
+check runs first. [Agent keys](/reference/agent-keys) carries what each verb does
+to a key, and how to get a working one back.
+
+### Refused, or quietly filtered
+
+An ungranted sector is not always an error. Some tools refuse it and some simply
+leave it out, and the difference decides whether the agent knows it is being held
+back at all.
+
+| Tool | An ungranted sector |
+|---|---|
+| `query`, `get_record`, `fetch_live`, `invoke_action` | Refused before any database work, naming the sector: `access denied: finance` |
+| `describe_context`, `get_schema` | Filtered — you get what you are granted, nothing else |
+| `list_actions` | Filtered, unless you name a sector; naming an ungranted one is a refusal |
+
+A name whose leading segment is not one of the six is refused the same way.
+[What the grant decides, tool by tool](/reference/grants-and-sectors#what-the-grant-decides-tool-by-tool)
+is the same table read the other way round.
+
+### You at the Console are not an agent
+
+Anything that reaches Postern from the machine Postern runs on is the operator.
+It resolves to the seeded user, with every sector and the agent name `operator`,
+with no key and no database round-trip. Grants constrain agents, not you on your
+own machine. Operator routes never read an `Authorization` header, and no agent
+route is ever satisfied by where the request arrived from.
+
+## What the record holds about a grant
+
+A sector denial appears as an ordinary row: `decision: deny`, the sector that was
+refused, and the reason `access denied: <sector>`. A refused key is the other
+case, and it is above.
+
+Postern records nothing you do to the grant itself. Create a key, rotate one, edit
+its sectors or its deadline, revoke it or remove it, and Postern writes no row.
+Four of those five end every live session that agent holds: a rotate, an edit to
+its sectors or its deadline, a revoke and a remove. So an agent can stop mid-work
+with nothing in the record to say why. A **Remove** deletes the grant but not the
+trail, because the record's agent column is plain text with no foreign key to the
+grant.
+[What a row holds, and the honest limits of a record the database does not
+enforce](/reference/audit-log).
+
+## Confirm it works
+
+- Ask the agent for something in a sector you did not grant. It is refused, and a
+  row appears under **Recent passage** with `deny` and that sector.
+- Ask it for something in a sector you did grant. It answers, and the row reads
+  `allow`.
+- Point an agent at Postern with a key you have revoked. The agent port answers
+  `Unauthorized` (`401`), and a row appears against `initialize` with reason
+  `revoked` and no agent name.
+
+## If something went wrong
+
+| What you see | What to do |
+|---|---|
+| `401` and `{"error":"unauthorized"}` | Postern could not read a key at all. Check the `Authorization: Bearer` line in the agent's config, and that the word `Bearer` has a key behind it. |
+| `403` and `{"error":"access denied"}`, and the agent's toggles look right | The key itself failed — unknown, revoked or expired. Click **Agents & keys** and read the agent's line. |
+| `access denied: <sector>` on one sector only | That sector is not granted. Click **Agents & keys**, click the agent, and tap it under **Grants**. The change lands at the agent's next session. |
+| A refusal you cannot find in the record | Filter by agent, not by sector. A refused key writes no sector, and the REST read mirror writes nothing at all for a refused key. |
+| The agent is refused and you are not | You are the operator. Anything from the machine Postern runs on holds every sector with no key. That says nothing about the agent's grant. |
+
+## What you have now
+
+Where the check happens, what each surface answers, and how to tell a failed key
+from an ungranted sector without guessing. A reason never travels in the sector
+column, so the two are always separable in the record.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Agent keys" href="/reference/agent-keys">
+    what a key is, the deadline it carries, and the four verbs that change or end
+    one
+  </Card>
+  <Card title="The audit log" href="/reference/audit-log">
+    what one row holds, what gets a row, and the honest limits of a record the
+    database does not enforce
+  </Card>
+</Columns>

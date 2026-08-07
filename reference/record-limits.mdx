@@ -1,0 +1,88 @@
+---
+title: "What the record cannot promise"
+description: "How durable the record is, why nothing enforces immutability, and the five questions the record cannot answer."
+---
+
+Three limits, and none of them is a setting you can change. Entries can be dropped
+before they reach the table. Nothing in the database stops a row from being changed
+or deleted. And five questions the record was never able to answer.
+
+[The audit log](/reference/audit-log) carries what a row holds and what earns one.
+This page is how far that record can be trusted.
+
+## How durable the record is
+
+Postern writes the record in the background, so the write never slows an agent
+down and a dead database cannot break a read. The defaults: flush every 1000 ms or
+at 100 buffered entries; 100 entries per insert; a queue that holds 10,000; at most
+one insert in flight.
+
+Three things stop an entry before it reaches the table.
+
+| What happened | What you see | What it costs |
+|---|---|---|
+| The queue is full | `[audit] queue overflow — dropped` in the container log, with a running total | The **incoming** entry is refused, never the oldest, so a flood cannot erase history already queued |
+| An insert failed | `[audit] flush failed, dropped batch:` and the reason on stderr | The batch was already off the queue, so it is dropped rather than retried. Postern does not crash |
+| A hard crash | Nothing | Whatever was buffered goes with it. A clean shutdown drains the rest, best-effort |
+
+<Warning>
+  Every count you take off this record is a **lower bound**, and what it lost is
+  gone. There is no retry, no spool, and no marker to say something was dropped.
+  That direction is safe for *is this key quiet enough to revoke?*, where a dropped
+  line can only make a key look quieter. It is unsafe for the opposite question. An
+  empty result is not evidence that an agent never read a sector. Under a sustained
+  flood the record goes blind forward rather than loses its past. The refusal caps
+  are what keep that out of an anonymous caller's reach.
+</Warning>
+
+## Nothing enforces immutability
+
+Postern only ever adds to the record. Append-only in practice: the only statement
+the code runs against `audit_log` is an insert. Nothing updates or deletes a row.
+
+- **An erase keeps the record.** Erase is a real hard delete and touches
+  domain rows only. The record of the act survives the act, and never held the
+  values.
+- **A revoked agent keeps its rows.** `agent_id` is plain text with no foreign
+  key, so the history does not go with the grant.
+- **Nothing ages out.** There is no retention job in the repository.
+
+<Warning>
+  The database does not prevent a row from being changed or deleted. Postern
+  connects as the account that owns the table, and that account may change or
+  delete rows. Postern never does, but nothing stops it. Anyone who can reach
+  Postgres can rewrite the record, and the record cannot tell you that they did.
+
+  `db/schema.sql` carries a comment saying `UPDATE` and `DELETE` are revoked from
+  the app role. No such change exists in the schema or in any migration. Read it as
+  intent, not as a control.
+  [Where that sits in the trust boundary](/reference/security-model#the-trust-boundary).
+</Warning>
+
+Immutability here is yours to provide, with your Postgres roles, backups and disk.
+A writer role that does not own the table, an append-only replica, rows shipped off
+the machine as they land — Postern does none of that for you today.
+
+## What the record cannot tell you
+
+- **Whether it is complete.** Nothing in a row says an entry is missing.
+- **How many entries exist.** No total, no count endpoint. A filtered-empty view
+  can say whether older pages exist, and nothing more.
+- **Which key made a call, after a rotation.** `agent_id` is a name, not a key
+  identity. A new key under the same name inherits the earlier key's history.
+- **What a read returned.** Only how many rows.
+- **Anything about a call that was never made.** That cuts the useful way too.
+  An agent that claims work it never did leaves no row for it. Witnessed on
+  ChatGPT — 50 seconds of progress text, an answer that said it had no data, and 0
+  calls recorded. Trust the record over the answer.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="The audit log" href="/reference/audit-log">
+    what one row holds, what gets a row, and what does not
+  </Card>
+  <Card title="Read the record" href="/reference/read-the-record">
+    the ledger screen and `GET /api/audit` — filters, paging, and Export CSV
+  </Card>
+</Columns>

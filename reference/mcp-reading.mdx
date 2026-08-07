@@ -1,0 +1,258 @@
+---
+title: "Read data: get_schema, query, get_record"
+description: "The three tools that read the local cache — every parameter, both response shapes, the traps that make a successful answer wrong, and every refusal by name."
+---
+
+<Info>
+  **Before you start**
+
+  - **These three tools never leave the cache.** They read what Postern has already
+    synced. [`fetch_live`](/reference/mcp-freshness#fetch_live) is the one read that
+    touches a source.
+  - **`get_schema` is the contract `query` validates against.** Call it first. It is
+    filtered to your own grants, so it also tells you what you can reach.
+  - **A sector you were not granted is refused or filtered, depending on the tool.**
+    [Why an agent was refused](/reference/refusals).
+</Info>
+
+Nothing on this page was captured from a run. The shapes are the declared types, and
+the quoted strings are Postern's own.
+
+## get_schema
+
+The queryable objects and fields, per sector — the contract `query` validates against.
+
+<ParamField body="sector" type="string">
+  A full object key (`finance.transaction`) returns that object. A bare sector name
+  (`finance`) returns every object in it. Omitted, it returns everything the key is
+  granted.
+</ParamField>
+
+The answer is keyed by object key. Each entry is the object's declared shape:
+
+```ts
+Record<string, {
+  object: string
+  table: string
+  fields: Record<string, "text" | "numeric" | "bool" | "timestamptz" | "uuid">
+  fieldDocs?: Record<string, string>
+  notes?: string
+  primaryTime?: string
+  jsonb?: string[]
+  serveDeduped?: boolean
+}>
+```
+
+The ten object keys, and the sector each belongs to:
+
+```text
+finance.account          finance
+finance.transaction      finance
+finance.holding          finance
+health.sample            health
+health.workout           health
+health.sleep_session     health
+mail                     mail
+contacts                 contacts
+calendar                 calendar
+home                     home
+```
+
+A sector with more than one object takes the dotted key everywhere an object is named —
+`query`, `get_record`, and `fetch_live` with an id. A sector with one object takes the
+bare name.
+
+This page does not repeat the field lists. Call `get_schema`: it is the authority, and
+it is filtered to your own grants. Read `notes` and `fieldDocs` — they carry the sign
+conventions, enums and unit traps that a field's type and name cannot.
+
+These rules hold across every object:
+
+| Rule | Detail |
+|---|---|
+| `id` | Postern's own id for the row. `get_record` and `fetch_live` take this one. |
+| `source_object_id` | The provider's own id. Not interchangeable with `id`. |
+| Timestamps | ISO-8601 UTC. |
+| `sum`, `avg`, `min`, `max` | Return precision-safe decimal **strings**. |
+| `count` | Returns a number. |
+| Rows the source has deleted | Excluded from `query`, still readable through `get_record`. |
+| `raw` | The untouched copy of what the source sent. Its names, units and signs differ from the columns beside it. |
+
+<Note>
+  A sector the key was not granted comes back as an empty object, not a refusal.
+  `get_schema` filters to your grants after it resolves the name. So
+  `get_schema("finance")` on a key with no finance grant returns `{}`, which reads
+  like "this install has no finance data". An unknown name is different and does fail,
+  with `unknown sector: <name>`. Read
+  [`describe_context`](/reference/mcp-freshness#describe_context) before you conclude
+  anything from an empty schema.
+</Note>
+
+## query
+
+A structured read over one sector, served from the local cache. There are no
+cross-sector joins — fan out and correlate on your own side.
+
+<ParamField body="sector" type="string" required>
+  The object key. A sector with more than one object needs the dotted form.
+</ParamField>
+
+<ParamField body="where" type="object">
+  Field-keyed conditions. A bare scalar means equality; a bare `null` means `IS NULL`.
+  Operators: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `contains`.
+</ParamField>
+
+<ParamField body="select" type="string[]">
+  The projected columns. Omitted, it is every flat field. At most 50 entries.
+</ParamField>
+
+<ParamField body="limit" type="integer" default="100">
+  Capped at 500. In aggregate mode this caps groups instead of rows. Must be an integer
+  of 1 or more.
+</ParamField>
+
+<ParamField body="offset" type="integer">
+  Rows mode only, capped at 5000. Deep paging is not supported — narrow with `where`.
+</ParamField>
+
+<ParamField body="orderBy" type="{ field: string, dir?: 'asc' | 'desc' }[]">
+  Rows mode only. `dir` defaults to `asc`. At most 50 entries, no field twice.
+</ParamField>
+
+<ParamField body="aggregate" type="{ fn, field?, groupBy? }">
+  `fn` is one of `count`, `sum`, `avg`, `min`, `max`. `count` takes no field; the other
+  four require a numeric one. `groupBy` takes up to 50 flat fields.
+</ParamField>
+
+<ParamField body="includeShadowed" type="boolean">
+  Finance objects only. See **Two banks, one row**, below.
+</ParamField>
+
+```ts
+// rows mode
+{ sector: string, object: string, count: number, has_more: boolean, rows: Record<string, unknown>[] }
+
+// aggregate mode
+{
+  sector: string
+  object: string
+  aggregate: { fn: string, field?: string }
+  count: number
+  has_more: boolean
+  groups: { group: Record<string, unknown>, value: number | string | null }[]
+}
+```
+
+`count` is what **this response** holds. It is never a total, and never the answer to
+"how many are there" — that is `aggregate: { fn: "count" }`. `has_more` comes from a
+probe row rather than from `count === limit`, so a page that fills exactly reads
+`has_more: false` truthfully.
+
+Groups come back ordered by the aggregate value descending, then by the group columns
+ascending. `count` there is a JSON number. `sum`, `avg`, `min` and `max` are decimal
+strings, or `null` when the aggregated set was empty. Postern refuses `aggregate`
+alongside `select`, `orderBy` or `offset`, and the refusal names the field.
+
+Rows come back ordered by the object's `primaryTime` descending, with `id` ascending as
+the tiebreak, unless you order them yourself. The order is deterministic within one
+snapshot, but a later page can shift as a sync lands new rows.
+
+Two clauses are on every query and are not yours to set: the read is scoped to the
+owner's own rows, and rows the source has deleted are excluded. Those rows stay
+readable through [get_record](#get_record).
+
+Operator detail that changes answers:
+
+| Operator | Detail |
+|---|---|
+| `neq` | Null-inclusive — a row whose field is empty **does** match `neq: 'X'`. Ask for the field to be filled as well if you do not want those rows. `{neq: null}` means `IS NOT NULL`. |
+| `in` | Up to 200 scalars. An empty array matches nothing. |
+| `contains` | Substring match, text fields only, without regard to case. |
+| `gt` `gte` `lt` `lte` | Refused on boolean fields. Cannot take `null`. |
+
+**Project the untouched payload.** `select` may name a sector's raw columns as well
+as its flat fields: `raw` on every object, plus `attendees` on `calendar` and
+`attributes` on `home`. That reads a row and its untouched detail in one call, instead
+of a `get_record` follow-up. Projection only — those columns stay out of `where`,
+`orderBy`, `groupBy` and `aggregate`, which validate against the flat fields alone. It
+is opt-in because `raw` costs a fetch and a decompress per row.
+
+**Two banks, one row.** When the same account arrives through both SimpleFIN and Plaid,
+Postern serves one merged row and hides the copies. In the Console that bank's row
+carries *also arrives via SimpleFIN — served as one*. Both provider rows stay intact
+underneath. `includeShadowed: true` reveals them, with read-only linkage columns
+appended so a winner and its members can be tied together. Aggregates follow the same
+rule, so that total double-counts a merged pair by design. On any sector but the three
+finance objects the parameter is refused outright.
+
+<Warning>
+  Money is signed, and negative means money **out**. To total spending, filter
+  `amount < 0` and negate the sum. A plain `sum(amount)` nets income against spending.
+  It is the single most common wrong answer this surface produces: it succeeds, it
+  returns a number, and the number is wrong. The per-field rule is in `get_schema`'s
+  `fieldDocs`.
+</Warning>
+
+### Four properties of finance data
+
+Four more properties of finance data decide whether an answer is right. None is visible
+from a field's type or name.
+
+| Property | What it means for an answer |
+|---|---|
+| SimpleFIN sends no categories | An absent category means *not categorised*. It never means *uncategorised spending*. |
+| Investment positions are a snapshot | What is held now, not a stream of trades. No agent can derive gains or trade dates from them. |
+| A cost basis of `0.00` | SimpleFIN saying it does not know, not saying the holding was free. Any return built on it is wrong, not approximate. |
+| Plaid's history window is fixed at link time | Postern asks for up to two years, and it never widens. A query for an earlier period returns nothing; the remedy is to link the bank again. |
+
+### What query refuses, by name
+
+| Refusal | Cause |
+|---|---|
+| `query requires a full object key (finance.account or finance.transaction or finance.holding), got 'finance'` | A multi-object sector named bare. The message lists the keys you can use. |
+| `unknown sector: <name> (known: …)` | A name that matches nothing. The message lists every known sector. |
+| `unknown field in where: <field>` | A field that is not on that object. Call `get_schema` for the real list. |
+| `limit must be an integer >= 1 (capped at 500)` | A `limit` of 0, a negative, a fraction, or text. |
+| `includeShadowed is not valid on sector "<sector>"` | `includeShadowed` outside the three finance objects. |
+
+A sector you were not granted is a different case. `query` and `get_record` are
+refused before any database work, and the refusal names the sector rather than the
+reason. [Why an agent was refused](/reference/refusals).
+
+## get_record
+
+One stored record by id — the full row behind the tidy view.
+
+<ParamField body="sector" type="string" required>
+  The object key. A sector with more than one object needs the dotted form:
+  `finance.transaction`, not `finance`.
+</ParamField>
+
+<ParamField body="id" type="string" required>
+  Postern's own id for the row — the `id` field in a `query` result, not the provider's
+  `source_object_id`.
+</ParamField>
+
+Returns the stored row, or `null`.
+
+This is the whole row as the database holds it. So it carries columns `query` never
+projects, the untouched `raw` payload and the bookkeeping columns among them. It is
+also the one read **not** filtered by deletion. A row with a non-null `deleted_at`
+means the source has removed that object, and this is where you can still read it.
+
+An id that is not a uuid returns `null` rather than failing, and so does a uuid naming
+no row of the owner's. `null` is the absent answer here, not an error.
+
+A bare multi-object sector does fail, with `get_record requires a full object key
+(finance.account or finance.transaction or finance.holding), got 'finance'`.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Freshness and live reads" href="/reference/mcp-freshness">
+    How old the cache is, and the one read that leaves it.
+  </Card>
+  <Card title="MCP tools" href="/reference/mcp-primitives">
+    The address, the transport, and what every tool call returns.
+  </Card>
+</Columns>

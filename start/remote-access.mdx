@@ -1,306 +1,390 @@
 ---
 title: "Set up remote access"
-description: "The Console stays on the box and you reach it over SSH. Agents reach Postern over your tailnet, and hosted clients over one public port. Both are opt-in."
+description: "Open two ports to your own devices, and one port to the internet only if claude.ai or ChatGPT needs it."
 ---
 
 <Info>
   **Before you start**
 
-  - **Tailscale, and Funnel only if a hosted client needs you** — the two tiers below, in that order.
-  - **About 20 minutes, once.**
-  - **Off by default** — Postern publishes nothing until you publish it, and both tiers can be taken back down.
-  - **A Tailscale account** — the free Personal plan covers a household, and it is the one account you need that is not already yours. Use Tailscale: it is end-to-end encrypted, needs no port forwarding, works behind CGNAT, and the TLS keys never leave your machine. There is no Cloudflare lane here on purpose — a fronting CDN that decrypts at its edge would put your mail and money in plaintext on someone else's network, and that trade is refused by design.
-  - **Admin access to Tailscale's admin console** — you will edit the DNS page, and the policy file.
-  - **SSH access to the box** — only for the Console tunnel, and only if Postern runs somewhere else.
-  - **Postern already installed and running** on the box you are publishing.
-  - **Ports taken** — 8443 and 10000 on your tailnet; 443 on the public internet, and only if you go as far as the public tier.
-  - **An agent key is shown once**, when you connect a hosted client. Open your password manager before you start that step.
+  - **A Tailscale account, and admin access to Tailscale's admin console.** The free Personal plan covers a household. Sign up at [tailscale.com](https://tailscale.com).
+  - **Postern installed**, and the Console open in your browser. Step 1 opens it if Postern runs on another computer.
+  - **About 20 minutes, once.** Postern takes ports 8443 and 10000 on your tailnet. Port 443 goes to the internet only if you do step 4.
+  - **Your password manager open.** In step 6, Postern shows you an agent key one time only.
+  - **A Mac or a Linux computer.** Postern runs under Docker, so Windows should work. Nobody has run this page there. In PowerShell, `curl` means something else, so type `curl.exe` in the checks below.
 </Info>
 
-## Choose your path
+Your tailnet is the private network Tailscale builds between the devices signed
+into your account. Nothing else can reach it.
 
-Reaching the Console yourself and reaching Postern from an agent are different
-problems with different answers. Take the row that matches what you are trying
-to do.
+Not every step here is for everyone. Read this first, then do the steps that
+apply to you, in order.
 
-| If you want to… | Then |
+| Steps | Who does them |
 |---|---|
-| open the Console when Postern runs on a NAS, a home server, or anything headless | [Reach the Console over SSH](#reach-the-console-over-ssh-when-it-runs-on-another-box). Nothing is published. |
-| let agents on your own devices reach Postern — a local harness, your phone's Apple Health pushes | install Tailscale, then [the private tier](#serve-the-two-ports-to-your-own-devices). Still nothing public. |
-| let a hosted client reach Postern — claude.ai, ChatGPT | the private tier first, then [the public tier](#publish-one-port-on-443-for-hosted-clients) and everything after it |
+| **1** | Only you, if Postern runs on a computer you are not sitting at. |
+| **2 and 3** | Anyone who wants their own devices to reach Postern. **Most people stop here.** |
+| **4 to 6** | Only if claude.ai or ChatGPT must reach Postern. These open one port to the internet. |
+
+None of this is on until you turn it on. [Turn the public port
+off](#turn-the-public-port-off) shuts it again whenever you want.
 
 <Steps>
 
-<Step title="Reach the Console over SSH when it runs on another box" titleSize="h2" id="ssh-tunnel">
+<Step title="Open the Console over SSH, if Postern runs on another computer" titleSize="h2" id="ssh-tunnel">
 
-The Console never leaves the machine — that is the security model, not a
-limitation. It binds loopback, so a browser on any other machine cannot reach
-it at all. To use it from your laptop, tunnel loopback over SSH:
+Skip this if you sit at the machine Postern runs on. The Console only answers on
+the machine it runs on. Run this on your own computer, not on the machine Postern
+runs on:
 
 ```bash
-ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 <your-box>
+ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 YOUR_MACHINE
 ```
 
-Substitute your own host for `<your-box>`. Leave that terminal open, then open
-`http://localhost:8787` in your own browser. The Console answers as if it were
-running on your laptop, because as far as the box is concerned the request
-still arrives on loopback.
+Replace `YOUR_MACHINE` with however you reach that computer: a name, a
+`user@host`, or an IP address. The terminal prints nothing and does not return to
+a prompt. That is the command at work, not a hang. Leave that window open, then
+open [http://localhost:8787](http://localhost:8787). Press **Control-C** when you
+want to stop. [Open the Console](/start/install#open-console) carries the long
+version.
 
-Everything from here on is about the **agent-facing** edges. The Console stays
-on the box either way, and nothing in the rest of this page changes how you
-reach it. If all you needed was the Console, you are done.
-
-</Step>
-
-<Step title="Install Tailscale and turn on the two switches it needs" titleSize="h2" id="tailscale-switches">
-
-Tailscale goes on the box running Postern and on every device you want to reach
-it from. Then, in Tailscale's admin console, open the DNS page — both switches
-live there — and turn on MagicDNS and HTTPS certificates. Everything below
-requires both. Both are silent when missing: the port never answers, and no log
-anywhere names the cause.
-
-<Warning>
-  Enabling HTTPS certificates publishes the machine's name to the public
-  Certificate Transparency ledger. That is a permanent public record and there
-  is no way to withdraw it. Name the box blandly before you turn certificates
-  on, and never treat the name as a defence.
-</Warning>
-
-Your box's name is on the admin console's Machines page, or from `tailscale status`
-on the box itself. You need it for every command and every probe below.
+A tunnel does not move the Console off that machine:
+[port 8787 has no password, and its address stands in for one](/reference/ports#the-console-has-no-authentication).
 
 </Step>
 
-<Step title="Serve the two ports to your own devices" titleSize="h2" id="private-tier">
+<Step title="Install Tailscale and turn on two switches" titleSize="h2" id="tailscale">
 
-Two commands publish the ingest endpoint and the MCP edge to your tailnet only.
-Anything that only your own devices need should stay on this tier forever.
+Install Tailscale on the machine Postern runs on, and on every device you want
+to reach it from ([tailscale.com/download](https://tailscale.com/download)).
+Sign them all into the same Tailscale account.
+
+On the machine Postern runs on, run `tailscale up`, then follow what it prints
+to sign that machine in.
+
+<Note>
+  On a Mac, the App Store and desktop builds leave `tailscale` off your PATH, so
+  `which tailscale` returns nothing. It sits inside the app, with a capital T.
+  Run this once, in the same terminal:
+
+  ```bash
+  export TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale
+  ```
+
+  Then put `$TS` in front of every `tailscale` command below. Close that
+  terminal and `$TS` is gone. Linux packages put `tailscale` on your PATH.
+</Note>
+
+Two settings in Tailscale's admin console decide whether any address below ever
+answers. Turn them on in this order.
 
 <Warning>
-  Postern's admin and Console routes carry no per-request authentication.
-  Reachability is the authentication — the edge binds 127.0.0.1 and anything
-  that can reach those routes is treated as the operator. Publishing port 8787
-  to a network, whole, is not a supported configuration, and no password screen
-  stands behind it. The first command below is path-scoped for exactly this
-  reason: it serves `/api/ingest` and nothing else off that port.
+  HTTPS certificates put this machine's name on the Certificate Transparency
+  log: a public list of every secure-website certificate ever issued. Anyone can
+  read it, and entries cannot be removed. Rename the machine to something dull
+  first, and never treat its name as protection.
 </Warning>
 
-Run both from the box:
+{/* UNWITNESSED: nobody has captured login.tailscale.com/admin/dns. MagicDNS and HTTPS certificates are named below as Postern's own Console names them (settings.ts TAILSCALE_SETUP_STEPS) and as Tailscale's published docs describe them — not as on-screen labels, so neither is bolded. Need one screenshot of that page showing the MagicDNS section and the HTTPS-certificate section with their real button text. */}
+
+Open [login.tailscale.com/admin/dns](https://login.tailscale.com/admin/dns).
+Turn on MagicDNS, which lets your devices reach each other by name. Then turn on
+HTTPS certificates. Tailscale's own instructions walk both, in that order:
+[Enabling HTTPS](https://tailscale.com/kb/1153/enabling-https). Both must be on.
+If either is off, the failure is silent: the port never answers, and no log
+names the cause.
+
+Get this machine's Tailscale name from `tailscale status` on that machine.
+Tailscale's admin console lists it too, on the page its documentation calls
+Machines. The name looks like `gateway.example-tailnet.ts.net`, and every
+command below needs it.
+
+</Step>
+
+<Step title="Open two ports to your own devices" titleSize="h2" id="your-devices">
+
+<Warning>
+  Never open port 8787, the Console port, whole to any network. Anything that
+  reaches it holds full control of Postern, and no password stands behind it.
+  The first command below opens one address on that port and nothing else.
+  [Reachability is the authentication](/reference/ports#the-console-has-no-authentication).
+</Warning>
+
+Run both on the machine Postern runs on:
 
 ```bash
 tailscale serve --bg --https=8443 --set-path=/api/ingest http://127.0.0.1:8787/api/ingest
 tailscale serve --bg --https=10000 http://127.0.0.1:8788
 ```
 
-Your phone's Apple Health automation now pushes to
-`https://<host>.ts.net:8443/api/ingest/<connection-id>`, and every agent on your
-own devices reaches `https://<host>.ts.net:10000/mcp` with its key. There is no
-public exposure of any kind.
+`--bg` keeps Tailscale in the background and gives your prompt back. Without it
+the terminal is stuck. Both commands work on Tailscale 1.98.9, and `--set-path`
+is current syntax there.
 
-<Note>
-  On a Mac, the GUI and App Store builds never put `tailscale` on your PATH —
-  `which tailscale` returns nothing. The CLI lives inside the bundle at
-  `/Applications/Tailscale.app/Contents/MacOS/Tailscale`, with a capital T. Set
-  `TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale` once and prefix every
-  command on this page with `$TS`. Linux and the open-source `tailscaled`
-  packages put it on PATH.
-</Note>
+Your own devices now reach two addresses, and the internet reaches neither:
 
-Verify from another tailnet device before you move on. The first probe must
-answer **404** and the second must answer **401** — a 404 is what path-scoping
-looks like from outside, and a 401 means the route is alive and asking for the
-secret it should ask for:
+- `https://gateway.example-tailnet.ts.net:8443/api/ingest/<connection-id>` — your iPhone pushes Apple Health data here.
+- `https://gateway.example-tailnet.ts.net:10000/mcp` — an agent on your own devices connects here, with an agent key.
+
+Check it from a second computer on your tailnet. It needs Tailscale, the same
+account, and a terminal, so a phone will not do. Substitute your own machine
+name. This prints only the three-digit answer code:
 
 ```bash
-curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net:8443/api/agents # MUST be 404 — a 200 means the admin surface is exposed: STOP, re-run the serve commands exactly
-curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net:8443/api/ingest/YOUR-ID # MUST be 401 — route alive, secret required
+curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net:8443/api/agents
 ```
 
-If neither answers at all, go back to
-[Install Tailscale and turn on the two switches it needs](#install-tailscale-and-turn-on-the-two-switches-it-needs):
-a missing MagicDNS or certificates switch fails exactly this silently.
+It must print **404** — nothing is there, because the first command opened
+`/api/ingest` alone. **200** means the whole port is open: stop, and run both
+commands again exactly. Nothing at all means MagicDNS or HTTPS certificates is
+off ([step 2](#tailscale)).
+
+The second check needs a connection id, and none exists until you press
+**Create your ingest endpoint** on the
+[Apple Health](/connect/apple-health#create-endpoint) card. Then this must print
+**401** — the address answers, and it wants its secret:
+
+```bash
+curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net:8443/api/ingest/<connection-id>
+```
 
 </Step>
 
-<Step title="Publish one port on 443 for hosted clients" titleSize="h2" id="public-tier">
+<Step title="Open one port to the internet for a hosted agent" titleSize="h2" id="publish">
 
-claude.ai and ChatGPT connect from the vendor's own cloud. They can never reach
-a tailnet, and they egress on port 443 only. This step is the only reason to
-publish anything to the internet; skip it if no hosted client is involved.
+Do this only for a hosted agent: an AI app that runs on a company's servers, like
+claude.ai or ChatGPT. It can never reach your home network on its own, and it
+connects out on port 443 only. Open 443, pointed at port 8788, the agent port.
+Never point it at 8787.
 
-Publish the MCP edge — never the REST edge on 8787.
+{/* UNWITNESSED: the admin-console page that holds the tailnet policy has never been captured. It is named below in prose, unbolded, in the casing Tailscale's own documentation uses — "the Access controls page of the admin console" (tailscale.com/kb/1223/funnel and /kb/1018/acls, both read 2026-08-06). Need one capture of that page and its funnel section before any label here is bolded. */}
+
+Your tailnet policy must let this machine run a funnel. Tailscale keeps that
+policy in its admin console, on the page its documentation calls Access
+controls. Tailscale's own instructions cover the funnel permission:
+[Tailscale Funnel](https://tailscale.com/kb/1223/funnel). Scope the permission to
+this machine's own tag, never to the whole tailnet. `serve` and `funnel` are
+last-command-wins per port. A mistyped command on any machine that holds the
+permission can open something to the internet
+([the whole argument](/reference/ports#reaching-postern-from-another-network)).
+This page does not walk Tailscale's policy file. If the permission is not there,
+the command below refuses out loud and prints a link that turns it on. Open that
+link, then run the command again.
 
 <Warning>
-  Arm this once, deliberately. Churning `serve` and `funnel` configuration
-  re-issues certificates and can hit Let's Encrypt issuance limits, at which
-  point you are locked out of your own hostname for hours with no way to hurry
-  it. Get the command right, run it once, and do your retrying in the off-tailnet
-  probes further down, never here.
+  Run the command below once, and get it right first time. Repeated `serve` and
+  `funnel` commands re-issue certificates, and the free certificate service
+  limits how often it will issue one for a name. Past that limit you lose your
+  own hostname for hours. Retry in [step 5](#probe-outside), never here.
 </Warning>
 
 ```bash
 tailscale funnel --bg --https=443 http://127.0.0.1:8788
-tailscale funnel status   # the 443 line must read (Funnel on); every other line (tailnet only)
+tailscale funnel status
 ```
 
-<Note>
-  A Funnel on any port but 443 gets a silent TCP reset from hosted clients — the
-  connector reports that it could not reach you, and your logs show nothing,
-  because nothing ever arrived. And in your tailnet policy, the Access Controls
-  file in Tailscale's admin console, scope the funnel node attribute to the
-  gateway's tag rather than the whole tailnet: `serve` and `funnel` are
-  last-command-wins per port, so scoping means a mistyped command on some other
-  machine can never publish anything.
-</Note>
+In `tailscale funnel status`, the 443 line must read `(Funnel on)`, and every
+other line `(tailnet only)`.
 
-Then tell Postern the address it now answers on. Console → Settings → Remote
-access → Public → **Set the address**, and save the bare origin: scheme and
-hostname, nothing after. No path — the gateway refuses one, and its refusal
-names the origin to save instead — and no port, never `:443`, because the value
-is echoed verbatim into the OAuth discovery documents, where an exact string
-match decides.
+Now tell Postern its address. In the Console, click **Settings** in the left
+sidebar, then find **Remote access**. In the row headed **Public · the address
+this gate answers on**, press **Set the address…**.
 
-<Frame caption="Console → Settings → Remote access. Public is off until you set an address, and the OAuth bridge follows it — there is no separate switch.">
-  <img src="/images/remote-console-card.png" alt="The Console's Settings page. Under the heading Remote access, three rows: one labelled Tailnet, noting that serve is set on the box and the Console is not told the live state; one labelled Public, reading off, with a Set the address button; and one labelled OAuth bridge, reading off, with the note that this edge is bearer-only." />
+A field labelled **Your gate’s public address** appears, with the placeholder
+`https://your-mac.tailnet.ts.net`. Type `https://` and this machine's Tailscale
+name, with nothing after it — not the `/mcp` address you hand an agent. Postern
+builds that one itself, and it refuses an address that carries a path.
+
+Postern does not save the address until you confirm it. Press **Publish this
+gate** on the bar headed **Publish this gate to the public internet?**. That bar
+lists what it costs you. The row then reads **restart to apply**, and a message
+reads `Saved — restart the gateway to start publishing.`
+
+<Frame caption="Settings → Remote access. The Public row reads off until you set an address. Recorded on a gateway whose Plaid source was in Sandbox, so ignore any Plaid detail in this shot.">
+  <img src="/images/remote-console-card.png" alt="Settings → Remote access: the Public row reads off, with a Set the address button." />
 </Frame>
 
-Finally, restart the gateway from the install folder:
+Restart Postern from the folder that holds `docker-compose.yml` — the `postern`
+folder you made in [Install Postern](/start/install):
 
 ```bash
+cd postern
 docker compose restart app
 ```
 
-The restart is not optional. The bridge reads the published address once, at
-boot, so until you restart, the gateway is still serving the address it booted
-with. The bridge is on exactly when an address is published and off otherwise;
-there is no separate flag.
+The restart is not optional: Postern reads the address once, at start-up. The
+**Public** row then reads **published**, and the **OAuth bridge** row reads
+**On — published at** your address. That bridge is on exactly when Postern has
+an address, and off otherwise. There is no separate switch.
 
 </Step>
 
-<Step title="Probe from a device that is off your tailnet" titleSize="h2" id="verify-off-tailnet">
+<Step title="Check it from a device that is not on your tailnet" titleSize="h2" id="probe-outside">
 
-Probe from a device that is not on your tailnet — a phone on cellular does it.
-From inside, you cannot tell Funnel from serve, so an inside probe proves
-nothing. Substitute your own hostname. The three answers must read **200**,
-**401** and **404** in that order:
+A device on your tailnet cannot prove this: from inside, a funnel and a private
+serve look identical. Use a device off your tailnet that can run these commands
+— a laptop on a phone's cellular hotspot does it. Substitute your own machine
+name. All three must print **200**, **401** and **404**, in that order:
 
 ```bash
-curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net/.well-known/oauth-protected-resource/mcp   # 200 — substitute your own name
-curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net/mcp          # 401 — alive, credential required
-curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net/api/agents   # 404 — the admin surface is NOT here
+curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net/.well-known/oauth-protected-resource/mcp
+curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net/mcp
+curl -so /dev/null -w '%{http_code}' https://gateway.example-tailnet.ts.net/api/agents
 ```
 
-Only when all three read correctly do you touch any connector UI.
+200 means it answered. 401 means it answered and wants a key. 404 means nothing
+is there. On the third line that is the answer you want: the Console port did
+not come with it. Touch no agent app until all three read correctly.
 
 <Note>
-  claude.ai caches discovery verdicts, failures included, for about five
-  minutes. A fix that does not appear to take often has taken. Fix it, wait,
-  then try once — retrying inside the window tells you nothing and tempts you
-  into changing a second thing.
+  claude.ai remembers what it found here for about five minutes, failures
+  included. Change one thing, wait five minutes, then try once.
 </Note>
 
 </Step>
 
-<Step title="Connect the hosted client and sign in with a key" titleSize="h2" id="connect-hosted-client">
+<Step title="Connect claude.ai or ChatGPT" titleSize="h2" id="connect-agent">
 
-In claude.ai: Settings → Connectors → Add custom connector. ChatGPT takes a
-longer path, walked end to end in [Connect ChatGPT](/connect/chatgpt).
+First create the key. In the Console, click **Agents & keys** in the left
+sidebar, then click **Mint a key**. Three fields:
 
-The URL you paste is your published origin plus `/mcp`. The address Postern
-saved is the bare origin, and the address you hand a client adds exactly that
-suffix; the Console's hosted-connect card shows the exact value to copy.
+- **Name** — what you will call this agent.
+- **Grant which sectors** — six areas of your life: finance, mail, calendar, contacts, health, home. The form says `Nothing is granted until you pick it.`
+- **Expires** — four chips: **Never**, **30 days**, **60 days** and **90 days**. Once you have set a public address, the form starts on **90 days**.
 
-When the client asks you to sign in, the login is an agent key. Mint one in the
-Console under Agents → new: name it, tick the sectors it may reach, and set an
-expiry, because a key that lives in someone else's cloud must be able to end
-itself. The key shows once — stash it before you copy anything else, because
-there is nothing to re-reveal later, only re-mint. Revoking it afterwards
-refuses every token derived from it: the grant is re-read on every call, so the
-next call that client makes is denied.
+[Mint your first key](/start/first-key) walks the whole form.
 
-</Step>
+<Warning>
+  Pick anything but **Never**. Postern refuses a key with no expiry at the hosted
+  sign-in page: `This agent key never expires. Keys used with a cloud client must
+  have an expiry — mint or rotate a key with a 30/90/365-day expiry in the
+  Console, then try again.` The Console has no 365-day chip, and **90 days** is
+  its longest. **Never** dead-ends you at the last step of this page.
+</Warning>
 
-<Step title="Take it down, when you want it off" titleSize="h2" id="take-it-down">
+Press **Mint the key**. A screen headed **Agent key — shown once** appears, with
+a **Copy** button. Copy the key into your password manager now. Postern cannot
+show you this key again. It keeps a scrambled copy it can check against, never
+the key itself. Lose it and you create another.
 
-Turning off the public tier takes three acts, and any two of them without the
-third leaves you worse off than either end state: the Funnel down but the address
-still saved leaves a bridge advertising an origin nothing can reach, and the
-address cleared but the Funnel still up leaves a public surface of 404s. Skipping
-only the restart leaves the gateway serving the old address regardless of what
-the Console now shows.
+<Warning>
+  The next **Copy** button replaces whatever is on your clipboard — the agent key
+  too. Store the key first.
+</Warning>
 
-Take down the Funnel, clear the address in Console → Settings → Remote access,
-then restart:
+The address you hand the agent is your published address plus `/mcp`. The
+Console prints the exact value under **Agents & keys** → **Set up the bridge →**,
+with its own **Copy** button.
 
-```bash
-tailscale funnel --https=443 off
-docker compose restart app
-```
+{/* UNWITNESSED: claude.ai's own screen. Nobody has captured its connector dialog.
+ The route "Settings → Connectors → Add custom connector" traces only to Postern's own Console copy
+ (ConnectHostedPage.tsx:91); agents.md §3c heads that finding "The click path — witnessed only as
+ Postern's own copy, not as claude.ai's screen", and the 2026-07-21 run recorded in
+ deploy-and-operations.md:218 corroborates the route, not the labels.
+ The two credential fields trace only to the founder's paraphrase — "On claude ai, we have client
+ idd and secret option, where do i put the key?" (agents.md §3a) — and agents.md §7 records the gap:
+ "the exact label text (Name? Remote MCP server URL? Advanced settings?) has never been captured."
+ So the route is given in lower case as a location, and no claude.ai control is bolded.
+ One screenshot of that dialog closes it. */}
+In claude.ai, open its settings and find its connectors. Add a connector of your
+own. Paste the address into it. If it asks for a client id or a client secret,
+leave both empty. Postern issues neither.
 
-Then confirm nothing is left standing. The output must contain no `AllowFunnel`
-key at all:
+claude.ai then sends you to a page your own Postern serves, headed **Authorize
+agent access**. Paste the agent key under **Paste an agent key from the Console**.
+Press **Approve**. claude.ai holds a token that rotates from then on. ChatGPT
+takes a longer path: [Connect ChatGPT](/connect/chatgpt).
 
-```bash
-tailscale serve status --json
-```
-
-The private tier is untouched by all of this and stays up.
+[Revoke a key and every token made from it dies with it](/reference/agent-keys#revoking-rotating-and-removing).
+Postern denies the agent's next call.
 
 </Step>
 
 </Steps>
 
+## Turn the public port off
+
+This is not a step. It undoes [Open one port to the internet](#publish), whenever
+you want that port shut again. Nothing here touches your own devices.
+
+Three acts. Do all three. Any two leave you half-off — a funnel with no address,
+an address with no funnel, or Postern still on the old one.
+
+On the machine Postern runs on:
+
+```bash
+tailscale funnel --https=443 off
+```
+
+In the Console, click **Settings**, then find **Remote access**. In the
+**Public** row, press **Stop publishing…**, then press **Stop publishing** on
+the bar headed **Stop publishing this gate?**. A message reads
+`Stopped — it stays reachable until the gateway restarts.`
+
+<Note>
+  If `.env` on the machine Postern runs on holds an `MCP_PUBLIC_URL` line, the
+  Console refuses, and says so: `The box publishes this gateway: MCP_PUBLIC_URL
+  is set in its environment, and the box wins over anything saved here.` Delete
+  that line from `.env` first. `.env` is the settings file beside
+  `docker-compose.yml`.
+</Note>
+
+Then restart:
+
+```bash
+cd postern
+docker compose restart app
+```
+
+Confirm no funnel remains. The output must contain no `AllowFunnel` anywhere:
+
+```bash
+tailscale serve status --json
+```
+
+Nothing about [Open two ports to your own devices](#your-devices) changes. Your own
+devices still reach Postern.
+
 ## Confirm it works
 
-Each item is observable, and each is the thing most likely to be skipped.
-
-- **Tailscale's admin console → DNS**: MagicDNS is on and HTTPS certificates are on. Both, not one.
-- **From another tailnet device**: the two probes under [Serve the two ports to your own devices](#serve-the-two-ports-to-your-own-devices) read 404 then 401. A 200 on the first means the admin surface is exposed — stop and re-run the serve commands exactly.
-- **`tailscale funnel status`**: the 443 line reads `(Funnel on)`, and every other line reads `(tailnet only)`.
-- **From a device off your tailnet**: the three probes under [Probe from a device that is off your tailnet](#probe-from-a-device-that-is-off-your-tailnet) read 200, 401, 404. A device on your tailnet cannot prove this — it cannot tell Funnel from serve.
+- Tailscale's admin console → DNS: MagicDNS on, HTTPS certificates on.
+- From a second computer on your tailnet, `/api/agents` on port 8443 prints **404**.
+- `tailscale funnel status`: the 443 line reads `(Funnel on)`, every other line `(tailnet only)`.
+- Console → Settings → Remote access: the **Public** row reads **published**, not **restart to apply**.
+- Console → Settings → Remote access: the **OAuth bridge** row reads **On — published at** your address.
+- From a device off your tailnet, the three checks in [step 5](#probe-outside) print **200**, **401** and **404**.
+- Console → **Agents & keys** lists your key, and its sub-line reads `expires in 30d`, `expires in 60d` or `expires in 90d` — never `never expires`.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| The port never answers, and no log names a cause | [Install Tailscale and turn on the two switches it needs](#install-tailscale-and-turn-on-the-two-switches-it-needs) |
-| `which tailscale` returns nothing, on a Mac | [Serve the two ports to your own devices](#serve-the-two-ports-to-your-own-devices) |
-| `/api/agents` answers 200 from your tailnet | [Serve the two ports to your own devices](#serve-the-two-ports-to-your-own-devices) |
-| Locked out of your own hostname for hours | [Publish one port on 443 for hosted clients](#publish-one-port-on-443-for-hosted-clients) |
-| A hosted client reports it could not reach you, and your logs show nothing | [Publish one port on 443 for hosted clients](#publish-one-port-on-443-for-hosted-clients) |
-| The gateway still answers on the old address after you saved a new one | [Publish one port on 443 for hosted clients](#publish-one-port-on-443-for-hosted-clients) |
-| Postern refuses the address you tried to save | [Publish one port on 443 for hosted clients](#publish-one-port-on-443-for-hosted-clients) |
-| The probes pass from inside your tailnet, and the client still fails | [Probe from a device that is off your tailnet](#probe-from-a-device-that-is-off-your-tailnet) |
-| A fix that does not take, and then takes about five minutes later | [Probe from a device that is off your tailnet](#probe-from-a-device-that-is-off-your-tailnet) |
-| A browser on another machine cannot open the Console at all | [Reach the Console over SSH when it runs on another box](#reach-the-console-over-ssh-when-it-runs-on-another-box) |
+| The port never answers, and nothing in any log says why | MagicDNS or HTTPS certificates is off. Turn both on at [login.tailscale.com/admin/dns](https://login.tailscale.com/admin/dns). |
+| `which tailscale` returns nothing, on a Mac | Run `export TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale`, then put `$TS` in front of every `tailscale` command. |
+| `curl` prints a web page instead of three digits, on Windows | In PowerShell, `curl` means something else. Type `curl.exe` instead. |
+| `/api/agents` answers 200 from your tailnet | Port 8787 is open whole. Run both commands in [step 3](#your-devices) again, exactly as written. |
+| The **Public** row still reads **off** after you typed the address | Postern saves the address only when you press **Publish this gate** on the confirmation bar ([step 4](#publish)). |
+| The **Public** row reads **restart to apply** | Postern reads the address only at start-up. Run `docker compose restart app` from the folder that holds `docker-compose.yml`. |
+| A hosted agent says it could not reach you, and your logs show nothing | The funnel is on a port other than 443, so the request never reaches you. Run `tailscale funnel status`; the 443 line must read `(Funnel on)`. |
 
 ## What you have now
 
-If you stopped after the SSH tunnel, nothing is published: the Console is
-reachable from your laptop for as long as the tunnel is open, and from nowhere
-else.
+| If you stopped after | What can reach Postern |
+|---|---|
+| [step 1](#ssh-tunnel) | Nothing is open. The Console reaches your computer through the SSH tunnel, and nowhere else. |
+| [step 3](#your-devices) | Your own devices reach two addresses on your tailnet. The internet reaches nothing. |
+| [step 6](#connect-agent) | The internet reaches eight addresses on one port. Seven are the sign-in machinery and hold no data of yours; the eighth is `/mcp`, which needs a key. The Console is not among them. [The full list](/reference/oauth-bridge#what-the-internet-reaches). |
 
-If you took the private tier, your own devices reach the ingest endpoint and the
-MCP edge over your tailnet, and the internet reaches nothing. That is where most
-setups should stay.
+Three costs stay with you:
 
-If you took the public tier, what the internet can now reach is precisely eight
-routes on one port: three static discovery documents carrying no user data, a
-sign-in page, the sign-in POST that an agent key gates, a PKCE-bound token
-exchange, one rate-limited registration write, and `/mcp` itself — bearer-gated,
-your data behind it. Nothing else on the box is published, and the Console is not
-among those eight.
-
-The standing cost is yours: a public hostname in a permanent certificate log, a
-Tailscale account to keep, and an address that stays live until you
-[take it down](#take-it-down-when-you-want-it-off).
+- a public hostname in a permanent certificate log
+- a Tailscale account to keep
+- an address that stays live until you [turn it off](#turn-the-public-port-off)
 
 ## Next
 
 <Columns cols={2}>
   <Card title="Connect ChatGPT" href="/connect/chatgpt">
-    a ChatGPT paid plan + a published address · about ten minutes, once · witnessed end-to-end 2026-08-01
+    a ChatGPT paid plan + a published address · about 10 minutes, once · witnessed end-to-end 2026-08-01
   </Card>
   <Card title="Connect Apple Health" href="/connect/apple-health">
     Health Auto Export on your iPhone · about 10 minutes · push, not pull

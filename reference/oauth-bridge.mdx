@@ -1,0 +1,153 @@
+---
+title: "The OAuth bridge, for hosted agents"
+description: "Why a hosted agent cannot hold your agent key, how Postern signs it in instead, the eight addresses the internet reaches, and the one key it refuses."
+---
+
+<Info>
+  **Before you start**
+
+  - **This page is about hosted agents only.** An AI app that runs on a company's
+    servers, like claude.ai or ChatGPT. It can never reach your home network on its
+    own. An agent on your own machine sends its agent key and needs none of this.
+  - **The bridge is on exactly when Postern has a public address.** There is no
+    separate switch. [Set up remote access](/start/remote-access) is the procedure.
+  - **A key that never expires is refused here.** Create or rotate one with an expiry
+    first. [Agent keys](/reference/agent-keys#expiry).
+</Info>
+
+An agent on the same machine as Postern sends its agent key on every call. A hosted
+agent — claude.ai or ChatGPT, running on a company's servers — cannot, because those
+services will not take a fixed key.
+
+So Postern ships a small OAuth 2.1 sign-in server on the agent port. Your agent signs
+in to Postern's own sign-in page, pastes the agent key there once, and holds a token
+that rotates from then on. That token resolves to the same grant row the key does: the
+same sectors, the same expiry ceiling, the same revocation, and the same name in the
+record. A chain of refreshes can never outlive the key's own expiry. Revoke the agent
+and every token made from it dies with it.
+
+Nothing on this page was captured from a run. The quoted strings are Postern's own.
+
+## Turning the bridge on
+
+The bridge is on exactly when Postern has a public address. There is no separate switch,
+and while it is off its paths answer 404 like any other path that is not `/mcp`.
+
+To turn it on:
+
+1. In the Console, click **Settings**.
+2. Find the **Remote access** band.
+3. Type your address into **Your gate’s public address**.
+4. Click **Publish this gate**.
+5. Restart Postern.
+
+[Set up remote access](/start/remote-access) is the whole procedure. Nothing is
+published by default.
+
+### Save the origin only
+
+**Save the origin only.** Postern refuses an address carrying a path, a query, a
+fragment, or a username and password. It serves every address it publishes at the root,
+so a saved path would send agents to an address that answers nothing — while the boot
+log, both discovery documents and the Console's own indicator all still read correctly.
+That is why Postern refuses one, and the refusal names the origin to save instead. A
+port is fine: Postern drops a default port, so `https://host.ts.net:443` is stored as
+`https://host.ts.net`, and a non-default port such as `:10000` is legal.
+
+An agent needs that address **plus `/mcp`**. The Console appends the suffix itself, in
+one place, so its **Copy** button is the right source for the string.
+
+## What the internet reaches
+
+With the bridge on, the internet reaches exactly eight addresses on one port:
+
+| Address | What it holds |
+|---|---|
+| `GET /.well-known/oauth-protected-resource`<br />`GET /.well-known/oauth-protected-resource/mcp`<br />`GET /.well-known/oauth-authorization-server` | Three sign-in documents. No data of yours. |
+| `GET /authorize` | The sign-in page. |
+| `POST /authorize` | The sign-in itself. Your agent key gates it. |
+| `POST /token` | The token exchange. |
+| `POST /register` | Registers a **client application**, never an agent. Anyone who can reach the address may call it, the OAuth standard requires that, and a registration on its own reaches no data of yours. Rate-limited. |
+| `POST GET DELETE /mcp` | Your data. Needs a key. |
+
+**The Console is not among them.** Nothing else on the machine is reachable.
+
+| The sign-in document advertises | Value |
+|---|---|
+| Response types | `code` |
+| Grant types | `authorization_code`, `refresh_token` |
+| Challenge method | `S256` only — Postern refuses a sign-in that offers anything else, or none, with `code_challenge_method must be 'S256' (plain is not accepted)` |
+| Token endpoint auth | `none` — registration is dynamic, and there is no client secret |
+| Access token | prefix `pcgat_`, lives 3600 seconds |
+| Refresh token | rotates on use; reusing a rotated-out one revokes the whole chain |
+
+With the bridge on, a 401 also carries a `WWW-Authenticate` challenge pointing at the
+protected-resource document. With it off, a 401 carries no such header.
+
+## A hosted agent key must carry an expiry
+
+claude.ai and ChatGPT refuse an agent key that never expires. Postern's own bridge
+enforces that too, and says so in different words from a bad-key refusal:
+
+```text
+This agent key never expires. Keys used with a cloud client must have an expiry —
+mint or rotate a key with a 30/90/365-day expiry in the Console, then try again.
+```
+
+The bridge enforces that rule at the authorize step, and nothing else does. Nothing at
+creation time stops a key that never expires, because the route that creates a key
+cannot tell a cloud key from a local one — Postern cannot know then that the key will
+go to someone else's cloud. Nothing at token refresh enforces it either, because a
+check there would kill every connected session on deploy. So the bridge refuses a key
+you created before you had a public address, at the sign-in and not earlier. A key that
+never expires, held by a company's cloud, ends only when you notice it.
+
+The Console itself never blocks such a key. It only moves the default and states the
+reason.
+
+<Note>
+  That message names a 365-day expiry. The Console offers only **Never**,
+  **30 days**, **60 days** and **90 days**. The mismatch is a product defect, not
+  an instruction. Pick **30 days** or **90 days**.
+</Note>
+
+## Anyone can register a client
+
+The bridge accepts a client registration from anyone who can reach your public
+address. The OAuth standard requires that, so Postern cannot refuse one on the
+strength of who sent it. A registration on its own reaches no data of yours.
+
+So the client name and the destination on the sign-in page are your only check that
+the request came from the application you started. Approval sends a one-time code to
+that destination. That is why Postern prints both lines above the key box, and why
+neither is a setting.
+
+## Hosted agents connect out on port 443 only
+
+Say a hosted agent reports it could not reach you, and nothing at all appears in your
+logs. It never arrived. That company's network resets an address on any other port
+before the request leaves it. The absent log line is evidence about the port, not about
+Postern. A hosted agent then remembers the failed check for a few minutes, so an
+immediate retry reads the cached failure rather than testing your fix. Wait five
+minutes, then try once.
+
+## If something went wrong
+
+| What you see | What to do |
+|---|---|
+| A hosted agent says it could not reach you, and nothing appears in your logs | Nothing arrived. Move the address to port 443, wait five minutes, then try once. |
+| `This agent key never expires…` on the sign-in page | Create or rotate a key with an expiry, then sign in again. [Revoking, rotating and removing](/reference/agent-keys#revoking-rotating-and-removing). |
+| `code_challenge_method must be 'S256' (plain is not accepted)` | The client offered a weaker challenge. Postern accepts `S256` and nothing else. |
+| 404 on `/authorize` or `/register` | The bridge is off, because Postern has no public address. [Set up remote access](/start/remote-access). |
+| The sign-in page names an application you did not start | Do not approve it. The name and the destination are the check. |
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Set up remote access" href="/start/remote-access">
+    Give Postern a public address, so a hosted agent can reach it.
+  </Card>
+  <Card title="Connect ChatGPT" href="/connect/chatgpt">
+    The longest of the hosted paths, walked end to end.
+  </Card>
+</Columns>
