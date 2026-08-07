@@ -1,189 +1,288 @@
 ---
 title: "Connect Apple Health"
-description: "Your iPhone pushes to an endpoint the Console mints for it. Nothing is pulled, and Postern keeps what your phone sends from the day it starts."
+description: "Your iPhone pushes health data to an address the Console creates for it. Postern never pulls, and keeps what your phone sends from the day you start."
 ---
 
 <Info>
   **Before you start**
 
-  - **An iPhone, and the Health Auto Export app** — from the App Store. Its REST API automations
-    may need the app's paid tier.
-  - **About ten minutes**, plus however long your first export takes to send.
-  - **Two values, one of them shown once** — the Console mints an ingest path and a device secret.
-    Open your password manager before you start.
-  - **A network route from your phone to the box.** Everything Postern publishes binds loopback, so
-    a phone cannot reach it at all on its own — this is the one source that usually needs
-    [remote access](/start/remote-access) set up first. The private tier is enough: Tailscale on the
-    phone and on the box, and `tailscale serve` in front of the ingest path. Nothing has to be
-    public.
-  - **Postern installed and running**, with the Console in front of you.
-  - **Push, not pull.** Your phone's automation decides when data moves. Postern cannot fetch
-    anything from Apple Health, and this connection has no Sync now.
-  - **What lands here is what your phone sends from now on** — a faithful cache of a push, not a
-    backup of your Health store. There is no history to backfill.
+  - **An iPhone, and the Health Auto Export app** from the App Store. Its REST API
+    automations may need the app's paid tier. That is the app's paywall, not Postern's.
+  - **Remote access, set up first.** Postern only answers requests from the machine it
+    runs on. Your phone is a different machine, so
+    [open two ports to your own devices](/start/remote-access#your-devices) first.
+    Tailscale's private tier is enough. Nothing has to be public.
+  - **Postern is up, with the Console open at `http://localhost:8787`.** Otherwise
+    [install Postern](/start/install) first. Allow about 10 minutes, plus your first
+    export.
+  - **Your password manager open.** The Console shows the device secret once.
 </Info>
 
 <Steps>
 
-<Step title="Mint the ingest endpoint in the Console" titleSize="h2" id="mint-endpoint">
+<Step title="Create the ingest endpoint in the Console" titleSize="h2" id="create-endpoint">
 
-Console → Add a source → Apple Health. The card says what the button will do before you press it:
-Postern mints a private ingest endpoint and a one-time secret for this device, and nothing is
-created until you ask.
+Open the Console at `http://localhost:8787`. Go to **Sources** → **Add a source** →
+**Apple Health**.
 
-<Frame caption="The state before the click. Nothing exists yet — the path and the secret appear only after you press the button.">
-  <img src="/images/apple-health-endpoint.png" alt="The Console's Apple Health connect card, headed YOUR INGEST ENDPOINT, reading: Postern mints a private ingest endpoint and a one-time secret for this device. Nothing is created until you ask. Beneath it, one poppy button labelled Create your ingest endpoint." />
+<Frame caption="The Apple Health card, before you press the button.">
+  <img src="/images/apple-health-endpoint.png" alt="The Console's Apple Health connect card, headed YOUR INGEST ENDPOINT. Its text: Postern mints a private ingest endpoint and a one-time secret for this device. Nothing is created until you ask. Below the text sits one button, Create your ingest endpoint." />
 </Frame>
 
 <Warning>
-  The device secret is shown once. Postern keeps only its SHA-256 hash, so nothing on the box can
-  produce it again — not the connection screen, not the log, not the database. If you lose it, the
-  only way forward is **Rotate secret** on the connection, which mints a fresh one and stops every
-  device still sending the old one. Have somewhere to put it before you press the button.
+  Postern cannot show you this secret again. It keeps a scrambled copy it can check
+  against, never the secret itself. If you lose it, press **Rotate secret** on the
+  connection. That makes a new secret and stops every device that still sends the old one.
+  Open your password manager before you press the button.
 </Warning>
 
-Press **Create your ingest endpoint**. The card returns two values — **Ingest path**, which is
-`/api/ingest/<connection-id>`, and **Device secret — shown once** — and then sits at *waiting for
-the first push*.
+Press **Create your ingest endpoint**. The card returns two values, then reads
+*waiting for the first push*:
 
-The path is not a URL. Postern is never told your remote-access host: the Console runs on loopback
-and has no way to know what address stands in front of it. So you compose the URL yourself — your
-tailnet address for the ingest port, then the path exactly as the Console printed it. The Console
-shows this same example beside the path, with its own placeholder host.
+- **Ingest path** — `/api/ingest/<connection-id>`
+- **Device secret — shown once**
+
+Copy the secret into your password manager now.
+
+The ingest path is not a web address. Postern is never told your remote-access address,
+so you build the address yourself:
+
+1. On the machine Postern runs on, run `tailscale status`. Read its Tailscale name. It
+   looks like `gateway.example-tailnet.ts.net`.
+2. Put `https://`, that name and `:8443` in front of the path, exactly as the Console
+   printed it. Port 8443 is the port you opened in
+   [Open two ports to your own devices](/start/remote-access#your-devices).
 
 ```text
 https://gateway.example-tailnet.ts.net:8443/api/ingest/<connection-id>
 ```
 
-Whatever address you put in front of it will work: the ingest route is the one route Postern serves
-without a host check, deliberately, because it is the only one designed to be reached from off the
-box. Its per-connection secret is what stands in for that check.
+Copy that address. It goes into your phone in step 3.
 
-Copy the composed URL and the secret. Both get pasted into your phone in the two automations below.
+Any address you put in front of the path works. The secret is what protects it.
+[The ingest route is the one route Postern serves without a host check](/reference/security-model#the-push-ingest-route).
+The Console prints the same example with its own placeholder host,
+`your-mac.tailnet.ts.net:8443`. Both host names are fake. Use yours.
 
 <Note>
-  Coming back to this screen once a connection exists shows *A device is already pushing Health data
-  here. Create another endpoint only if you're adding a second device*, and makes you tick *Yes —
-  create a second ingest endpoint* before the button works. Take it literally: a second endpoint is
-  a second connection for a second device, not a repair. To put a working secret back on the phone
-  you already have, open the existing connection and use **Rotate secret**.
+  Leave this screen and the address stays. The connection page shows it again under
+  **Delivery** → **Ingest endpoint**, with a copy control. Only the secret is one-time.
+
+  Come back here once a connection exists and the card reads *A device is already pushing
+  Health data here. Create another endpoint only if you’re adding a second device.* Tick
+  *Yes — create a second ingest endpoint.* and the button reads **Create another
+  endpoint**. Take it literally: that is a second connection for a second device, not a
+  repair. To fix the phone you already have, use **Rotate secret** instead.
 </Note>
 
 </Step>
 
 <Step title="Install Health Auto Export on the iPhone" titleSize="h2" id="install-app">
 
-On the iPhone, install **Health Auto Export** from the App Store. Its REST API automations may need
-the app's paid tier — that is the app's own paywall, not Postern's. Once it opens it carries an
-**Automations** tab, which is where the next two steps happen.
+On the iPhone, open the App Store and install **Health Auto Export**. Open the app.
+
+On first launch it asks for access to Apple Health. Grant every category you want
+exported. Without that access every export is empty, and every step after this one
+still looks like it worked.
+
+The app carries an **Automations** tab. The next three steps happen there.
 
 <Note>
-  If you would rather not pay for the app, the Console's own Apple Health card carries the request
-  under *The JSON body Postern expects*, with a **Copy the template** button and the rules that
-  decide whether a payload lands: each `metrics[].name` becomes a metric type, the metric named
-  `sleep_analysis` becomes a sleep session, every entry under `workouts[]` needs its own `id`, and
-  dates are `yyyy-MM-dd HH:mm:ss ±hhmm` rather than ISO — a point Postern cannot date is skipped
-  rather than stored wrong. Anything that can POST that body with the secret header works, and the
-  card spells out an iPhone Shortcut built from a *Get Contents of URL* step. This page documents
-  the app because that is the path that runs in production.
+  Any program that can POST Postern's JSON body with the secret in a header works. The
+  Console's Apple Health card carries that body under *The JSON body Postern expects*,
+  with a **Copy the template** button. The same card describes an iPhone Shortcut built
+  from a *Get Contents of URL* step. Four rules decide whether a payload lands:
+
+  - Each `metrics[].name` becomes a metric type.
+  - The metric named `sleep_analysis` becomes a sleep session.
+  - Every entry under `workouts[]` needs its own `id`.
+  - Dates are `yyyy-MM-dd HH:mm:ss ±hhmm`, not ISO. Postern skips a point it cannot
+    date. It never stores one wrong.
+
+  The rest of this page uses the app. That is the path that runs in production.
 </Note>
 
 </Step>
 
 <Step title="Build the metrics automation" titleSize="h2" id="metrics-automation">
 
-Health Auto Export → Automations → new. These are the settings the production gateway's own phone
-runs with, recovered from its exported automation — set every field to match. The automation is
-saved once it appears in the automations list; nothing reaches Postern until it runs.
+Open the **Automations** tab and press **New Automation**. Set **Automation Type** to
+**REST API**. The automation screen opens.
 
-```text
-Export Data Type Health Metrics
-Destination REST API
-URL                   the full URL you composed in step 1
-Headers Authorization: Bearer <your secret>
-        (the connect card's X-PCI-Webhook-Secret: <your secret> also works)
-Export Format JSON · Export Version v2
-Export File Length day · Batch Requests OFF
-Export Aggregation Default · Export Period Default
-Aggregate Data ON · Aggregate Sleep ON
-Include health metrics ON · workouts OFF
-Include cycle tracking ON · medications ON
-                      · ECG OFF · heart-rate notifications OFF
-                      · state of mind OFF · symptoms OFF
-```
+Put the address you copied in step 1 into **URL**.
 
-For the metric selection: production selects essentially the full list. Start with everything and
-prune later, since each day's file is small.
+Under **Add Headers**, add one header. Its name is `Authorization`. Its value is
+`Bearer <your secret>` — the word `Bearer`, one space, then the secret from step 1. A header
+named `X-PCI-Webhook-Secret` with the secret alone as its value works too, and it is the
+one the Console names.
 
+{/* UNWITNESSED: the on-screen name of the health-metrics choice inside the Data Type selector */}
+Under **Data Type Settings**, open **Data Type** and choose health metrics. An exported
+automation records that choice as `"exportDataType": "healthMetrics"`.
+
+{/* UNWITNESSED: the on-screen name of the export-version control, and of its v2 choice */}
 <Warning>
-  An exported Health Auto Export automation carries your live ingest URL and secret in its JSON, in
-  plain text — that is how the settings above were recovered in the first place. Sharing one as a
-  sample hands someone a working key to your health data, and a shared secret cannot be unshared.
-  Scrub the URL and the headers before a config leaves your phone, or rotate the secret afterwards.
+  Set the export version to v2 before you save. Postern reads the shape v2 sends: one
+  `data` object that holds `metrics` and `workouts`. Postern refuses a body that carries no
+  `data` object at all. Nobody has ever tested a push from an older export version, so
+  leave it on v2.
 </Warning>
 
+Set the rest to match the phone that runs in production. The names below are the ones
+Health Auto Export writes into an exported automation, with the values that phone exports:
+
+```json
+{
+  "exportDestination": "restApi",
+  "exportDataType": "healthMetrics",
+  "exportFormat": "JSON",
+  "exportVersion": "ExportVersion.v2",
+  "exportFileLength": "day",
+  "exportPeriod": "Default",
+  "exportAggregation": "Default",
+  "batchRequests": false,
+  "aggregateData": true,
+  "aggregateSleep": true,
+  "includeHealthMetrics": true,
+  "includeWorkouts": false,
+  "includeCycleTracking": true,
+  "includeMedications": true,
+  "includeWorkoutMetadata": true,
+  "includeRoutes": true,
+  "includeECG": false,
+  "includeHeartRateNotifications": false,
+  "includeStateOfMind": false,
+  "includeSymptoms": false,
+  "requestTimeout": 86400
+}
+```
+
 <Note>
-  Leave **Export File Length** on `day` and **Batch Requests** off. Postern refuses any single push
-  over 25 MB with `{"error":"payload too large"}`, and nothing in a refused push lands — a longer
-  file length is how you reach that ceiling. A day of metrics stays well under it even with
-  everything selected.
+  **Automations**, **New Automation**, **Automation Type**, **REST API**, **URL**, **Add
+  Headers**, **Data Type Settings**, **Data Type** and **Timeout Interval** are the app's
+  own words, read off a capture of the phone in production on 1 August 2026.
+
+  Nobody has recorded what the app calls the settings in the block above. Those are the key
+  names an exported automation uses. Match them by what they do, and trust your screen over
+  this page. `requestTimeout` is the app's **Timeout Interval** field.
 </Note>
+
+Select every metric. A day of metrics stays small. The app writes each name into the
+automation one by one, and the phone in production lists 113 of them. It stores a list, not
+a wildcard, so an app update that adds a new metric does not pick it up on its own — come
+back and tick it.
+
+Leave `exportFileLength` on `day` and `batchRequests` off. Postern refuses any
+single push over 25 MB with `{"error":"payload too large"}`, and nothing in a refused push
+lands. One day at a time has never come close on the phone in production.
+
+<Note>
+  Both aggregation settings change what an agent gets. Turn them on anyway — this is the
+  pair the phone in production runs, and it has been healthy for weeks — but know the price.
+
+  `aggregateData: true` changes the names. A point that carries a plain `qty` becomes one
+  row under `<name>`. A point that carries Min, Avg or Max instead becomes one row per
+  statistic present: `<name>_min`, `<name>_avg`, `<name>_max`. In production this happens to
+  exactly one metric, heart rate: that store holds `heart_rate_min`, `heart_rate_avg` and
+  `heart_rate_max`, and no `heart_rate` at all. An agent that asks for `heart_rate` gets
+  nothing back. Postern tags every fanned row `aggregation: daily_total`, even when the
+  value covers one minute. Never sum those rows across a day.
+
+  `aggregateSleep: true` costs you the sleep numbers. Postern reads a night's length from
+  two fields that the aggregated shape leaves at `0`, so a sleep session stores
+  `time_asleep_seconds` `0`, `time_in_bed_seconds` `0` and an empty `efficiency_pct`. The
+  start and the end are right, and the real total survives under `raw` as `totalSleep`, in
+  hours. An agent works the night's length out from the start and the end.
+</Note>
+
+The automation exists once it appears in the automations list. Nothing reaches Postern
+until it runs.
+
+<Warning>
+  An exported automation carries your live address and secret in its JSON, in plain text,
+  on disk wherever you export it. Share one and you hand someone a live key to your health
+  data. You cannot unshare a secret. Remove the URL and the headers before a config leaves
+  your phone, or rotate the secret afterwards.
+</Warning>
 
 </Step>
 
 <Step title="Build the workouts automation" titleSize="h2" id="workouts-automation">
 
-In the same place — Health Auto Export → Automations → new — build a second automation, identical
-in every field above, with the data type changed:
+In the same **Automations** tab, press **New Automation** and set **Automation Type** to
+**REST API** again. Copy every setting from step 3 — the same address, the same header, and
+the whole block. Then change the four that differ:
 
-```text
-Export Data Type Workouts
-Include health metrics OFF · workouts ON
-Include Workout Metadata ON · Include Routes ON
+```json
+{
+  "exportDataType": "workouts",
+  "includeHealthMetrics": false,
+  "includeWorkouts": true,
+  "requestTimeout": 60
+}
 ```
 
-Everything else matches the first automation exactly: the same URL, the same header, JSON, v2, file
-length day, batch requests off, both aggregation switches on. Saved, you have two automations in the
-list — one Health Metrics, one Workouts, both with Destination REST API and both pointed at the same
-URL.
+{/* UNWITNESSED: the on-screen name of the workouts choice inside the Data Type selector, and of the two include settings */}
+On screen that is three moves: open **Data Type** and choose workouts, turn health metrics
+off in the include list, and turn workouts on. Then set **Timeout Interval** to 60.
 
-Splitting the two by data type keeps each payload small and each failure legible: when something
-stops arriving, you can see which half stopped. Note which half carries sleep — the metrics
-automation does. Health Auto Export exports sleep as a metric named `sleep_analysis`, and Postern
-turns that one metric into sleep sessions.
+`includeWorkoutMetadata` and `includeRoutes` stay `true` in both automations. They do
+nothing in the metrics one, which carries no workouts.
+
+You now have two automations, both on **Automation Type** **REST API** and both on the same
+address: one exports health metrics, one exports workouts. Health Auto Export exports one
+data type per automation. With one automation, workouts never arrive.
+
+Sleep rides the metrics automation, not this one. Health Auto Export exports sleep as
+the metric `sleep_analysis`, and Postern turns that metric into sleep sessions.
+
+Postern stores workout routes and workout metadata in `raw` only. They are not columns
+an agent can query, and they make each push larger. Leave them on anyway: the phone in
+production has run `includeRoutes` and `includeWorkoutMetadata` on for weeks, one day per
+push, and no push has been refused on size.
 
 </Step>
 
-<Step title="Set the schedule, then run one by hand" titleSize="h2" id="first-push">
+<Step title="Set the schedule, then run one automation by hand" titleSize="h2" id="first-push">
 
-In Health Auto Export, set each automation's schedule — the production gateway's phone pushes every
-hour, and hourly is a good default — then run one automation by hand rather than waiting for it.
+Set each automation's schedule. Hourly is a good default; the phone in production pushes
+every hour. Then run one automation by hand in the **Automations** tab, rather than wait
+for the schedule.
 
-Watch the connection at Console → Sources → Apple Health. Until the first push lands it carries the
-badge **Awaiting first push**. When the push lands that badge disappears entirely and the line reads
-**Last synced** with a time, under a caption reading **Device controlled**. A healthy connection has
-no badge here: the timestamp is the signal, and there is no predicted next time because your phone
-never promised one.
+In the Console, open **Sources** → **Apple Health**. Until the first push lands the
+connection carries the badge **Awaiting first push**. When it lands, that badge
+disappears, the line reads **Last synced** with a time, and the caption beneath reads
+**Device controlled**. A healthy connection carries no badge, and no next time is
+predicted.
 
-Run it a second time if you want to watch it again. Health Auto Export's export windows overlap on
-purpose, and Postern gives every sample, sleep session and workout a deterministic id, so a re-post
-updates the same rows rather than duplicating them.
+Postern stamps **Last synced** on every push that arrives, even a push that stored no
+records.
 
-Keep the schedule inside two days. After 48 hours without a push the connection reads **Stale**,
-which here is advice rather than a fault: Postern can never reach out to your phone, so silence is
-ambiguous, and it will never call a device **Unreachable**.
+You can run the automation again safely. Health Auto Export's export windows overlap on
+purpose. Postern gives every sample, sleep session and workout a fixed id. The same
+data sent twice updates those rows. It never duplicates them.
+
+Keep the schedule inside two days. After 48 hours without a push the connection reads
+**Stale**. **Stale** is advice, not a fault. Your phone sends data to Postern when it
+decides to. Postern cannot ask for it, so there is no **Sync now** button, and Postern
+never calls a device **Unreachable**.
 
 <Note>
-  Nothing arrives, and nothing on the box explains why. Every rejection at the ingest endpoint
-  answers with the same `401` and the same body, `{"error":"unauthorized"}` — a wrong secret, a
-  wrong connection id, a paused connection and a connection that never had a secret are
-  deliberately indistinguishable from outside, so nobody can probe the endpoint to learn what
-  exists. Check in this order: that the URL carries the connection id the Console printed; that the
-  header holds the secret exactly; that the connection is not paused, since **Pause receiving**
-  stops pushes at the door while cached data keeps serving; and that the phone can reach the box at
-  all. A request that never arrives leaves no trace on the gateway, which is what the probes under
-  [Serve the two ports to your own devices](/start/remote-access#serve-the-two-ports-to-your-own-devices)
-  are for — they separate a routing failure from an auth failure.
+  Nothing arrives, and nothing on the machine Postern runs on explains why. Every
+  rejection at the ingest endpoint answers with the same `401` and the same body,
+  `{"error":"unauthorized"}`. The answer never says which cause it was, so check all
+  four:
+
+  1. The address carries the connection id the Console printed.
+  2. The header holds the secret exactly.
+  3. The connection is not paused. **Pause receiving** stops new pushes. Data already
+     stored still answers.
+  4. The phone can reach the machine Postern runs on.
+
+  [Every failure answers identically on purpose](/reference/security-model#the-push-ingest-route).
+  A request that never arrives leaves no trace. From the phone, a network problem and a
+  wrong secret look the same. The two `curl` checks in
+  [Open two ports to your own devices](/start/remote-access#your-devices) separate them.
 </Note>
 
 </Step>
@@ -192,49 +291,39 @@ ambiguous, and it will never call a device **Unreachable**.
 
 ## Confirm it works
 
-Each of these is visible without running anything, and each is a place this goes wrong quietly.
-
-- **Console → Sources**, the Apple Health connection: the **Awaiting first push** badge is gone, the
-  line reads **Last synced** with a time, and the caption beneath reads **Device controlled**.
-- **The connection's Delivery panel**: **Shared secret** reads as set, with a date, rather than *no
-  secret minted yet* — and the button offers **Rotate secret** rather than **Mint secret**.
-- **Health Auto Export → Automations**: two automations, one Health Metrics and one Workouts, both
-  with Destination REST API and both carrying the same URL.
-- **One Apple Health connection in the Console, not two.** A second one means the endpoint was
-  minted twice, and only the newest secret is the one your phone is sending.
+- **Console → Sources**: one Apple Health connection, not two.
+- The connection page: **Samples cached** reads above zero.
+- The connection's **Delivery** panel: **Shared secret** reads `•••••••••••• set …`,
+  not *no secret minted yet*, and the button reads **Rotate secret**, not **Mint
+  secret**.
+- **Health Auto Export → Automations**: two automations, both on **Automation Type**
+  **REST API** and both on the same address. One exports health metrics, one exports
+  workouts.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| `{"error":"unauthorized"}`, or a push the endpoint refuses | [Set the schedule, then run one by hand](#set-the-schedule-then-run-one-by-hand) |
-| Nothing arrives, and the gateway's log shows nothing at all | [Set the schedule, then run one by hand](#set-the-schedule-then-run-one-by-hand) |
-| The connection still reads **Awaiting first push** | [Set the schedule, then run one by hand](#set-the-schedule-then-run-one-by-hand) |
-| The connection reads **Stale** | [Set the schedule, then run one by hand](#set-the-schedule-then-run-one-by-hand) |
-| `{"error":"payload too large"}` | [Build the metrics automation](#build-the-metrics-automation) |
-| An automation's exported JSON was shared with your secret in it | [Build the metrics automation](#build-the-metrics-automation) |
-| The REST API automation is behind the app's paid tier | [Install Health Auto Export on the iPhone](#install-health-auto-export-on-the-iphone) |
-| The device secret was not copied before you left the screen | [Mint the ingest endpoint in the Console](#mint-the-ingest-endpoint-in-the-console) |
-| A second Apple Health connection appeared | [Mint the ingest endpoint in the Console](#mint-the-ingest-endpoint-in-the-console) |
+| `{"error":"unauthorized"}`, or nothing arrives at all | Check all four causes; they answer identically. The address carries the connection id the Console printed; the header holds the secret exactly; the connection is not paused (**Resume receiving** on its **State** row); the phone reaches port 8443. |
+| The connection reads **Last synced**, but **Samples cached** stays at 0 | The push arrived and stored nothing. Check the export version reads v2 in both automations, then run one by hand. |
+| `{"error":"payload too large"}` | The push passed 25 MB, and none of it landed. Set the export file length back to one day (`exportFileLength: "day"`) and turn batch requests off (`batchRequests: false`) in both automations. Postern records nothing for a push it refuses on size — not even in the record. The app's own answer on the phone is the only place you will see this. |
+| You did not copy the secret, or you shared an exported automation that held it | Open the connection → **Delivery** → **Rotate secret**. Every device on the old secret stops. Paste the new secret into both automations. |
 
 ## What you have now
 
-A health connection fed by your own phone, on your own schedule, with no cloud in between. The
-ingest endpoint accepts nothing without its secret: the check runs before the body is read, compares
-hashes in constant time, and fails closed. What an agent can see is what your phone has sent since
-the day you set this up — sleep, workouts and every metric you selected. Health is read-only here,
-so a key granted `health` reads it and there is nothing to act on.
+Your phone sends health data straight to Postern, with no cloud in between. Postern
+refuses a push that does not carry the correct secret.
 
-Freshness travels with the answer. The connection's state — awaiting a first push, a bare timestamp,
-stale after two days of silence — is computed in one place on the server and served identically to
-the Console and to an agent's `describe_context`, so an agent asking about your sleep can see how
-current the answer is instead of assuming.
+An agent can read what your phone has sent since you set this up: sleep, workouts and
+every metric you selected. Two of those arrive renamed or thinned by the settings this
+page prescribes — [what `aggregateData` and `aggregateSleep`
+cost](#metrics-automation). There is no history to backfill. Health is read-only here —
+a key granted **health** reads this data, and there is nothing to act on.
 
-The standing costs are yours. Your phone's schedule is the only schedule, and Postern cannot pull:
-when the data looks old, the fix is to run the automation on the phone. The secret lives in that
-automation until you rotate it, and rotating it stops every device still using the old one.
-**Pause receiving** stops the pushes at the door without touching what has already landed — and a
-paused connection refuses a push in exactly the way a wrong secret does.
+Your phone decides when data moves. If the data looks old, run the automation on your
+phone. The secret lives in those two automations until you rotate it. Rotate it and
+every device on the old secret stops. **Pause receiving** stops new pushes; data already
+stored still answers. A paused connection refuses a push exactly as a wrong secret does.
 
 ## Next
 

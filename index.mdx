@@ -1,19 +1,29 @@
 ---
 title: "Postern"
-description: "Self-hosted personal context gateway: one MCP surface over the sectors of your life, with per-agent default-deny grants and a log of every agent request."
+description: "A personal context gateway you run yourself. AI assistants ask Postern; Postern answers from your own machine."
 ---
 
-Postern is a self-hosted personal context gateway: one MCP surface over the
-sectors of a person's life — finance, mail, calendar, contacts, health, home —
-with per-agent default-deny grants, a log of every agent request, and actions
-where the source allows. It runs on your own hardware; agents connect to your
-machine, not to a Postern cloud. There is no Postern service in the middle,
-because there is not one. AGPL-3.0.
+Postern is a personal context gateway you run yourself: one door onto six areas of
+your life — finance, mail, calendar, contacts, health and home.
+
+MCP is the standard way AI assistants connect to outside tools. Postern speaks it, so
+Claude, ChatGPT and Cursor connect the same way.
+
+Each agent gets its own key. A new key can reach nothing until you tick a sector.
+Postern records what your agents do. Only Home Assistant lets an agent act as well as
+read.
+
+It runs on a machine you own. Agents connect to your machine, not to a Postern cloud.
+Free and open source (AGPL-3.0).
 
 ## The short version
 
-Three commands on a machine you control. Docker is the only thing you install by
-hand.
+Three commands, then one address. You need Docker, Git and a terminal. macOS and Linux
+are the tested paths. Nobody has run Postern on Windows —
+[Install Postern](/start/install) carries the untested Windows lines.
+
+Keep `.env`. Postgres records that password on the first start, and it never accepts a
+different one against the same data.
 
 ```bash
 git clone https://github.com/getpostern/postern.git && cd postern
@@ -21,68 +31,58 @@ printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)" > .env
 docker compose up -d
 ```
 
-The gateway, its database and the Console come up together, with every published
-port bound to loopback. [Install Postern](/start/install) is the same three
-commands with the four facts that decide whether they hold: why the password can
-never change afterwards, what `docker compose down -v` destroys, and how to reach
-the Console when Postern runs on a machine you are not sitting at.
+The first run downloads the image, so it takes minutes. Then open
+[http://localhost:8787](http://localhost:8787) — that is the Console.
+
+Postern, its database and the Console start together.
+[Postern opens its ports to this computer only — nothing on your Wi-Fi and nothing on the internet can reach them.](/reference/security-model#the-trust-boundary)
+
+[Install Postern](/start/install) covers the rest: the password you can never change,
+what `docker compose down -v` destroys, and the Console from another computer. It also
+does the same install without Git.
 
 ## Start here
 
 <Columns cols={2}>
   <Card title="Install Postern" href="/start/install">
-    Docker and a terminal · about ten minutes · no cloud account, because there
-    is no cloud
+    Docker and a terminal · about 10 minutes · no cloud account
   </Card>
   <Card title="Set up remote access" href="/start/remote-access">
-    Tailscale, and Funnel only if a hosted client needs you · about 20 minutes,
-    once · off by default
+    Tailscale · about 20 minutes, once · off by default. Hosted agents also need
+    Funnel, which gives you a public address.
   </Card>
   <Card title="Mint your first key" href="/start/first-key">
-    a name, the sectors it opens, and a deadline · a few minutes · the key is
-    shown once
+    a name, the sectors it opens, a deadline · a few minutes · shown once
   </Card>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    a key you minted · a few minutes, plus a restart of whatever client you are
-    connecting
+    a key you made · a few minutes · plus a restart
   </Card>
 </Columns>
 
 ## Connect a source
 
-Nine sources, each its own page, and none of them required. A sector answers
-with whatever you have connected in it, and grants do not change when a source
-does.
+Eight sources, each with its own page. Connect as many or as few as you want. A sector
+answers with whatever you connected in it.
+[A new source never changes a grant you already made.](/reference/grants-and-sectors#what-a-grant-covers)
 
-- **Finance** — [SimpleFIN](/connect/simplefin), the default; [Plaid](/connect/plaid) for the banks it cannot reach
-- **Health** — [Apple Health](/connect/apple-health), pushed from your iPhone; [WHOOP](/connect/whoop)
+- **Finance** — [SimpleFIN](/connect/simplefin), the one to start with; [Plaid](/connect/plaid) for banks SimpleFIN cannot reach
 - **Mail, calendar and contacts** — [Google and Gmail](/connect/google), [Microsoft](/connect/microsoft), [iCloud](/connect/icloud)
-- **Home** — [Home Assistant](/connect/home-assistant), the one source an agent can act on
-- **Hosted agents** — [ChatGPT](/connect/chatgpt), which needs a public address before it can reach you
+- **Health** — [Apple Health](/connect/apple-health), which your iPhone sends; [WHOOP](/connect/whoop)
+- **Home** — [Home Assistant](/connect/home-assistant), the only source an agent can act on
 
-## Understand what you are running
+[ChatGPT](/connect/chatgpt) is not a source. It is an agent that reads from Postern,
+and it needs a public address first.
 
-<Columns cols={2}>
-  <Card title="Security model" href="/reference/security-model">
-    what is encrypted, what is not, and why the address a port is published on is
-    the whole of the Console's authentication
-  </Card>
-  <Card title="Grants and sectors" href="/reference/grants-and-sectors">
-    six sectors, default-deny, read and act granted together, and the check that
-    runs before any query
-  </Card>
-  <Card title="MCP tools" href="/reference/mcp-primitives">
-    every tool an agent can call, its parameters, and what it returns
-  </Card>
-  <Card title="The audit log" href="/reference/audit-log">
-    what a row holds, what deliberately does not get one, and the honest limits
-    of the record
-  </Card>
-</Columns>
+## Understand how it works
+
+- [Security model](/reference/security-model) — what Postern encrypts, and why the Console has no password
+- [Grants and sectors](/reference/grants-and-sectors) — six sectors, nothing granted until you tick it, read and act together
+- [MCP tools](/reference/mcp-primitives) — every tool an agent can call, and what it returns
+- [The audit log](/reference/audit-log) — what a row holds, what gets no row, and the limits of the record
 
 ## Where things are
 
-- **Source** — [github.com/getpostern/postern](https://github.com/getpostern/postern)
-- **Image** — `ghcr.io/getpostern/postern` (multi-arch, amd64 + arm64)
-- **Back up, export, erase** — [the archive that restores, and the one that does not](/operate/backup-and-export)
-- **Questions** — [Frequently asked questions](/about/faq)
+- Source code — [github.com/getpostern/postern](https://github.com/getpostern/postern)
+- Image — `ghcr.io/getpostern/postern`, for Intel, AMD and ARM machines
+- [Back up, export and erase](/operate/backup-and-export)
+- [Frequently asked questions](/about/faq)

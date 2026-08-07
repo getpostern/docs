@@ -1,169 +1,227 @@
 ---
 title: "Install Postern"
-description: "The gateway, its Console and Postgres running under Docker on a machine you control, with every published port bound to loopback."
+description: "Run Postern under Docker on a machine you own, then open its Console."
 ---
 
 <Info>
   **Before you start**
 
-  - **Docker, and a terminal.** [Docker's own installer](https://docs.docker.com/get-docker/) is the
-    only thing you install by hand. No Node, no toolchain, nothing else.
-  - **About ten minutes**, plus however long the image takes to download on your connection.
-  - **No cloud account, because there is no cloud.** Nothing here creates one, and nothing you
-    connect later reaches a Postern service, because there is not one.
-  - **A machine that stays on.** Keeping it patched is yours, the same as anything else you run — and
-    while it is down, your agents reach nothing.
-  - **The first run is a download, not a build.** Compose pulls the published image
-    `ghcr.io/getpostern/postern` (amd64 and arm64) and never builds one from your checkout.
-  - **Two ports, both on loopback.** 8787 carries the Console and the admin surface; 8788 carries the
-    agent edge. Postgres is published nowhere at all — the gateway reaches it over the private
-    network Compose creates.
-  - **One line of configuration, and it is permanent.** A password for the database, written to a
-    file called `.env`. Postgres records it the first time it starts and never accepts a different
-    one against the same data, so keep that file.
+  - **Docker.** [Install Docker](https://docs.docker.com/get-docker/) first. It is the only thing
+    you install by hand.
+  - **A machine that stays on.** While it is off, your agents reach nothing. Keep it updated, the
+    same as anything else you run.
+  - **About 10 minutes,** plus the time the image takes to download.
+  - **Somewhere to keep one password.** You create it in [step 2](#password). Postern's database
+    never accepts a different one afterwards, so open your password manager now.
+  - **Windows: not tested.** Postern runs under Docker, so Windows should work. Nobody has run it
+    there. Treat every Windows line on this page as untested.
 </Info>
+
+## Choose your path
+
+| Postern will run on… | Then |
+|---|---|
+| the computer in front of you | Follow all four steps as written. |
+| another computer — a NAS, a spare machine, a computer with no screen | Sign in to that computer over SSH. Run steps 1 to 3 there, then [forward the Console port](#open-console) in step 4. |
+
+Postern runs either way. A NAS or a spare machine works the same as the computer in front of you.
+The second path needs SSH on that computer, and nothing else changes.
 
 <Steps>
 
-<Step title="Clone the repository" titleSize="h2" id="clone">
+<Step title="Get the compose file" titleSize="h2" id="get-file">
 
-On the machine that will run Postern, in a terminal, fetch the repository and change into it. You
-end up in a directory holding `docker-compose.yml`, which is the file every command below reads.
+Open a terminal on the machine that will run Postern. On macOS, press **Command-Space**, type
+`Terminal`, press **Return**. On Windows, press the **Windows** key, type `PowerShell`, press
+**Return**.
+
+Make a folder and download the one file Postern needs:
 
 ```bash
-git clone https://github.com/getpostern/postern.git && cd postern
+mkdir postern && cd postern
+curl -O https://raw.githubusercontent.com/getpostern/postern/main/docker-compose.yml
 ```
 
-Only `docker-compose.yml` is strictly required. If you would rather not clone, download that one
-file into an empty directory and work there instead — it runs the published image and builds nothing
-from the checkout, so the rest of the repository is not in the path of a normal install.
+On Windows, type `curl.exe` — in PowerShell, `curl` means something else. Nobody has tested these
+lines:
+
+```powershell
+mkdir postern; cd postern
+curl.exe -O https://raw.githubusercontent.com/getpostern/postern/main/docker-compose.yml
+```
+
+The folder now holds one file, `docker-compose.yml`. Every command below runs from this folder.
+
+You can clone the whole repository instead, if you have Git:
+`git clone https://github.com/getpostern/postern.git && cd postern`. Postern needs nothing else
+from it.
 
 </Step>
 
 <Step title="Write the database password" titleSize="h2" id="password">
 
-In that same directory, generate a password for Postern's database and write it into a file called
-`.env`. Compose reads that file on every subcommand, which is why the password has to live there
-rather than in front of a command.
+Postern's database needs one password. It lives in a file named `.env`, beside
+`docker-compose.yml`.
 
 <Warning>
-  Postgres initialises its data directory with this password the first time it starts, and never
-  reads it again. Pointing an existing database at a different password does not rename anything — it
-  points the gateway at a role that does not exist, and there is no way to change it in place. So it
-  goes into `.env`, and that file stays. Never put it in front of the command: an inline
-  `POSTGRES_PASSWORD=… docker compose up` mints a fresh password on every run, so the second start
-  cannot authenticate against the database the first one created, and every other compose subcommand
-  fails on the missing variable before it does anything at all.
+  Postgres records this password the first time it starts. It never accepts a different one against
+  the same data, and there is no way to change it afterwards. Keep `.env`. Do not type the password
+  in front of `docker compose up`. That creates a new one on every run, and every other
+  `docker compose` command then fails.
 </Warning>
+
+In that folder, run the line for your system. It makes a password of letters and digits only. A
+`/`, `:`, `@`, `?`, `#`, `&` or `+` breaks the address Postern uses to reach its database. Postern
+then exits at once. `openssl rand -base64 32` is not a substitute: its output holds those characters
+often.
 
 ```bash
 printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)" > .env
 ```
 
-`.env` now holds one line. That is the whole of Postern's required configuration; every other
-variable in the compose file has a working default.
+On Windows, run these four lines in PowerShell. Nobody has tested them:
 
-<Note>
-  Keep the password to letters and digits. Compose substitutes it into the database connection URL as
-  literal text and cannot percent-encode it, so a `/`, `:`, `@`, `?`, `#`, `&` or `+` produces a URL
-  the gateway cannot parse, and it exits instead of starting — a failure that looks nothing like a
-  password problem. `openssl rand -hex 24` cannot produce one of those characters;
-  `openssl rand -base64 32` frequently does.
-</Note>
+```powershell
+$b = New-Object byte[] 24
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+$hex = [BitConverter]::ToString($b).Replace('-','').ToLower()
+Set-Content -Path .env -Value "POSTGRES_PASSWORD=$hex" -Encoding ascii
+```
+
+`.env` now holds one line: `POSTGRES_PASSWORD=` and 48 letters and digits. That is the whole of
+Postern's required configuration. Every other setting has a working default.
+
+Copy that line into your password manager now. The leading dot makes `.env` invisible in Finder and
+File Explorer. Do not make `.env` in Notepad — Notepad adds `.txt` to the name.
 
 </Step>
 
-<Step title="Start the stack" titleSize="h2" id="start">
+<Step title="Start Postern" titleSize="h2" id="start">
 
-From the directory holding `docker-compose.yml`, with Docker running, bring everything up:
+Docker must be open first. On macOS and Windows, open the **Docker Desktop** application and wait
+for it to finish its own start-up. On Linux, Docker runs as a service and needs nothing opened.
+
+From the folder that holds `docker-compose.yml`, start Postern:
 
 ```bash
 docker compose up -d
 ```
 
-Compose pulls the published image, starts Postgres, waits until it is actually accepting connections,
-then starts the gateway — which applies its own migrations before it serves anything, and then serves
-the agent edge, the Console and the Console's backend from one origin. The first run is the slow one,
-because it is downloading the image.
+The first run downloads the image `ghcr.io/getpostern/postern`, so it takes minutes. Later runs take
+seconds. The image runs on Intel and AMD machines, and on ARM machines such as Apple Silicon.
+Postern sets up its database tables before it answers anything, so port 8787 stays quiet for a few
+seconds after the command returns.
+
+Postern opens two ports to this computer only: **8787**, the Console port, and **8788**, the agent
+port. Only this computer can reach these addresses. Nothing on your Wi-Fi, and nothing on the
+internet, can. The database gets no port at all. Only Postern reaches it, over the private network
+Docker Compose creates.
 
 <Note>
-  If something on the machine already holds 8787 or 8788, Docker cannot publish that port and the
-  `app` service will not start. Set `REST_PORT` or `MCP_HTTP_PORT` to a free port in the same `.env`
-  and run `docker compose up -d` again. Moving `REST_PORT` moves more than the address you type: it
-  also moves the OAuth redirect this gateway sends to Google, Microsoft and WHOOP. Those providers
-  exact-match that string, so the value registered with them has to move with the port. Each of those
-  pages reads the current value out of your own gateway rather than printing one to copy, which is
-  what keeps them true after a change like this.
+  If another program already holds 8787 or 8788, the `app` container does not start. Add a line to
+  `.env`, below the password line:
+
+  ```
+  REST_PORT=8790
+  ```
+
+  Then run `docker compose up -d` again. The Console now answers at `http://localhost:8790`, and
+  every `8787` below becomes `8790`. `MCP_HTTP_PORT` moves the agent port the same way. If you
+  already connected [Google](/connect/google), [Microsoft](/connect/microsoft) or
+  [WHOOP](/connect/whoop), change the address you registered there to the new port. They match it
+  exactly, character for character.
 </Note>
 
 <Warning>
-  Two named volumes hold everything this stack cannot regenerate: the database, and `pci_master_key`,
-  mounted at `/app/.pci`, which holds the key every stored credential is sealed under.
-  `docker compose down -v` deletes both. There is no recovery — sealed credentials become permanently
-  unopenable, and a database restored later without its key makes the gateway refuse to boot rather
-  than start green and fail at the first sync weeks afterwards. `docker compose down` without the
-  `-v` is safe: it removes the containers and leaves the volumes alone. The key itself is generated
-  the first time the gateway seals a credential, and from then on the gateway prints a notice in its
-  own log, on every boot, until you record that you hold a copy of it; `docs/runbooks/backup-restore.md`
-  in the repository is the procedure for taking one.
+  Docker keeps two storage areas outside the containers: your data, and the key that unlocks every
+  account you connect. `docker compose down -v` deletes both, permanently. Every account you
+  connected becomes unreadable, and nothing can recover them. `docker compose down` without `-v` is
+  safe: it removes the containers and leaves both storage areas alone.
+
+  Take a copy of the key: [Back up, export and erase](/operate/backup-and-export). If Postern cannot
+  open the vault at start-up, it refuses to start rather than starting broken. A database restored
+  without its key stops there.
 </Warning>
 
-Four more compose commands cover everything you need in the first week. Run them from the same
-directory:
+<Note>
+  **The `VAULT KEY IS NOT BACKED UP` notice.** Postern prints it in its own log at every start. It
+  is a reminder, not an error, and Postern runs anyway. It appears while Postern holds the key
+  itself and no marker file sits beside it.
+
+  The notice tells you to acknowledge the copy in the Console. **No such control ships.** Nothing in
+  the Console writes that marker, and no address answers it. So the notice still appears after you
+  hold a good copy.
+
+  Two things stop it. Take your copy of the key first, then choose one.
+
+  1. **Write the marker yourself.** Postern looks for a file named `master.key.backed-up` beside the
+     key. From the folder that holds `docker-compose.yml`:
+
+     ```bash
+     docker compose exec app sh -c \
+       'date -u +%Y-%m-%dT%H:%M:%SZ > /app/.pci/master.key.backed-up && chmod 600 /app/.pci/master.key.backed-up'
+     ```
+
+     Postern checks that the file is there. It never reads what is in it. Write the date anyway. It
+     tells a later you when you took the copy.
+
+  2. **Hold the key yourself.** Put `PCI_MASTER_KEY` in `.env` — a base64 32-byte key you keep —
+     and restart. Make one with `openssl rand -base64 32`. Set it before the first start: a new key
+     against accounts encrypted under an old one makes Postern refuse to start.
+
+  A restore brings the notice back. The marker sat in the old storage area, and the restore makes a
+  new one.
+</Note>
+
+Four commands cover the first week. Run them from the same folder:
 
 ```bash
 docker compose ps                              # is it up
-docker compose logs -f app                     # what it is doing
-docker compose stop                            # pause it — docker compose start resumes
-docker compose pull && docker compose up -d    # move to a newer published image
+docker compose logs -f app                     # read its log
+docker compose stop                            # pause it; docker compose start resumes
+docker compose pull && docker compose up -d    # move to a newer image
 ```
+
+To hold one release instead of the newest, add `POSTERN_VERSION=v0.1.0` to `.env`.
 
 </Step>
 
-<Step title="Open the Console from where you are" titleSize="h2" id="open-console">
+<Step title="Open the Console" titleSize="h2" id="open-console">
 
-The Console answers at `http://localhost:8787`, and only on the machine Postern runs on. Compose
-publishes that port as `127.0.0.1:8787`, so it is not reachable from your network, from your phone,
-or from another computer in the house. That is the security model, not a limitation: 8787 carries the
-admin surface as well as the Console — onboarding, credential paste, and the route that mints an
-agent key — and that surface has no per-request authentication, so anything able to reach the port
-can use it.
+The Console answers at `http://localhost:8787`, and only on the machine Postern runs on.
 
-If Postern is running on the machine you are sitting at, open [http://localhost:8787](http://localhost:8787) and there is
-nothing else to do.
+If Postern runs on the computer in front of you, open
+[http://localhost:8787](http://localhost:8787).
 
-If it is running somewhere else — a NAS, a home server, a mini in a closet, anything headless — that
-port is dead to you until you bring it to yourself. One SSH command does it:
+If Postern runs on another computer, forward the Console port to your own computer. Run this **on
+your own computer**, not on the machine Postern runs on. Turn on SSH on that machine first.
 
 ```bash
-ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 <your-box>
+ssh -N -L 127.0.0.1:8787:127.0.0.1:8787 YOUR_MACHINE
 ```
 
-`<your-box>` is that machine however you normally SSH into it: a hostname, a `user@host`, an IP.
-Leave the command running and `http://localhost:8787` opens in your own browser, because the tunnel
-arrives on the box as loopback, encrypted and authenticated by your SSH key. Do not move the publish
-address to your LAN instead, and do not put a tunnelling service in front of it — the surface
-answering only on loopback is what stands in for the authentication that admin group does not have.
+Replace `YOUR_MACHINE` with however you normally reach that computer: a name, a `user@host`, or an
+IP address. The terminal then prints nothing and does not return to a prompt. That is the command at
+work, not a hang. Leave that window open, use a second terminal window for anything else, and press
+**Control-C** when you want to stop. Now open [http://localhost:8787](http://localhost:8787) on your
+own computer.
 
-Either way, what loads is a Console with nothing in it yet: on a fresh install it says
-`Your gate is new.` Its four sections are the map every other page in these docs refers to —
-**Sources**, **Agents & keys**, **The ledger** and **Settings**.
+Anyone who can reach the Console port can change your settings and create agent keys. It has no
+password, so it stays on this computer. Do not change the address in `docker-compose.yml` to your
+network. Do not put a tunnel service in front of it. The full argument is in
+[The Console has no authentication](/reference/security-model#the-console-has-no-authentication).
 
-<Frame caption="The Console on a fresh install, before anything is connected or granted.">
-  <img src="/images/gate-console-new.png" alt="The Postern Console on a fresh install: the Gatehouse reading “Your gate is new.”" />
+The Console opens on a page headed `Your gate is new.` with one button, **Add your first source**.
+The list down the left has **Gatehouse**, then the six sectors, then **Sources**, **Agents & keys**,
+**The ledger** and **Settings**. A sector is one area of your life: finance, mail, calendar,
+contacts, health, home. It is the smallest thing you can grant.
+
+<Frame caption="The Console on a fresh install. The one button reads Add your first source.">
+  <img src="/images/gate-console-new.png" alt="The Postern Console on a fresh install: a page headed “Your gate is new.”, with one button labelled “Add your first source”." />
 </Frame>
 
-Reaching the Console and reaching Postern *from an agent* are different problems with different
-answers. This tunnel is the first. The second is [remote access](/start/remote-access), which
-publishes the agent-facing edges to your own devices, and one port to the internet only if a hosted
-client needs it — optional, off by default, and it never moves the Console off this box.
-
-<Note>
-  The Console 404s while `curl -s localhost:8787/healthz` still answers `{"status":"ok"}` — the
-  gateway is running, but the built Console files are not where it looked for them. It says so once
-  on stderr with the path it tried, so `docker compose logs app` carries the answer, and
-  `PCI_CONSOLE_DIR` overrides that path.
-</Note>
+To let an agent reach Postern from another device, see [Remote access](/start/remote-access). It is
+off by default, and it never moves the Console off this machine.
 
 </Step>
 
@@ -171,8 +229,7 @@ client needs it — optional, off by default, and it never moves the Console off
 
 ## Confirm it works
 
-Run these on the machine Postern is on. Together they prove the stack is up, the gateway is
-answering, and the two things you cannot regenerate are on disk.
+Run these on the machine Postern runs on.
 
 ```bash
 docker compose ps
@@ -180,46 +237,33 @@ curl -s localhost:8787/healthz
 docker volume ls
 ```
 
-- `docker compose ps` lists both services — `db` and `app` — running, with `app` reporting healthy.
-  Docker holds off counting the app's first health probe for a grace period, so healthy arrives a
-  little after running does.
-- `curl -s localhost:8787/healthz` prints exactly `{"status":"ok"}`. That is the gateway saying it is
-  up and its database is reachable. No answer at all means it has not finished coming up: the edge
-  serving the Console does not bind its port until the migrations have run.
-- `docker volume ls` lists two volumes whose names end in `pgdata` and `pci_master_key` — the
-  database, and the vault key.
-- `.env` sits beside `docker-compose.yml` and holds exactly one line, beginning `POSTGRES_PASSWORD=`.
-- `http://localhost:8787` loads the Console in a browser, either on that machine or through the SSH
-  tunnel.
+- `docker compose ps` lists `db` and `app` as `running`, and `app` turns `healthy` about 20 seconds
+  after that.
+- `curl -s localhost:8787/healthz` prints `{"status":"ok"}`. The same address in a browser shows the
+  same thing.
+- `docker volume ls` lists two names that end in `pgdata` and `pci_master_key`.
+- `.env` sits beside `docker-compose.yml` and holds one line that begins `POSTGRES_PASSWORD=`.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| Compose refuses to start and names the variable: `set POSTGRES_PASSWORD in .env — generate one with: openssl rand -hex 24` | [Write the database password](#write-the-database-password) |
-| The second `docker compose up` cannot authenticate against the database the first one created | [Write the database password](#write-the-database-password) |
-| The gateway exits instead of starting, and your password holds a character that is not a letter or a digit | [Write the database password](#write-the-database-password) |
-| The `app` service will not start, and something else on this machine holds 8787 or 8788 | [Start the stack](#start-the-stack) |
-| `curl -s localhost:8787/healthz` returns no answer at all | [Start the stack](#start-the-stack) |
-| Nothing answers on 8787 from your laptop, and Postern is running on another machine | [Open the Console from where you are](#open-the-console-from-where-you-are) |
-| The Console 404s while `/healthz` answers `{"status":"ok"}` | [Open the Console from where you are](#open-the-console-from-where-you-are) |
+| `docker compose up -d` stops at once and prints `set POSTGRES_PASSWORD in .env — generate one with: openssl rand -hex 24` | `.env` is missing or empty. Run the [step 2](#password) command again, in the folder that holds `docker-compose.yml`. |
+| `app` starts and exits within seconds, and your password holds a character that is not a letter or a digit | Run the [step 2](#password) command again, then `docker compose down -v && docker compose up -d`. That wipes the database, which is safe only before you connect anything. |
+| `db` is up, `app` cannot sign in to the database, and `.env` changed since the first start | Postgres kept the first password. Put the original line back in `.env`, then run `docker compose up -d`. |
+| `app` does not start, and another program on this computer already uses 8787 or 8788 | Move Postern's port. [Step 3](#start) carries the line to add. |
+| The browser shows a not-found page while `curl -s localhost:8787/healthz` still answers `{"status":"ok"}` | Postern runs, and its Console files are not where it looked. Run `docker compose logs app`; the log names the folder it tried. Set `PCI_CONSOLE_DIR` in `.env` to the right folder. |
+| The log prints `VAULT KEY IS NOT BACKED UP` at every start | That is the reminder, not a fault. [Step 3](#start) has the two ways to stop it. |
 
 ## What you have now
 
-Two containers on a machine you own. The gateway serves the Console and the admin surface on 8787 and
-the agent edge on 8788, both published on loopback only, and nothing gets through 8788 without a key.
-Postgres has no published port at all: only the gateway reaches it, over the private network Compose
-creates. Nothing was built locally and nothing was sent anywhere — the image came from
-`ghcr.io/getpostern/postern`, and there is no account, no tenant and no service in the middle.
+Postern runs on a machine you own. Docker downloaded a finished image from
+`ghcr.io/getpostern/postern` and built nothing on that machine. There is no Postern account and no
+Postern server in the middle. Nothing is connected yet, and no agent can reach anything until you
+grant it.
 
-Nothing is connected yet, and nothing is granted until you grant it.
-
-What you are carrying from here: a machine that has to stay on and stay patched, because while it is
-down your agents reach nothing; the one line in `.env`, which Postgres will never let you change
-against this database; and the two named volumes, which `docker compose down -v` destroys with no
-recovery. Upgrades stay a decision you make rather than one that happens to you —
-`docker compose pull && docker compose up -d` — and you can hold a specific release by setting
-`POSTERN_VERSION` in the same `.env`.
+Three things are now yours to keep: the machine, on and updated; the one line in `.env`; and a copy
+of the vault key.
 
 ## Next
 
@@ -228,8 +272,6 @@ recovery. Upgrades stay a decision you make rather than one that happens to you 
     a name, the sectors it opens, and a deadline · a few minutes · the key is shown once
   </Card>
   <Card title="Set up remote access" href="/start/remote-access">
-    Tailscale, and Funnel only if a hosted client needs you · about 20 minutes, once · off by
-    default
+    Tailscale, and Funnel only if a hosted agent needs it · about 20 minutes, once · off by default
   </Card>
 </Columns>
-

@@ -1,95 +1,98 @@
 ---
 title: "Connect an agent"
-description: "Point a client at the MCP endpoint with a key you minted. Local clients paste one config block; claude.ai and ChatGPT need a public address first."
+description: "Paste one config block into Claude Code or Cursor. Claude Desktop needs a bridge. claude.ai and ChatGPT need a public address first."
 ---
 
 <Info>
   **Before you start**
 
-  - **A running Postern, and the Console in front of you** — everything on this
-    page happens at Console → Agents & keys.
-  - **A few minutes**, plus a restart of whatever client you are connecting.
-  - **An agent key** — a bearer token, shown once at the moment it is minted and
-    stored afterwards only as a hash. If you do not have one in hand, mint it
-    first: [Mint your first key](/start/first-key).
-  - **The sectors that key opens, decided when it was minted** — nothing is
-    granted until it is picked, and a key with no sectors connects successfully
-    and is then denied on every read.
-  - **A client that can reach the machine Postern runs on.** The MCP endpoint
-    the Console prints is a loopback address: it is reachable from processes on
-    that machine, and from nowhere else. A client on your laptop, with Postern
-    on a NAS or a home server, needs the edge published to your own devices
-    first.
-  - **A public HTTPS address on port 443 — but only for claude.ai or ChatGPT.**
-    Hosted clients reach you from the vendor's own cloud. Nothing is published
-    by default, and a Postern nobody publishes is byte-identical to one that
-    never heard of the feature.
-  - **Somewhere safe for the key.** If you mint it as part of this, open your
-    password manager before you start: it is shown once, and a hosted client
-    asks for it at the end of a flow that will have overwritten your clipboard.
+  - **Postern, installed and started.** Open the Console at `http://localhost:8787`.
+    If Postern runs on another computer, [open the Console over
+    SSH](/start/install#open-console) first.
+  - **An agent key, in front of you.** Postern shows a key once, then keeps only a
+    scrambled copy. If you have none, [create one](/start/first-key).
+  - **The agent you want to connect.** You restart it at the end of this page.
+  - **claude.ai or ChatGPT only: a public https address on port 443, and a key with
+    an expiry.** [Set up remote access](/start/remote-access#publish) builds the
+    address.
 </Info>
 
 ## Choose your path
 
-Which route you take is decided by how your client reaches Postern, not by which
-vendor made it.
+MCP is the standard way AI assistants connect to outside tools. Postern speaks it,
+so Claude, ChatGPT and Cursor all connect the same way.
 
-| If your client… | Then |
+| Your agent | Then |
 |---|---|
-| runs on the same machine, or on your own tailnet, and speaks Streamable HTTP — Claude Code, Cursor | [copy the config block and paste it in](#copy-the-connect-config-from-the-console) |
-| can only launch a local command and never opens an HTTP connection — Claude Desktop | [put a bridge in front of the same URL](#bridge-a-client-that-only-launches-commands) |
-| runs in someone else's cloud — claude.ai, ChatGPT | [publish an address, then sign in through the OAuth bridge](#publish-an-address-for-a-hosted-client) |
+| Claude Code or Cursor — on the same computer as Postern, or on your Tailscale network | [copy the config block](#connect-config) |
+| Claude Desktop — it can only start a program on your computer | [add the bridge](#stdio-bridge) |
+| claude.ai or ChatGPT — they run on the vendor's servers | [publish an address first](#hosted) |
 
 <Steps>
 
-<Step title="Take a key that opens the sectors you want" titleSize="h2" id="agent-key">
+<Step title="Check what your key opens" titleSize="h2" id="agent-key">
 
-Console → Agents & keys holds every key, and [Mint your first key](/start/first-key)
-is the whole procedure. Three facts about that key decide whether the rest of
-this page works, and they are settled before you paste anything.
+Open Console → **Agents & keys**. Your keys sit under **The register**. Read the
+**Granted sectors** column for the key you are about to use.
 
-The key is a bearer token, shown once. Postern keeps only a hash of it.
+A sector is one area of your life: finance, mail, calendar, contacts, health, home.
+It is the smallest thing you can grant.
 
-Granting a sector grants **read and act** across every provider in it — there is
-nothing narrower to grant, no per-connector and no per-call gating.
+A new key can reach nothing until you tick a sector. A key with no sectors connects
+successfully, and Postern then denies every read. The mint form warns you under the button: `No
+sectors granted yet — this key would be denied everything until you edit its
+grants.` A connection that succeeds can still answer nothing.
+[Default-deny](/reference/grants-and-sectors#default-deny).
 
-Grants are default-deny: nothing is granted until it is picked. The Console does
-not stop you minting a key with no sectors at all — the mint button needs a name
-and nothing else — and the form says so underneath it: `No sectors granted yet —
-this key would be denied everything until you edit its grants.` Such a key
-connects successfully and is denied on every read. That is the intended shape,
-not a bug — and it is why a connection that succeeds can still answer nothing.
+A grant covers read and act across every provider in that sector, and there is
+nothing narrower. Only Home Assistant has anything to act on today.
+[What a grant covers](/reference/grants-and-sectors#what-a-grant-covers).
 
-<Note>
-  The key is not on your clipboard or in your password manager any more. Only a
-  hash of it is stored, so there is nothing to re-reveal. Mint a new key, or
-  rotate this agent's — a rotation keeps the name and the grants, hands you a
-  fresh secret once, and the old secret stops working at once.
-</Note>
+To widen a key, click the agent's name and tap the sector you want under
+**Grants**. Postern saves at once and prints `Tap to toggle; the change applies at
+the agent's next session.` That cuts the agent's live session, and the new sectors
+apply when it connects again. The key itself does not change, so you paste nothing
+a second time. [Read a grant, and change
+it](/reference/grants-and-sectors#read-a-grant-and-change-it).
+
+To replace a key you have lost, rotate it:
+
+1. Press **Rotate** on that key's row.
+2. Tick sectors under **Grant which sectors**.
+3. Press **Rotate the key**. Postern shows you the new key once.
+
+The old key dies at that moment, along with every token made from it. Postern
+disconnects any agent that holds it. [What revoke and rotate
+destroy](/reference/security-model#revoking-and-rotating-a-key).
+
+<Warning>
+  If this key will go into claude.ai or ChatGPT, set an expiry before you create it.
+  The sign-in refuses a key that never expires: `This agent key never expires. Keys
+  used with a cloud client must have an expiry — mint or rotate a key with a
+  30/90/365-day expiry in the Console, then try again.` The chips under **Expires**
+  read **Never**, **30 days**, **60 days** and **90 days**. There is no 365-day
+  chip. [Set one at mint time](/start/first-key#expiry).
+</Warning>
 
 </Step>
 
-<Step title="Copy the connect config from the Console" titleSize="h2" id="connect-config">
+<Step title="Copy the config block from the Console" titleSize="h2" id="connect-config">
 
-Console → Agents & keys → **Connect an agent**. The card prints the MCP endpoint
-this gateway is actually serving, with a **Copy** button beside it, and under
-**Remote · bearer** a complete config object with a **Copy recipe · keyless**
-button. The copied object carries `<your-agent-key>` where the bearer goes, and
-you fill that in yourself.
+Open Console → **Agents & keys** and scroll to the bottom of the page. The last
+section reads **Connect an agent**. It shows **MCP endpoint** with its own **Copy**
+button, then three columns: **Local · stdio**, **Remote · bearer** and
+**Hosted · claude.ai, ChatGPT**.
 
-If you are still standing on the reveal screen from a mint you have this minute
-finished, take the block from there instead: its button reads **Copy config ·
-key included**, and that block is the same object with the key already in it and
-nothing to fill in.
-
-Either way, what lands on your clipboard is this, whole:
+1. Under **Remote · bearer**, press **Copy recipe · keyless**. The Console answers
+   `Recipe copied — paste your key where marked`.
+2. Paste it into a text editor. It looks like this:
 
 ```json
 {
   "mcpServers": {
     "postern": {
       "type": "http",
-      "url": "http://127.0.0.1:8788/mcp",
+      "url": "http://localhost:8788/mcp",
       "headers": {
         "Authorization": "Bearer <your-agent-key>"
       }
@@ -98,142 +101,143 @@ Either way, what lands on your clipboard is this, whole:
 }
 ```
 
-`http://127.0.0.1:8788/mcp` is the address on a stock compose install, and it is
-printed here so you can recognise it. Take the real one from the Console rather
-than from this page: the MCP edge is a separate server on its own port with no
-fixed offset from the Console's, `MCP_HTTP_PORT` in `.env` moves it, and the
-Console reports what the gateway told it rather than a value composed at build
-time. `type: "http"` is what marks this as Streamable HTTP in the `mcpServers`
-shape; it is the discriminator those config files read.
+3. Replace `<your-agent-key>` with your key. **Delete the angle brackets too.**
+   Postern refuses `Bearer <abc123>`. It accepts `Bearer abc123`.
+
+Use the address the Console prints, not the one above. Your port may differ.
+[The endpoint](/reference/mcp-primitives#the-endpoint).
+
+**If you created the key a moment ago**, use the block on that screen instead. Press
+**Copy config · key included**. It already holds your key.
 
 <Note>
-  The card shows no address at all, and which sentence it shows tells you which
-  of two different things happened. `This gateway isn’t serving MCP yet, so it
-  has no address to pair with this key` means the gateway answered and is
-  running no MCP edge — set `MCP_HTTP_PORT` on the box and restart it. The
-  shipped compose file always serves one, so this is a hand-built deployment.
-  `This gateway didn’t answer with its exposure state — the request failed,
-  which says nothing about how the gate is configured. Reload to try again.`
-  means the Console's own request failed and carries no information about the
-  box; reload. The Console will not print an address it was not served, and
-  neither will this page: a pasteable config with a guessed URL looks right and
-  silently does not work.
+  Where the address should be, the Console prints a sentence instead. Which sentence
+  tells you what to do.
+
+  `This gateway isn’t serving MCP, so it has no address to point an agent at. Set
+  MCP_HTTP_PORT on the box and restart it.` — or, on the screen after a mint, `This
+  gateway isn’t serving MCP yet, so it has no address to pair with this key.` Both
+  mean the same thing. Open `.env` beside `docker-compose.yml`. Add the line
+  `MCP_HTTP_PORT=8788`. Save it. In that same folder, run `docker compose up -d`.
+
+  `This gateway didn’t answer with its exposure state — the request failed, which
+  says nothing about how the gate is configured. Reload to try again.` — the
+  Console's own request failed. Reload the page.
 </Note>
 
 </Step>
 
-<Step title="Paste it into your client and restart" titleSize="h2" id="paste-and-restart">
+<Step title="Paste the block into your agent and restart it" titleSize="h2" id="paste-and-restart">
 
-Wherever your client keeps its MCP servers — Claude Code's `.mcp.json`, Cursor's
-`mcp.json` — paste the whole object, not a fragment, and restart the client. A
-fragment is not a config file. After the restart the client lists Postern's seven
-tools: `describe_context`, `get_schema`, `query`, `get_record`, `fetch_live`,
-`list_actions` and `invoke_action`.
+Open your agent's MCP config file — Claude Code's `.mcp.json`, Cursor's `mcp.json`.
+Create the file if it is not there.
 
-**Claude Code takes the same thing as one command.** It writes the same entry,
-and the key lands in your shell history, which the pasted block avoids:
+Paste the **whole block**, from the first `{` to the last `}`. Save it. Then quit the
+agent and start it again.
+
+Your agent now lists seven Postern tools: `describe_context`, `get_schema`, `query`,
+`get_record`, `fetch_live`, `list_actions` and `invoke_action`.
+
+**Claude Code takes the same thing as one command.** It writes your key into your
+shell history, which the pasted block avoids:
 
 ```bash
-claude mcp add --transport http postern http://127.0.0.1:8788/mcp --header "Authorization: Bearer <your-agent-key>"
+claude mcp add --transport http postern http://localhost:8788/mcp --header "Authorization: Bearer <your-agent-key>"
 ```
 
+That command does not touch `.mcp.json`. Where it writes is `--scope`, and the
+default is `local` — the folder you run it in, and no other. Run it in the folder you
+work in, or pass `--scope user` or `--scope project`.
+
 <Note>
-  The client is on a different machine from Postern, and the connection is
-  refused or times out. `127.0.0.1` is that box's own loopback and nothing off
-  the box can reach it — that is the security model, not a limitation. Publish
-  the MCP edge to your own devices with Tailscale first
-  ([Set up remote access](/start/remote-access) walks
-  it), and the address in the block above becomes your tailnet host on the
-  served port plus `/mcp`. Reaching the Console and reaching the MCP edge from
-  an agent are different problems with different answers: an SSH tunnel to the
-  Console does not carry the agent edge.
+  Your agent runs on a different computer from Postern, and the connection fails or
+  times out. `http://localhost:8788/mcp` answers only on the machine Postern runs on.
+  Put Postern on your Tailscale network first: [open two ports to your own
+  devices](/start/remote-access#your-devices). Then use the tailnet address that step
+  hands you. An SSH tunnel to the Console does not reach the agent port.
 </Note>
 
 </Step>
 
-<Step title="Bridge a client that only launches commands" titleSize="h2" id="stdio-bridge">
+<Step title="Bridge Claude Desktop with mcp-remote" titleSize="h2" id="stdio-bridge">
 
-Some clients can start a local process and talk to it over stdin, and cannot
-open an HTTP connection to an MCP server at all. Claude Desktop is the one this
-comes up with.
+Claude Desktop cannot open a connection to an address. It can only start a program on
+your computer and talk to it. Postern is not that program. It already runs, and it
+already holds its own input.
+[Postern offers no stdio](/reference/mcp-primitives#postern-offers-no-stdio).
 
-Postern serves no stdio transport, and this is not a gap to work around. stdio
-only works when your agent launches Postern itself, as its own child process;
-the gateway serving your Console is already running and already owns its stdin,
-and under the Docker quickstart it is PID 1 in a container with no stdin to
-reach. A second gateway started on the host would generate its own vault master
-key and open none of your sealed credentials.
+Postern supports Claude Desktop through a bridge that Claude Desktop starts for
+itself: `mcp-remote`. To Claude Desktop the bridge is a program; to Postern it is an
+ordinary agent. It needs the same two values as every block on this page — the `/mcp`
+address, and the header `Authorization: Bearer <your-agent-key>`. Take both from
+**Remote · bearer** in Console → **Agents & keys**, which is where the Console sends
+you too.
 
-The supported answer is a bridge the client launches — `mcp-remote` — speaking
-stdio to the client and HTTP to the same `/mcp` URL and the same bearer as
-everything above.
+Claude Desktop reads a file called `claude_desktop_config.json`. On macOS it sits at
+`~/Library/Application Support/Claude/claude_desktop_config.json`.
 
-Neither Postern's repository nor its Console carries an `mcp-remote` block that
-anyone has run against a Postern gateway, so this page prints none. The URL and
-the header are the two from the previous step; the wrapper's own arguments come
-from `mcp-remote`'s documentation. The exact block lands here once somebody has
-run it.
+<Note>
+  **No block to paste yet.** Nobody has run `mcp-remote` against Postern and recorded
+  what worked, so this page prints no `command` and no `args` rather than a guess.
+  The tool's own documentation carries them:
+  [mcp-remote](https://github.com/geelen/mcp-remote). Claude Code and Cursor are the
+  checked paths today.
+</Note>
 
 </Step>
 
-<Step title="Publish an address for a hosted client" titleSize="h2" id="hosted-clients">
+<Step title="Publish an address, then connect claude.ai or ChatGPT" titleSize="h2" id="hosted">
 
-claude.ai and ChatGPT connect from the vendor's own servers. They can never
-reach `127.0.0.1`, they can never reach a tailnet, and they egress on port 443
-only. Nothing is published by default, so a hosted client has nothing to connect
-to until you publish an address — that is the default, not a fault, and a
-Postern whose owner never opts in stays loopback-only.
+claude.ai and ChatGPT connect from the vendor's own servers. They can never reach
+your own computer or your Tailscale network, and they connect on port 443 only — the
+standard port for secure websites. Postern publishes nothing until you ask.
 
-Hosted clients will not take a static bearer either. Postern ships a small OAuth
-2.1 authorization server on the MCP edge where your pasted agent key is the
-login. It is on exactly when an address is published; there is no separate
-switch.
-
-So the order is: publish, then connect. Publishing is a Tailscale Funnel on 443
-plus Console → Settings → Remote access —
-[Set up remote access](/start/remote-access) walks
-the whole of it, at *Tailscale + optional Funnel · about 20 minutes, once · off
-by default*. A Funnel on any port but 443 gets a silent reset before the request
-leaves the vendor's network: the client says it could not reach you, and your
-logs show nothing, because nothing arrived.
+**Publish first.** Open Console → **Settings** → **Remote access** → the row
+**Public · the address this gate answers on**. [Set up remote
+access](/start/remote-access#publish) walks the whole of it. Use port 443. On any
+other port a hosted agent's request never reaches you at all, and no log at either
+end shows it.
 
 <Warning>
-  The agent key is shown once, and a hosted client asks for it at the **end** of
-  the sign-in, in another app, after you have copied the endpoint over it.
-  Witnessed 2026-08-01: the URL went into the key box and the sign-in answered
-  `That agent key was not accepted. Check the key in the Console and try again.`
-  Put the key somewhere safe before you copy anything else. It cannot be
-  re-shown, only re-minted.
+  Save your agent key somewhere safe before you copy anything else. The sign-in asks
+  for the key at the **end**, in another app, after the Copy button below has
+  replaced it on your clipboard. Witnessed 2026-08-01: the address went into the key
+  field, and the sign-in answered `That agent key was not accepted. Check the key in
+  the Console and try again.`
 </Warning>
 
-Then paste the address. What the client wants is your published origin **plus
-`/mcp`** — the address Postern saves in Settings is the bare origin, and the
-address you hand a client adds exactly that suffix. The Console's hosted-client
-page shows the exact value to copy, and offers a Copy button only for an address
-a cloud client can actually use: reach it from Agents & keys → **Set up the
-bridge**, or from the mint reveal screen's **Connect a hosted client (claude.ai,
-ChatGPT)**. Both open the same page. Pick OAuth when the client asks how to
-authenticate, sign in, and paste the key once; the client holds a rotating token
-from then on.
+**Copy the address.** Open Console → **Agents & keys** → **Set up the bridge →**. The
+reveal screen's **Connect a hosted client (claude.ai, ChatGPT) →** opens the same
+page. Under **Paste this into claude.ai or ChatGPT**, press **Copy**. The value is
+your published address plus `/mcp` — if Settings saved
+`https://your-mac.tailnet.ts.net`, this reads `https://your-mac.tailnet.ts.net/mcp`.
+The Console shows that **Copy** button only for an address a hosted agent can use:
+`https`, on port 443.
 
-Give any key that goes into a hosted client an expiry. It lives on someone
-else's infrastructure, and an unexpiring key handed to a cloud service is a
-credential you can only ever end by noticing. Once this gateway is published the
-mint form starts on 90 days for exactly that reason.
-
-ChatGPT's own path is longer than claude.ai's — a developer-mode switch, a
-plugins page under three different names, and an approval popup served by your
-own machine. It is walked end to end, witnessed, at
-[Connect ChatGPT](/connect/chatgpt), at *ChatGPT paid plan
-+ a published gateway · about ten minutes, once*.
+**Connect claude.ai.** In claude.ai, open **Settings** → **Connectors** → **Add
+custom connector**. Paste the address you copied into the field for the server
+address. Leave **Client ID** and **Client Secret** empty. Postern issues no client
+secret, and it registers the agent itself.
 
 <Note>
-  The agent narrates work the ledger never saw. Witnessed on ChatGPT: fifty
-  seconds of progress text, then an answer that said it had no data, and zero
-  calls in the ledger. A hosted client can describe a call it never made. The
-  ledger is the witness — if an answer smells empty, check there before you
-  change anything.
+  **Nobody has captured two labels in claude.ai's own dialog, so this page does not
+  print them.** We do not know what it calls the address field. We do not know whether
+  it ever asks how you want to sign in. One run, on 2026-07-21, is the whole record:
+  the dialog offered **Client ID** and **Client Secret**, the founder left both empty,
+  and the connection worked. The Console's own copy says to pick **OAuth** if the
+  agent asks how to authenticate. One screenshot of that dialog settles both.
 </Note>
+
+claude.ai then opens a page served by your own Postern, headed **Authorize agent
+access**. It names the app — `Claude`, for claude.ai — and the address your sign-in
+code goes to. Under **Paste an agent key from the Console**, paste your agent key.
+Press **Approve**. claude.ai holds a token that rotates from then on. That sign-in
+page turns on with the address; there is no separate switch. [Hosted agents and the
+OAuth bridge](/reference/mcp-primitives#hosted-clients-and-the-oauth-bridge).
+
+**Connect ChatGPT.** ChatGPT's path is longer. It adds a developer-mode switch, a
+page that carries three different names, and an approval popup served by your own
+machine. [Connect ChatGPT](/connect/chatgpt) walks it end to end.
 
 </Step>
 
@@ -241,61 +245,42 @@ own machine. It is walked end to end, witnessed, at
 
 ## Confirm it works
 
-This proves three separate things: the client is authenticated, the grant is the
-one you minted, and the call reached Postern rather than being narrated.
-
-- Your client lists Postern's tools after the restart — `describe_context`,
-  `get_schema`, `query`, `get_record`, `fetch_live`, `list_actions`,
-  `invoke_action`.
-- Ask the agent to describe its context. It answers with the sectors that key
-  was granted and the freshness of each connection, and with nothing outside
-  those sectors.
-- Console → The ledger: a row lands carrying the agent's own name under **Who**
-  and `describe_context` under **Tool**. Do not set the sector filter while you
-  are looking — `describe_context` happens in no sector, and the sector filter
-  drops exactly those rows.
-- The answer is empty and the row is there: the key is connected and the grant
-  is working, and this gateway has no sources yet. Nothing is broken.
-- The answer is empty and there is no row at all: nothing reached Postern. A key
-  that was presented and refused writes a denied row; a client that never
-  arrived writes nothing.
+- Your agent lists seven Postern tools after the restart.
+- You type `What context can you reach?` and the agent answers with the sectors you
+  ticked for that key, how fresh each connection is, and nothing outside them.
+- Console → **The ledger** shows a new row: your agent's name under **Who**,
+  `describe_context` under **Tool**. Leave the **Sector** filter off —
+  `describe_context` belongs to no sector, and that filter drops exactly those rows.
+- That row's **Decision** column is empty, not `deny`.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| The client connected, and every read comes back denied | [Take a key that opens the sectors you want](#take-a-key-that-opens-the-sectors-you-want) |
-| You no longer have the key | [Take a key that opens the sectors you want](#take-a-key-that-opens-the-sectors-you-want) |
-| The Console shows no MCP endpoint to copy | [Copy the connect config from the Console](#copy-the-connect-config-from-the-console) |
-| `This gateway isn’t serving MCP yet, so it has no address to pair with this key` | [Copy the connect config from the Console](#copy-the-connect-config-from-the-console) |
-| `This gateway didn’t answer with its exposure state` | [Copy the connect config from the Console](#copy-the-connect-config-from-the-console) |
-| The client shows no Postern tools after the restart | [Paste it into your client and restart](#paste-it-into-your-client-and-restart) |
-| The connection is refused or times out, and the client is not on the Postern machine | [Paste it into your client and restart](#paste-it-into-your-client-and-restart) |
-| The client cannot take a URL at all, only a command to run | [Bridge a client that only launches commands](#bridge-a-client-that-only-launches-commands) |
-| `That agent key was not accepted. Check the key in the Console and try again.` | [Publish an address for a hosted client](#publish-an-address-for-a-hosted-client) |
-| A hosted client says it could not reach you, and your logs show nothing | [Publish an address for a hosted client](#publish-an-address-for-a-hosted-client) |
-| The agent describes work it did and the ledger shows no calls | [Publish an address for a hosted client](#publish-an-address-for-a-hosted-client) |
+| Your agent lists no Postern tools after the restart | Check three things. You pasted the whole block, from the first `{` to the last `}`. You deleted the angle brackets around `<your-agent-key>`. You quit the agent and started it again, rather than reload a window. [Paste the block and restart it](#paste-and-restart). |
+| `This gateway isn’t serving MCP, so it has no address to point an agent at. Set MCP_HTTP_PORT on the box and restart it.` | Open `.env` beside `docker-compose.yml`. Add the line `MCP_HTTP_PORT=8788`. Save it. In that same folder, run `docker compose up -d`. [Copy the config block](#connect-config). |
+| The agent connects, and every read comes back denied | That key opens no sectors. Console → **Agents & keys** → the agent's name → tap a sector under **Grants**. The key does not change; the agent's session ends there, so connect it again. [Check what your key opens](#agent-key). |
+| The agent answers empty, and Console → **The ledger** shows no new row | Nothing reached Postern. An agent can describe a call it never made, so trust the record over the answer. A key that arrived and that Postern refused writes a row of its own: no name under **Who**, `initialize` under **Tool**, and nothing under **Sector** — so leave the **Sector** filter off to see it. Check the address and the key, then try once more. |
+| claude.ai says `Couldn't connect to the server. Check that the URL points to a valid MCP server.`, or `Couldn't reach Postern. You can check the server URL and verify the server is running.` | claude.ai could not reach you. Both are about the address, and the usual cause is a port other than 443. Fix the address, wait five minutes, then try once. [Publish an address](#hosted). |
 
 ## What you have now
 
-A client holding a key that opens exactly the sectors it was granted, reading
-from Postern's local cache and acting where the source allows. Every call —
-reads, actions and refusals alike — lands in the ledger under that agent's own
-name, and the ledger only appends.
+An agent that holds a key, and that key opens exactly the sectors you ticked. It
+reads from Postern's local cache. It can act only where the source allows, which
+today means Home Assistant alone.
 
-That key is a credential and your config file now holds one: a `.mcp.json` with
-a bearer in it belongs wherever your other secrets live, and a key pasted into a
-hosted client is sitting on somebody else's infrastructure. Revoke or rotate it
-and every token derived from it dies with it, at once — the live MCP sessions it
-is holding are swept in the same act, so a connected agent stops resolving
-rather than finishing its session. Nothing upstream changes; the agent is no
-longer answered.
+Every tool call that agent makes — served, refused or failed — lands in the record
+under its name, and Postern only ever adds to the record. [What gets a
+row](/reference/audit-log#what-gets-a-row). What you do to the key is not there:
+create a key, rotate one, edit its sectors or its deadline, revoke it or remove it,
+and Postern writes no row at all. [What does not get a
+row](/reference/audit-log#what-does-not-get-a-row).
 
-And the honest shape of a correct first run: an agent connected to a Postern
-with no sources connects fine and answers empty. `describe_context` reports no
-connections, every query comes back with nothing, and the Console's own first-run
-screen reads **Add your first source**. That is the next thing to do, not a
-repair.
+Your config file now holds a credential. Store it where your other passwords live.
+[Agent keys](/reference/security-model#agent-keys).
+
+With no sources connected, your agent connects fine and answers empty. The Console
+reads **Add your first source**. That is the next thing to do, not a repair.
 
 ## Next
 
@@ -311,9 +296,12 @@ Pick the source you can finish now.
   </Card>
 </Columns>
 
-The rest, by sector: [SimpleFIN](/connect/simplefin) and [Plaid](/connect/plaid)
-for finance, [WHOOP](/connect/whoop) for health, [Microsoft](/connect/microsoft)
-and [iCloud](/connect/icloud) for mail, calendar and contacts, and
-[Home Assistant](/connect/home-assistant) for home — the one source an agent can
-act on. Connecting a source needs no change to any agent: a granted sector covers
-every provider in it, connected now or later.
+The rest, by sector:
+
+- **Finance** — [SimpleFIN](/connect/simplefin), [Plaid](/connect/plaid)
+- **Health** — [WHOOP](/connect/whoop)
+- **Mail, calendar and contacts** — [Microsoft](/connect/microsoft), [iCloud](/connect/icloud)
+- **Home** — [Home Assistant](/connect/home-assistant)
+
+You need not change any agent when you connect a source. A granted sector covers
+every provider in it, now or later.

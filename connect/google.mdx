@@ -1,255 +1,298 @@
 ---
 title: "Connect Google and Gmail"
-description: "Calendar and contacts through your own Google Cloud app; Gmail separately over IMAP. The two parts are independent — do either one, or both."
+description: "Gmail with an app password. Calendar and contacts with your own Google Cloud app. The two parts are independent — do either one, or both."
 ---
 
 <Info>
   **Before you start**
 
-  - **Your own Google Cloud app, and one app password.** Both are yours, both are created in this
-    session, and both stay on your own machine — Postern seals them locally and sends them only to
-    Google.
-  - **About 20 minutes** — roughly five for Gmail, fifteen for calendar and contacts.
-  - **Weekly re-consent until you publish to production.** While your Cloud app's publishing status
-    is Testing, Google expires the app's access every 7 days. The last step on this page ends that.
-  - **2-Step Verification on your Google account.** Part A cannot start without it, and turning it
-    on changes your Google account, not Postern.
-  - **Two secrets, each shown once, each in a dialog you can close by accident** — a sixteen-character
-    app password and a client secret. Open your password manager before you start.
-  - **Postern installed, and a browser that reaches the Console at `http://localhost:8787`.** Work on
-    the machine Postern runs on, or bring the Console to yourself over SSH first
-    ([Set up remote access](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box)). Google sends the sign-in back to
-    `localhost:8787`, so that address has to be live in the browser you are sitting at.
+  - **About 20 minutes.** 5 minutes for Gmail, 15 for calendar and contacts.
+  - **The Google account you want Postern to read.** Sign in to that one account first. Both secrets
+    below must belong to it.
+  - **Your password manager, open.** Google shows two secrets once each, in dialogs you can close by
+    accident.
+  - **Postern is running, and `http://localhost:8787` answers in the browser in front of you.**
+    Google sends the sign-in back to that address. If Postern runs on another machine, [set up
+    remote access](/start/remote-access#ssh-tunnel) first.
 </Info>
 
 ## Choose your path
 
-Gmail does not go through the OAuth app, and that is deliberate. Reading mail through Google's
-Gmail API means restricted scopes, and restricted scopes mean an annual third-party CASA security
-assessment for every self-hosted deployment. So mail comes in over IMAP with an app password
-instead: the Cloud app you register below asks for no Gmail scope, ever, and a test in the product
-asserts that no Gmail scope can appear in the sign-in URL. The two parts are independent — either
-one works on its own, in either order.
+Gmail uses an app password. Calendar and contacts use a Google Cloud app you register yourself.
+Postern never asks Google for access to your mail, and the Cloud app you build below requests no
+Gmail permission. [Why Gmail uses a password instead of a Google
+sign-in](/reference/security-model)
+
+Part A is the first 2 steps below. Part B is the 6 steps after them.
 
 | If you want… | Then |
 |---|---|
-| mail | [Part A](#turn-on-2-step-verification) — 2-Step Verification, then one app password over IMAP. About five minutes. |
-| calendar and contacts | [Part B](#enable-the-two-apis-in-one-project) — one Google Cloud project, one OAuth client, one consent. About fifteen minutes. |
-| all three | [Part A](#turn-on-2-step-verification), then [Part B](#enable-the-two-apis-in-one-project). This page does them in that order, but neither depends on the other. |
-| a Google Workspace account | Part B's Audience page also offers **Internal**, which is offered only to Workspace organisations. Every step below is written for **External**, including [the Test-users step](#configure-the-consent-screen-and-add-yourself), which an Internal app does not use. |
+| mail | [Part A](#two-step-verification) — 2-Step Verification, then one app password. About 5 minutes. |
+| calendar and contacts | [Part B](#enable-apis) — one Google Cloud project, one OAuth client, one sign-in. About 15 minutes. |
+| all three | [Part A](#two-step-verification), then [Part B](#enable-apis). Neither part depends on the other. |
+| a Google Workspace account | Choose **External** in [Part B](#consent-screen). **Internal** appears only on Workspace accounts, and this page does not cover it. |
 
 <Steps>
 
 <Step title="Turn on 2-Step Verification" titleSize="h2" id="two-step-verification">
 
-At [myaccount.google.com](https://myaccount.google.com) → Security → 2-Step Verification, turn it
-on. The App passwords page does not exist until you do: no amount of searching the Security page
-surfaces it beforehand, because Google does not offer app passwords to an account without 2-Step
-Verification. Once it is on, the address in the next step resolves.
+Go to [myaccount.google.com](https://myaccount.google.com) → **Security** → **2-Step Verification**
+and turn it on. Google asks for your password, then a phone number, then a code it sends to that
+phone. Keep your phone with you.
+
+Google offers app passwords only to accounts with 2-Step Verification on. Until it is on, the page
+in the next step does not exist. This changes your Google account, not Postern.
 
 </Step>
 
-<Step title="Create the app password and paste it with your address" titleSize="h2" id="app-password">
+<Step title="Create the app password and paste it into the Console" titleSize="h2" id="app-password">
 
-Go straight to the address below rather than hunting for it — the Security page does not link it.
-Name the password `Postern`, and Google shows you sixteen characters in four groups.
+Open this address directly. The Security page does not link to it.
 
 ```text
 myaccount.google.com/apppasswords
 ```
 
-<Frame caption="Google's App passwords page. The sixteen characters live in this dialog and are redacted in this capture; yours are shown in full.">
-  <img src="/images/google-console-gmail-redacted.png" alt="Google's App passwords page, with the Generated app password dialog open over it. The dialog shows the sixteen-character password (redacted here), Google's note that this app password grants complete access to your Google Account, and a Done button. Behind it, the list of app passwords holds one named postern, and an App name field for creating another." />
+The page heading reads **App passwords**. In the **App name** field, type `Postern`, and create it.
+Google opens a dialog headed **Generated app password**, under the line **Your app password for
+your device**. It holds 16 characters in four groups.
+
+<Warning>
+  Google shows those 16 characters once. Copy them before you press **Done** — nothing can show them
+  again. If the dialog closes first, delete that entry on the **App passwords** page and create
+  another. Nothing else changes.
+</Warning>
+
+Copy the 16 characters, then press **Done**.
+
+<Frame caption="Google's App passwords page, with the Generated app password dialog open. The 16 characters are redacted here; yours are shown in full.">
+  <img src="/images/google-console-gmail-redacted.png" alt="Google's App passwords page, with the Generated app password dialog open over it. The dialog shows the 16-character password (redacted here), Google's note that this app password grants complete access to your Google Account, and a Done button. Behind it, the list of app passwords holds one named postern, and an App name field for a new one." />
 </Frame>
 
-Then, in the Console, go to Add a source → Gmail, and fill in both fields: your full Gmail address
-and those sixteen characters. The address is the IMAP login and the Console will not accept the
-password without it. Save, and the screen switches to its connected state — the panel reads that
-Gmail is already connected, and the button changes to `Reconnect Gmail`. The connection appears
-under Console → Sources as **mail**. Mail bodies are never stored: only envelopes are cached, and
-content is fetched on demand.
+In the Console, open **Sources** → **Add a source** → **Gmail**, or go straight to
+`http://localhost:8787/connect/gmail`. Type your full Gmail address into **Gmail address**, and the
+16 characters into **App password**. Spaces do not matter. Press **Connect Gmail**.
 
-<Frame caption="The Console's Gmail screen, captured where Gmail was already connected — hence Reconnect Gmail and the replace checkbox; on a first connection the button reads Connect Gmail and neither is there. The numbered steps on the left are from an earlier Console build, which sends you to the Security page; use the address above.">
-  <img src="/images/google-apppasswords.png" alt="The Console's Gmail connect screen: a Gmail address field showing you@gmail.com, an App password field showing xxxx xxxx xxxx xxxx, and a footer reading envelopes only, bodies are fetched on demand, never stored. A note says Postern never sees your Google password — only this scoped, revocable app-password, read-only over IMAP, sealed in the local vault." />
+The Gmail screen then reads that Gmail is connected, and the button changes to **Reconnect Gmail**.
+The connection appears under **Sources** as **mail**. Open it and press **Sync now** to force a
+first read. The connection reads **Awaiting first sync** until that lands, then **Last synced** and
+a time.
+
+<Frame caption="The Console's Gmail screen, captured on an already-connected source. On a first connection the button reads Connect Gmail. The numbered steps are from an older Console build.">
+  <img src="/images/google-apppasswords.png" alt="The Console's Gmail connect screen: a Gmail address field with the placeholder you@gmail.com, an App password field with the placeholder xxxx xxxx xxxx xxxx, and a footer that reads: envelopes only, bodies are fetched on demand, never stored." />
 </Frame>
 
 <Note>
-  The Console refuses the paste with `A Gmail app password is 16 characters — check you copied all
-  of it (spaces are fine, they're ignored).` It counts after removing whitespace, and it strips
-  whitespace before sealing, so the four groups can go in exactly as Google prints them — spaces,
-  no spaces, either. A count that is not sixteen means part of it did not come across. And if the
-  dialog closes before you copy anything, delete that entry on the App passwords page and create
-  another; there is no way to re-read one, and nothing else is affected.
+  If the Console answers `A Gmail app password is 16 characters — check you copied all of it (spaces
+  are fine, they’re ignored).`, part of the password did not come across. Copy it again from the
+  dialog, or create a new app password.
 </Note>
 
 </Step>
 
-<Step title="Enable the two APIs in one project" titleSize="h2" id="enable-apis">
+<Step title="Create a Cloud project and enable two APIs" titleSize="h2" id="enable-apis">
 
-Everything in Part B happens inside one Google Cloud project. At
-[console.cloud.google.com](https://console.cloud.google.com), open the project picker at the top of
-the page → New project, and stay in that project from here on — the client you create later belongs
-to it, and so do the API switches you are about to throw.
+Everything in Part B happens inside one Google Cloud project. Stay in it for every step below.
 
-In that project, go to APIs & Services → Library, search for `Google Calendar API` and enable it,
-then search for `People API` and enable it. Each one's page then reads **Enabled** under Status.
+At [console.cloud.google.com](https://console.cloud.google.com), open the project picker at the top
+of the page. Until you are inside a project it reads **Select a project**. Press **Create project**,
+type a name for the project, and create it.
+
+Then reopen the picker and select the new project. Google does not always switch you into it. The
+picker shows the project name once you are inside it.
 
 <Warning>
-  Searching the Library for `contacts` surfaces the legacy **Contacts API** first, and enabling it
-  does nothing for Postern. Contacts come through the **People API** — service name
-  `people.googleapis.com`, against the legacy one's `contacts.googleapis.com`, which is the check
-  that settles it. Google's own product page for the legacy API says it is no longer being
-  developed and to migrate to the People API. Getting this wrong costs you an afternoon rather than
-  an error message: a 403 on calendar or contacts right after a successful sign-in means the APIs
-  are not enabled in the project that owns your client — the most common post-consent failure, and
-  the error will not say so. Enable the right two in that project's Library, give Google a minute or
-  two to start honouring it, then reconnect from the Console.
+  A search for `contacts` shows the old **Contacts API** first, and it does nothing for Postern.
+  Contacts come through the **People API**. The old one names itself: its page reads Service name
+  `contacts.googleapis.com`, and its overview says *"This API is no longer being developed further.
+  Please consider migrating to the People API instead."* If you land there, go back and enable the
+  **People API** instead.
 </Warning>
 
-<Frame caption="The decoy, in Google's own words: no longer being developed, migrate to the People API. Service name contacts.googleapis.com. If your screen reads like this, you are enabling the wrong one.">
+In that project, open **APIs and services** → **Library**. The page heading reads **API Library**.
+Search for `Google Calendar API`, and click its card — the search result is not a button. The card
+opens a page under the heading **Product details**. Enable the API there.
+
+That page then reads **API/Service details**, with Status **Enabled** and **Disable API** at the top.
+Do the same for `People API`.
+
+Wait a minute or two after the second one before you connect from the Console. Ignore the free-trial
+banner at the top of the Cloud console, or press **Dismiss**.
+
+<Note>
+  Postern's Console writes this route as **APIs & Services** → **Library**. Google's own screen
+  writes **APIs and services**, with no ampersand. Two spellings, one place.
+</Note>
+
+<Frame caption="Google's page for the old Contacts API. Service name contacts.googleapis.com. If your screen reads like this, you enabled the wrong one.">
   <img src="/images/google-contacts-decoy.png" alt="The Google Cloud product page for the Contacts API. The overview reads: this API is no longer being developed further, please consider migrating to the People API instead. Additional details list the last product update as 2022 and the service name as contacts.googleapis.com." />
 </Frame>
 
 </Step>
 
-<Step title="Configure the consent screen and add yourself" titleSize="h2" id="consent-screen">
+<Step title="Set up the consent screen and add yourself as a test user" titleSize="h2" id="consent-screen">
 
-The consent screen comes before the client: the Clients page will not mint one until a consent
-screen exists. In the same project, open Google Auth Platform → Audience — that is what the modern
-console calls the OAuth consent screen, and the older name still appears in Google's own
-documentation and in Postern's Console. Set the audience to **External**, fill in the app name and
-the contact emails, and then, under Test users, choose **Add users** and add your own Google
-address.
+The consent screen has to exist before the **Clients** page will create a client. Without it, the
+next step stops on a bar: **To create an OAuth client ID, you must first configure your consent
+screen**. Its **Configure consent screen** button lands you here.
 
-```text
-console.cloud.google.com → Google Auth Platform → Audience → Test users → Add users
-```
+In the same project, open **Google Auth Platform** → **Audience**. Google's older name for this page
+is the OAuth consent screen, and Postern's Console still uses that name.
 
-The page then reads Publishing status **Testing**, User type **External**, and shows your address
-under Test users, with the user-cap line counting one test user.
+On a project with no consent screen yet, **Audience** opens a setup form first. It asks for three
+things: an app name, contact emails, and the audience. Choose **External** for the audience.
+**Internal** appears only on Workspace accounts. Complete the form.
+
+The **Audience** page then appears. Under **Test users**, press **+ Add users**, add your own Google
+address, and save it.
+
+The page then reads Publishing status **Testing** and User type **External**, and lists your address
+under **Test users**. The **OAuth user cap** meter reads `1 user (1 test, 0 other) / 100 user cap`.
 
 <Note>
-  Skip the Test users step and Google refuses your own consent with `OAuth access is restricted to
-  the test users listed on your OAuth consent screen.` While the app's publishing status is
-  Testing, only listed accounts may consent, and a fresh app starts with nobody listed — not even
-  the account that created it. Add the address and start the sign-in again from the Console; nothing
-  is lost.
+  Skip **Test users** and Google refuses your own sign-in with `OAuth access is restricted to the
+  test users listed on your OAuth consent screen.` While Publishing status is **Testing**, only listed
+  accounts may sign in. A new app lists nobody, not even the account that created it.
+  Add the address, then start the sign-in again from the Console. You lose nothing.
 </Note>
 
-<Frame caption="Google Auth Platform → Audience. Publishing status Testing with its Publish app button, User type External, Google's own note about the Testing user cap, and Test users → Add users. Clients, in the left nav, is where the next step goes. Nothing on this page asks you to start the free trial the top strip offers.">
-  <img src="/images/google-audience.png" alt="The Google Auth Platform Audience page for a project named Postern. Publishing status reads Testing with a Publish app button. User type reads External with a Make internal button. An OAuth user cap section states that while publishing status is set to Testing, only test users are able to access the app, with a cap of 100 counted over the lifetime of the app, and shows one test user. Below it, a Test users section with an Add users button. The left navigation lists Overview, Branding, Audience, Clients, Data access, Verification centre and Settings." />
+<Frame caption="Google Auth Platform → Audience. Test users is at the bottom; Clients, where the next step goes, is in the left navigation.">
+  <img src="/images/google-audience.png" alt="The Google Auth Platform Audience page for a project named Postern. Publishing status reads Testing, with a Publish app button. User type reads External, with a Make internal button. An OAuth user cap section counts 1 test user of 100. Below it, a Test users section with an Add users button. The left navigation lists Overview, Branding, Audience, Clients, Data access, Verification centre and Settings." />
 </Frame>
 
 </Step>
 
-<Step title="Create the OAuth client, type Web application" titleSize="h2" id="oauth-client">
+<Step title="Create the OAuth client and paste in the redirect address" titleSize="h2" id="oauth-client">
 
-In the same project, go to Google Auth Platform → Clients → Create client, and choose application
-type **Web application**. Postern's own Google screen names the same page by its other name, APIs &
-Services → Credentials; both routes land on the Clients page, and Google has been renaming this
-area, so expect either.
+Google matches the redirect address character for character. Copy it from your own Console — do not
+type it, and do not copy it from this page. Postern builds that address from its own port, so the
+Console holds the only copy that stays true. [Why Postern pins the address, and never reads it off
+your browser](/reference/security-model)
 
-Under **Authorized redirect URIs** — not the JavaScript origins list above it — add the URI your
-own Console prints on its Google screen, using the copy control beside it. Do not type it, and do
-not copy it from this page. Google matches that string exactly, and your Console reports the exact
-literal your gateway will send: the gateway composes it from its own port rather than from
-whatever address you reached the Console at, so the Console is the only copy that stays true if
-you ever move the port. On a stock install it reads:
+Open the Console's Google screen in another tab: `http://localhost:8787/connect/google`. Its left
+column lists four numbered steps. The third reads *Create an OAuth client, type Web application —
+add this redirect URI, pasted exactly:*. Under it sits the address, with a **Copy** button beside it.
+
+Press **Copy**. The button then reads **Copied**. On a stock install the address reads:
 
 ```text
 http://localhost:8787/api/oauth/google/callback
 ```
 
+Back in the Cloud console, open **Google Auth Platform** → **Clients** → **Create client**. The page
+heading reads **Create OAuth client ID**.
+
+Choose **Web application** in the application-type list. Type a name into **Name**, which Google
+marks required. That name only identifies the client inside the Cloud console. Nobody who signs in
+ever sees it.
+
+Under **Authorised redirect URIs** — the section whose helper reads *"For use with requests from a
+web server"* — press **+ Add URI** and paste the address you copied. Do not use **Authorised
+JavaScript origins** above it, whose helper reads *"For use with requests from a browser"*. Some
+accounts spell both labels **Authorized**, with a z.
+
 <Warning>
-  Google shows the client secret once, in the dialog that appears when the client is created. Copy
-  the client ID and the client secret out of that dialog before you close it. A lost secret cannot
-  be revealed again, and the only way back is to delete the client and create another — which
-  changes the client ID as well, so anything already holding the old one has to be updated.
+  Google shows the client secret once, in the dialog it opens the moment you press **Create**. Copy
+  the client ID and the client secret out of that dialog before you close it. Nothing can reveal a
+  lost secret again. The only way back is to delete the client and create another, which changes the
+  client ID too.
 </Warning>
 
-<Note>
-  That redirect address is where Google sends **your browser** at the end of the sign-in, so
-  `http://localhost:8787` has to answer in the browser you run the sign-in from. On the machine
-  Postern runs on, it does. From a laptop, with Postern on a NAS or a home server, it only does
-  while an SSH tunnel is up — otherwise the consent completes at Google and the return trip lands on
-  nothing, and no connection is created. Bring the Console to yourself first:
-  [Set up remote access](/start/remote-access#reach-the-console-over-ssh-when-it-runs-on-another-box). Reaching the Console at some other
-  address does not change the redirect the gateway sends: that string is pinned server-side, not
-  derived from how you got there.
-</Note>
+Press **Create**. Google opens a dialog that holds the client ID and the client secret. Copy both out
+of it now.
+
+Google's own note at the foot of that form reads *"Note: It may take five minutes to a few hours for
+settings to take effect."*
+
+Google's **APIs and services** → **Credentials** page lists the same clients, under **OAuth 2.0
+Client IDs**. Either route reaches them.
 
 </Step>
 
-<Step title="Paste both into the Console and sign in" titleSize="h2" id="sign-in">
+<Step title="Paste both halves into the Console and sign in" titleSize="h2" id="sign-in">
 
-In the Console, go to Add a source → Google, put the client ID and the client secret into the two
-fields, and choose **Save & sign in with Google**. Sign in as the account you listed under Test
-users. Google is a confidential client here: it needs both halves, and the Console will not start
-the sign-in with only one — it answers `Google is a confidential client — paste the client secret
-too, or the sign-in will be refused.` The secret is sealed in Postern's local vault, and is sent
-only to Google, only to refresh access.
+Go back to the Console's Google screen (`http://localhost:8787/connect/google`). Under **Configure
+the app**, paste the client ID into **Client ID**, and the client secret into **Client secret**.
+Press **Save & sign in with Google**.
 
-<Frame caption="The Console's Google screen, captured where Google was already connected — hence Reconnect Google and the replace checkbox; on a first connection the button reads Save & sign in with Google. Step 2 on the left carries the copyable redirect URI the previous step sends you here for.">
-  <img src="/images/google-console-card.png" alt="The Console's Google connect screen. On the left, numbered steps: sign in at console.cloud.google.com, create an OAuth client of type Web, add the redirect http://localhost:8787/api/oauth/google/callback, and copy the client ID and client secret. A note reads: Google is a confidential client — the secret is sealed in the local vault and sent only to refresh. On the right, a Client ID field showing an apps.googleusercontent.com placeholder, a Client secret field showing a GOCSPX- placeholder, and a footer listing calendar and contacts from this one consent, noting that Gmail is a separate IMAP connection." />
+Google needs both halves. With only the ID, the Console answers `Google is a confidential client —
+paste the client secret too, or the sign-in will be refused.`
+
+The Console hands that same tab over to Google, so finish anything else you have open in it first.
+Sign in as the address you added under **Test users**. Google refuses every other account, whichever
+one the browser is already signed into.
+
+<Frame caption="The Console's Google screen, captured on an already-connected source. On a first connection the button reads Save & sign in with Google. The numbered steps are from an older Console build — the current one carries four, and the redirect address sits in the third.">
+  <img src="/images/google-console-card.png" alt="The Console's Google connect screen: numbered steps on the left to register the app, and a Client ID field with the placeholder ...apps.googleusercontent.com and a Client secret field with the placeholder GOCSPX-... on the right, under the heading Configure the app, above the connect button." />
 </Frame>
 
 <Note>
-  Any account not on the Test users list is refused, whichever Google account your browser happens
-  to be signed into. When Google refuses, the Console puts you back on this same Google screen with
-  Google's own error code printed beside the form — that screen is both the report and the repair,
-  because the registration steps and the two fields are right there.
+  If Google refuses, the Console puts you back on this Google screen with Google's own error code
+  beside the form. Fix it there — the steps and both fields are on that screen.
 </Note>
 
 </Step>
 
-<Step title="Continue past the warning, and tick every box" titleSize="h2" id="grant-scopes">
+<Step title="Continue past the warning and tick every permission" titleSize="h2" id="grant-scopes">
 
 Two Google screens follow, and both read like failures.
 
-The first says **Google hasn't verified this app**. That is what a Testing-status app looks like to
-its own author. **Continue** is the plain link; the prominent blue **Back to safety** button aborts
-the sign-in.
+The first says **Google hasn't verified this app**. That is what an app with Publishing status
+**Testing** looks like to its own author. **Continue** is the plain text link at the bottom. The
+blue **Back to safety** button cancels the sign-in.
 
-<Frame caption="Continue is the plain text link, to the left of the blue button. The blue button is Back to safety, and it aborts.">
-  <img src="/images/google-unverified.png" alt="Google's interstitial reading: Google hasn't verified this app. You've been given access to an app that's currently being tested. You should only continue if you know the developer that invited you. At the bottom right, Continue as a plain text link, and a prominent blue Back to safety button beside it." />
+<Frame caption="Continue is the plain text link, to the left of the blue button. The blue button is Back to safety, and it cancels.">
+  <img src="/images/google-unverified.png" alt="Google's interstitial: Google hasn't verified this app. You've been given access to an app that's currently being tested. You should only continue if you know the developer that invited you. At the bottom right, Continue as a plain text link, and a prominent blue Back to safety button beside it." />
 </Frame>
 
-The second is the scopes screen, headed **Select what Postern can access**. Postern asks for exactly
-two, and both are read-only — `https://www.googleapis.com/auth/calendar.readonly` and
-`https://www.googleapis.com/auth/contacts.readonly`, which Google renders as *See and download any
-calendar that you can access using your Google Calendar* and *See and download your contacts*. No
-Gmail scope appears, on this screen or anywhere else.
+The second screen carries two headings. On the left it reads **Postern wants access to your Google
+Account**, with the address you signed in as below it. Over the permission list on the right it
+reads **Select what Postern can access**.
+
+Postern asks for two permissions, and both are read-only:
+
+- **See and download your contacts.** — `contacts.readonly`
+- **See and download any calendar that you can access using your Google Calendar.** — `calendar.readonly`
+
+No Gmail permission appears, on this screen or anywhere else.
 
 <Warning>
-  The checkboxes on that screen start **empty**, and Google lets you continue with none of them
-  ticked. That consent succeeds — no error, no warning — and grants nothing: Postern stores the
-  credential and creates no connection, so the source looks half-connected and answers nothing.
-  Tick **Select all** before you approve.
+  The checkboxes start empty, and Google lets you continue with none of them ticked. That sign-in
+  succeeds with no error and grants nothing. Postern saves the credential and creates no connection,
+  so the source looks half-connected and answers nothing.
 </Warning>
 
-Approve, and Google returns you to the Console's Sources screen. The one consent becomes two
-connections, calendar and contacts, because Postern creates one connection per sector the consent
-actually covered.
+Tick **Select all**, then press **Continue**. **Cancel** sits beside it and abandons the sign-in.
+
+Google returns you to the Console's **Sources** screen. The one sign-in becomes two connections,
+**calendar** and **contacts**. [Why one sign-in creates two connections and not
+one](/reference/grants-and-sectors)
+
+Open either connection and press **Sync now** to force a first read. Each then shows a **Last
+synced** time.
 
 <Note>
-  The sign-in has ten minutes to complete, once, from the moment you press Save & sign in with
-  Google — the gateway holds the pending sign-in in memory for that long and consumes it on first
-  use. Wander off mid-flow, restart the gateway, or reuse a stale tab, and the return trip is
-  rejected. Nothing is lost: start again from the Console's Google screen.
+  Finish the sign-in in one go, within 10 minutes after you press **Save & sign in with Google**. If
+  you take longer, restart Postern, or reuse an old tab, Postern refuses the return trip and the
+  browser shows `{"error":"invalid or expired state"}`. Postern stored nothing. Start again from the
+  Console's Google screen; you lose nothing.
 </Note>
 
 </Step>
 
-<Step title="Publish the app when the weekly re-consent gets old" titleSize="h2" id="publish">
+<Step title="Publish the app to end the weekly sign-in" titleSize="h2" id="publish">
 
-While the publishing status stays Testing, Google expires the refresh token every 7 days and
-calendar and contacts stop until you consent again. When that gets old, go back to Google Auth
-Platform → Audience — the same page where you added Test users — and choose **Publish app**. The
-status changes from Testing to In production. For a single-user app requesting these two scopes it
-is a form rather than a review.
+While Publishing status stays **Testing**, Google expires the app's access every 7 days. Calendar
+and contacts then stop until you sign in again.
 
-Publishing is optional. A weekly re-consent is a working setup rather than a broken one — this step
-is how you stop paying for it.
+To end that, open **Google Auth Platform** → **Audience** and press **Publish app**. That is the
+same page where you added **Test users**. Confirm the dialog Google opens. Publishing status then
+reads **In production**.
+
+For a one-person app that asks for these two read-only permissions, this is a form, not a review.
+
+This step is optional. A weekly sign-in works, and a Google app left in **Testing** is not a broken
+one.
 
 </Step>
 
@@ -257,61 +300,57 @@ is how you stop paying for it.
 
 ## Confirm it works
 
-Three connections in all, and the four registration facts that decide whether they keep working.
-
-- Console → Sources lists three connections: **mail** from Gmail, and **calendar** and **contacts**
-  from Google.
-- The Console's Gmail and Google screens both read that the source is already connected, and their
-  buttons read `Reconnect Gmail` and `Reconnect Google`.
-- In the project that owns your client, both APIs read **Enabled** — and the contacts one is the
-  People API, `people.googleapis.com`, not `contacts.googleapis.com`.
-- Google Auth Platform → Audience lists your own address under Test users.
-- Google Auth Platform → Clients holds a **Web application** client whose **Authorized redirect
-  URIs** — not its JavaScript origins — contains the exact string the Console's Google screen
-  prints.
-- Both the client ID and the client secret are in the Console's Google screen. Google is a
-  confidential client; one without the other fails the token exchange.
+- **Sources** lists three connections: **mail**, **calendar** and **contacts**.
+- Each of the three shows a **Last synced** time.
+- The Console's Gmail and Google screens read that the source is connected, and their buttons read
+  **Reconnect Gmail** and **Reconnect Google**.
+- In the project that owns your client, **Google Calendar API** and **People API** both read Status
+  **Enabled**. Each page carries **Disable API** at the top.
+- **Google Auth Platform** → **Audience** reads User type **External** and lists your address under
+  **Test users**.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| The App passwords page cannot be found from the Security page | [Turn on 2-Step Verification](#turn-on-2-step-verification) |
-| `A Gmail app password is 16 characters — check you copied all of it (spaces are fine, they're ignored).` | [Create the app password and paste it with your address](#create-the-app-password-and-paste-it-with-your-address) |
-| `OAuth access is restricted to the test users listed on your OAuth consent screen.` | [Configure the consent screen and add yourself](#configure-the-consent-screen-and-add-yourself) |
-| A 403 on calendar or contacts right after a successful sign-in | [Enable the two APIs in one project](#enable-the-two-apis-in-one-project) |
-| The Contacts API is enabled and contacts still do not arrive | [Enable the two APIs in one project](#enable-the-two-apis-in-one-project) |
-| Google refuses before any consent screen appears, naming the redirect URI | [Create the OAuth client, type Web application](#create-the-oauth-client-type-web-application) |
-| The consent completes at Google and the browser lands on nothing | [Create the OAuth client, type Web application](#create-the-oauth-client-type-web-application) |
-| `Google is a confidential client — paste the client secret too, or the sign-in will be refused.` | [Paste both into the Console and sign in](#paste-both-into-the-console-and-sign-in) |
-| The sign-in returns to the Console's Google screen with an error code beside the form | [Paste both into the Console and sign in](#paste-both-into-the-console-and-sign-in) |
-| The sign-in reports that the state is invalid or expired | [Continue past the warning, and tick every box](#continue-past-the-warning-and-tick-every-box) |
-| The consent succeeded and no connections appeared | [Continue past the warning, and tick every box](#continue-past-the-warning-and-tick-every-box) |
-| Calendar and contacts stop about a week after they started | [Publish the app when the weekly re-consent gets old](#publish-the-app-when-the-weekly-re-consent-gets-old) |
+| `OAuth access is restricted to the test users listed on your OAuth consent screen.` | Your address is not listed. Open **Google Auth Platform** → **Audience** → **+ Add users**, add it, save it, then sign in again from the Console. [Set up the consent screen](#consent-screen) |
+| **To create an OAuth client ID, you must first configure your consent screen** | The project has no consent screen yet. Press **Configure consent screen** on that bar, or open **Google Auth Platform** → **Audience**. [Set up the consent screen](#consent-screen) |
+| A permission error on calendar or contacts right after a successful sign-in — the Console shows it as 403 | The two APIs are not enabled in the project that owns your client. Open that project's **APIs and services** → **Library**, enable **Google Calendar API** and **People API**, wait a minute or two, then press **Reconnect Google**. [Enable the two APIs](#enable-apis) |
+| Google refuses before any consent screen appears, and names the redirect URI | The address under **Authorised redirect URIs** does not match. Press **Copy** on the Console's Google screen, and replace the address on the client. [Create the OAuth client](#oauth-client) |
+| `{"error":"invalid or expired state"}` in the browser after you approve | The sign-in ran past 10 minutes, or Postern restarted, or you reused an old tab. Postern stored nothing. Start again from the Console's Google screen. [Paste both halves and sign in](#sign-in) |
+| The Console reads that Google is connected, but no **calendar** or **contacts** connection appears under **Sources** | You approved with no permission ticked. Press **Reconnect Google**, tick **Select all**, then press **Continue**. [Tick every permission](#grant-scopes) |
+| The sign-in finished at Google and the browser landed on nothing | `http://localhost:8787` did not answer in that browser, so Postern created no connection. Run the sign-in on the machine Postern runs on, or [set up remote access](/start/remote-access#ssh-tunnel) first, then start again from the Console's Google screen. |
 
 ## What you have now
 
-Three connections: Gmail over IMAP from Part A, calendar and contacts from Part B. Any agent granted
-those sectors answers from them after the first sync. Mail is envelopes in the cache and bodies
-fetched on demand, never stored; calendar and contacts are read-only twice over — the two scopes
-Postern requests are read-only, and the connector behind them declares no actions and refuses to run
-one.
+Three connections: **mail** from Gmail, **calendar** and **contacts** from Google. Any agent you
+grant mail, calendar or contacts reads from them.
 
-What you are carrying from here. While the Cloud app's publishing status stays Testing, Google
-expires Part B's access every 7 days and you re-consent weekly; publishing the app ends that, and
-the Publish app button is on the Audience page you already know. The app password and the OAuth
-grant are both revocable at Google, from your Google Account rather than from Postern, and either
-one stops its own connections without touching the other. Connecting a source again replaces the
-stored credential rather than adding a second one — the Console makes you tick a box saying so
-first — and a fresh consent supersedes an earlier revocation. The client secret sits sealed in
-Postern's vault on your own machine, and leaves it only to ask Google for fresh access.
+For mail, Postern stores who sent it, the subject, the dates and the preview line. It never stores
+the message text — it fetches that when an agent asks for it. Gmail comes in over IMAP, the standard
+way mail apps read a mailbox, so your Gmail address is also the login.
+
+Calendar and contacts are read-only. Postern cannot change anything in them. [Why the Google
+connector can never act, whatever permission it holds](/reference/grants-and-sectors)
+
+What this costs you from here on:
+
+- While Publishing status stays **Testing**, you sign in again every 7 days. [Publish the
+  app](#publish) ends that.
+- Revoke the app password or the Google sign-in at your Google Account, not in Postern. Each stops
+  only its own connections, and a fresh sign-in overrides an earlier revocation.
+- Connect a source again and Postern replaces the saved credential rather than adds a second one.
+  First it makes you tick a box — **Yes — replace the stored credential.** on Gmail, **Yes —
+  replace the stored app and re-run consent.** on Google.
+- Postern encrypts the client secret and keeps it on your own machine. [Postern sends it only to
+  Google, only to ask for fresh access](/reference/security-model)
 
 ## Next
 
 <Columns cols={2}>
   <Card title="Connect an agent" href="/start/connect-an-agent">
-    an agent key, shown once · a few minutes, plus a restart of whatever client you are connecting ·
-    a client that can reach the machine Postern runs on
+    an agent key, shown once · a few minutes, plus a restart of the client · a client that can reach
+    the machine Postern runs on
   </Card>
   <Card title="Connect Microsoft" href="/connect/microsoft">
     your own Entra app · about 15 minutes · public client — no secret

@@ -1,93 +1,76 @@
 ---
 title: "Back up, export and erase"
-description: "One archive holds the vault key and the database, because neither restores without the other; the export is data only, and erase is permanent."
+description: "Save the master key and the database in one file, restore them on another machine, export your cached data as JSON, and erase it."
 ---
 
 <Info>
   **Before you start**
 
-  - **A terminal on the machine Postern runs on.** Every command here runs from the directory
-    holding `docker-compose.yml` and `.env`. The Console cannot take a backup: Settings → Your data
-    has a **Back up now** row, and its button is disabled, because backup runs on the box and its
-    status is not served to the Console.
-  - **Postern already installed and running.** [Install Postern](/start/install) if it is not.
-  - **How long: mostly the database dump.** The commands are short. The dump takes as long as the
-    data it is copying, and the restore takes as long as loading it back.
-  - **Two things that are useless apart** — the master key, which opens the sealed vault, and the
-    Postgres database, which holds the sealed rows along with every connector, grant and cached
-    record. The key without the database decrypts nothing. The database without the key is an opaque
-    blob. A backup is one archive holding both.
-  - **Which custody your key is in decides the first step.** If you never set `PCI_MASTER_KEY`, the
-    gateway generated a key and keeps it in a Docker volume. If you did set it, that value is the
-    key and there is nothing in the volume to capture.
-  - **The archive is a plaintext-equivalent secret.** It carries the key that opens every credential
-    inside it. Mode `0600`, kept off the box, treated exactly like the credentials it contains.
-  - **The export is not a backup.** It is a JSON copy of the cached data. It carries no credentials,
-    and there is no route that reads one back in.
-  - **Erase is a hard delete.** The rows are gone, the export cannot put them back, and repopulating
-    means reconnecting and re-syncing from the source.
-  - **Nothing here is scheduled.** Postern ships no scheduler and no remote target. When a backup
-    runs, and where the copy goes, are yours to arrange.
+  - **A terminal on the machine Postern runs on.** Every command runs from the folder that holds
+    `docker-compose.yml` and `.env`.
+  - **Postern installed and running.** [Install Postern](/start/install) if it is not.
+  - **The Console cannot back up.** Settings → Your data has a **Back up now** row. Its **Back up**
+    button is disabled: backup runs on the machine, and the Console is not told how it went.
+  - **Postern never backs up on its own.** You decide when to run this, and where the copy goes.
+  - **These commands are written for macOS and Linux.** Postern itself runs on Windows, because
+    it runs under Docker — but nobody has tested it there, and this page has no PowerShell form.
 </Info>
 
 ## Choose your path
 
-Three jobs live on this page, and they are not a sequence. Take the row you came for.
-
 | If you want to… | Then |
 |---|---|
-| protect yourself against losing this machine | [Check where your vault key lives](#check-where-your-vault-key-lives), then work down to the archive |
-| move Postern to another machine, or recover from a lost one | [Unpack the archive on the new machine](#unpack-the-archive-on-the-new-machine) |
-| read your cached data somewhere else, or keep a copy you can open | [Export everything as one JSON file](#export-everything-as-one-json-file) |
-| destroy cached data — one connection, one sector, or all of it | [Choose what to erase and take the export first](#choose-what-to-erase-and-take-the-export-first) |
+| protect yourself against the loss of this machine | [Check who holds the master key](#key-custody), then work down to step 6 |
+| move Postern to another machine, or recover from a lost one | [Unpack the backup file on the new machine](#restore-unpack) |
+| read your cached data somewhere else | [Export everything as one JSON file](#export) |
+| destroy cached data — one connection, one sector, or all of it | [Choose what to erase](#erase-scope) |
 
 <Steps>
 
-<Step title="Check where your vault key lives" titleSize="h2" id="key-custody">
+<Step title="Check who holds the master key" titleSize="h2" id="key-custody">
 
-In the directory holding `docker-compose.yml`, look for a self-managed key in `.env`:
+A backup is one file that holds two things: the master key, and the Postgres database. Neither works
+without the other.
+
+Who holds the master key decides the next three steps. In the folder that holds
+`docker-compose.yml`, run:
 
 ```bash
 grep -c '^PCI_MASTER_KEY=' .env
 ```
 
-It prints `0` when `.env` carries no such line. That is the default, and the case the rest of this
-page assumes: the gateway generated a 32-byte key on first boot and persists it at
-`/app/.pci/master.key` inside the named volume `pci_master_key`. **The volume is the key.**
+| It prints | Who holds the key | What to do |
+|---|---|---|
+| `0` | Postern | Follow every step below. |
+| `1`, with a value after the `=` | You | Skip steps 2, 3 and 8. |
+| `No such file or directory` | — | You are in the wrong folder. |
 
-It prints `1` when the line is there, and then what follows the `=` decides. An empty
-`PCI_MASTER_KEY=` counts as unset — the gateway reads an empty value as no value — and leaves you in
-the gateway-managed case above. A real base64 value means you manage the key yourself, and there is
-nothing in the volume to capture: the key is that value, and backing it up means storing it out of
-band, in a password manager, not beside the dump. Skip the next two steps and the key-seeding step
-on restore; make sure `PCI_MASTER_KEY` — and `PCI_MASTER_KEY_ID`, if you set one — are in `.env`
-before the gateway's first boot on the new machine.
+An empty `PCI_MASTER_KEY=` counts as `0`. Postern reads an empty value as no value.
 
-<Note>
-  The repository ships `scripts/backup.sh`, which does the key capture, the dump and the archive in
-  one command. It reads the key from a host path, `.pci/master.key` by default. On the shipped
-  Docker layout no such file exists — the key is inside the volume — so it exits with
-  `refusing a keyless backup` rather than writing an archive. Take the steps below instead. Under
-  self-managed custody it writes a note recording that the key was env-managed, and you still have
-  to archive that value yourself.
-</Note>
+**Postern holds it.** Postern made a 32-byte key on first boot and keeps it at
+`/app/.pci/master.key`, inside a Docker storage area named `pci_master_key`. The storage area is
+the key.
+
+**You hold it.** The value after the `=` is the key, and the storage area holds nothing to copy.
+Store that value in your password manager, away from the database copy. On the new machine, put
+`PCI_MASTER_KEY` — and `PCI_MASTER_KEY_ID`, if you set one — into `.env` before Postern's first
+boot there.
+
+`scripts/backup.sh` in the repository does not work on the shipped Docker layout. It exits with
+`refusing a keyless backup` and writes nothing.
+[Why, and what it does when you hold the key](/reference/security-model)
 
 </Step>
 
-<Step title="Copy the key out of the running container" titleSize="h2" id="capture-key">
+<Step title="Copy the master key out of the running container" titleSize="h2" id="capture-key">
 
 <Warning>
-  Take the key from the container or from the volume, never from your checkout. A directory may hold
-  a host-side `./.pci/master.key` from a non-Docker run, or you may create one by hand expecting it
-  to be read. It is a **different key**. Paired with a dump taken from the container it produces an
-  archive that unpacks and restores cleanly and then cannot open a single credential — and the
-  gateway will refuse to boot rather than start green, which is the loud version of a failure that
-  used to be silent. The boot check is deliberately narrow, so a real read is still the verification
-  that counts.
+  Take the master key from the container, never from a `./.pci/master.key` file in your own folder.
+  That file is a **different key**. Paired with a database copy from the container, it makes a
+  backup file that restores cleanly and then decrypts nothing. Postern then refuses to start.
 </Warning>
 
-With the stack up, stage the key and check what you captured. `wc -c` printing `32` is the whole
-test: anything else means you captured something other than the key.
+With Postern running, in the folder that holds `docker-compose.yml`, run:
 
 ```bash
 mkdir -p ./backup-staging && chmod 700 ./backup-staging
@@ -95,21 +78,30 @@ docker compose exec -T app cat /app/.pci/master.key > ./backup-staging/master.ke
 chmod 600 ./backup-staging/master.key
 ```
 
+Check what you captured. On macOS:
+
 ```bash
 wc -c < ./backup-staging/master.key
 shasum -a 256 ./backup-staging/master.key
 ```
 
-Note the checksum down. You check it again at restore time, and it is what proves a key and a dump
-came out of the same archive.
+On Linux, the second line is `sha256sum ./backup-staging/master.key`.
+
+`wc -c` prints `32`. Anything else means you captured something other than the master key.
+
+Write the checksum into your password manager, beside the name of the backup file you make in
+step 5. You compare it at restore time. It proves a master key and a database copy came out of the
+same backup file. Do not keep it only here — this is the machine you may lose.
 
 </Step>
 
-<Step title="Read the key from the volume when the app is stopped" titleSize="h2" id="capture-key-stopped">
+<Step title="Read the master key when Postern is stopped" titleSize="h2" id="capture-key-stopped">
 
-If the app container is not running — including after a boot refusal — the same bytes are in the
-volume and need no running container. Docker prefixes the volume name with your project directory,
-so resolve the real name first, then read through a throwaway container:
+Skip this step if step 2 worked.
+
+If the `app` container is not running — including after Postern refused to start — the same bytes
+sit in the storage area. Docker puts your folder's name in front of the storage area's name, so
+resolve the real name first:
 
 ```bash
 KEYVOL=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/.pci"}}{{.Name}}{{end}}{{end}}' \
@@ -118,31 +110,46 @@ KEYVOL=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/.pci"}}{
 docker run --rm -v "$KEYVOL":/k alpine cat /k/master.key > ./backup-staging/master.key
 ```
 
-`echo "$KEYVOL"` prints something ending in `_pci_master_key`. The same resolution is used on
-restore and by the key-rotation procedure, so it is worth recognising.
+`echo "$KEYVOL"` prints a name that ends in `_pci_master_key`.
+
+Now run the two checks from step 2, and write the checksum down the same way.
 
 </Step>
 
-<Step title="Dump the database" titleSize="h2" id="dump-database">
+<Step title="Copy the database" titleSize="h2" id="dump-database">
 
-Dump Postgres in its custom format, which is what `pg_restore` reads. The gateway can stay up for
-this; for a fully consistent snapshot, quiesce it first with `docker compose stop app` and leave the
-database running, so nothing can be re-sealed or refreshed underneath you.
+Postern can stay running for this. Optional: for a copy that nothing can change while it is made,
+stop Postern first with `docker compose stop app`, and leave the database running.
+
+In the same folder, run:
 
 ```bash
 docker compose exec -T db pg_dump -U pci -d pci -Fc > ./backup-staging/pci.dump
 ```
 
-`./backup-staging` now holds both halves. Substitute your own values if you changed `POSTGRES_USER`
-or `POSTGRES_DB` in `.env`. No password is needed: the command runs inside the database container
-and connects over its local socket, which is also why this goes through `docker compose exec`
-rather than a `psql -h localhost` — the database service publishes no host port.
+`-Fc` writes the compressed format that `pg_restore` reads back. No password is needed.
+[Why](/reference/security-model)
+
+If you changed `POSTGRES_USER` or `POSTGRES_DB` in `.env`, use your own values in place of `pci`.
+
+If you stopped Postern, start it again now:
+
+```bash
+docker compose start app
+```
+
+`ls ./backup-staging` prints `master.key` and `pci.dump`.
 
 </Step>
 
-<Step title="Pack both halves into one archive" titleSize="h2" id="archive">
+<Step title="Pack both halves into one file" titleSize="h2" id="archive">
 
-Put the key and the dump in a single tarball, lock it down, and drop the staging directory:
+<Warning>
+  Anyone who gets this file can read every password inside it. The lines below set mode `0600`.
+  Keep it that way.
+</Warning>
+
+In the same folder, run:
 
 ```bash
 tar -czf "postern-backup-$(date -u +%Y%m%dT%H%M%SZ).tar.gz" -C ./backup-staging .
@@ -150,39 +157,64 @@ chmod 600 postern-backup-*.tar.gz
 rm -rf ./backup-staging
 ```
 
-The archive holds two files, and it is a backup only while it holds both:
+`ls postern-backup-*.tar.gz` prints one filename. It holds two files, and it is a backup only while
+it holds both:
 
 ```text
-master.key    32 raw bytes  (absent under self-managed custody — that value lives in your .env)
+master.key    32 raw bytes  (absent when you hold the key — that value lives in your .env)
 pci.dump      pg_dump -Fc
 ```
 
-Copy it somewhere else now. A backup that only exists on the machine you are protecting is not a
-backup, and it is a plaintext-equivalent secret in transit as well as at rest.
+`docker compose down -v` deletes the storage area that holds the master key. With a current backup
+file, that is recoverable.
 
-<Note>
-  Rotating the master key re-seals every row under a new key, so a rotation and a backup can drift
-  apart in exactly one way: never rotate between capturing the key and taking the dump, and always
-  take a fresh backup immediately before rotating. After a rotation the older dump is sealed under
-  the old key — restoring it needs that old key, and restoring the new key against an old dump fails
-  closed. Keep the pre-rotation archive until every connection is green again. The rotation
-  procedure itself is `docs/runbooks/key-rotation.md` in the repository.
-</Note>
+Postern prints `VAULT KEY IS NOT BACKED UP` to its log on every boot — after a good backup, and
+after a restore. It is a reminder, not an error, and no Console control clears it. To stop it,
+write the marker file yourself or hold the key yourself:
+[the backup banner](/reference/security-model#the-backup-banner-and-how-to-stop-it)
 
-The gateway prints a `VAULT KEY IS NOT BACKED UP` banner to its log on every boot until the copy is
-acknowledged, and the acknowledgement is a marker file written beside the key inside the volume.
-Nothing in the Console writes that marker today, so on a gateway-managed key the banner keeps
-printing after you have taken a perfectly good backup. It is a reminder rather than an error, and
-nothing else about the gateway's behaviour depends on it.
+<Warning>
+  Never rotate the master key between step 2 and step 4. A database copy older than a rotation needs
+  the older master key. Take a fresh backup immediately before any rotation, and keep the older
+  backup file until every connection reads `ok` again.
+  [How a rotation and a backup drift apart](/reference/security-model)
+</Warning>
 
 </Step>
 
-<Step title="Unpack the archive on the new machine" titleSize="h2" id="restore-unpack">
+<Step title="Copy the backup file off the machine" titleSize="h2" id="copy-off">
 
-On the target machine, in an empty directory, put `docker-compose.yml` and a `.env` carrying at
-minimum `POSTGRES_PASSWORD` — Compose refuses to start without it — plus any other variables you had
-set. Do not start the stack yet. Then unpack the archive somewhere private and check the key against
-what you recorded:
+A backup that lives only on the machine it protects is not a backup.
+
+To another computer you can reach over SSH:
+
+```bash
+scp postern-backup-*.tar.gz <you>@<other-computer>:~/
+```
+
+To an external drive: plug it in, then copy the file across with `cp` or your file manager.
+
+Set the file to mode `0600` on the far side. Record where you put it in your password manager,
+beside the checksum from step 2.
+
+</Step>
+
+<Step title="Unpack the backup file on the new machine" titleSize="h2" id="restore-unpack">
+
+The new machine needs Docker and the compose file first. Follow
+[Install Postern](/start/install) to the end of its step 2: install Docker, download
+`docker-compose.yml` into an empty folder, write a `POSTGRES_PASSWORD` line into `.env`. Compose
+refuses to start without that password. Add back any other variables you had set. Do not start
+Postern yet.
+
+Bring the backup file into that folder. From another computer that holds it:
+
+```bash
+scp <you>@<other-computer>:~/postern-backup-*.tar.gz .
+```
+
+From an external drive, copy it across with `cp` or your file manager. Unpack it, and check the
+master key against what you recorded:
 
 ```bash
 mkdir -p ./restore && chmod 700 ./restore
@@ -191,26 +223,35 @@ wc -c < ./restore/master.key
 shasum -a 256 ./restore/master.key
 ```
 
-`wc -c` prints `32` and the checksum equals the one you noted at backup time. A checksum that does
-not match means these two halves are from different points in time, and the restore will fail
-closed at boot rather than half-work.
+On Linux, the last line is `sha256sum ./restore/master.key`.
+
+`wc -c` prints `32`, and the checksum equals the one in your password manager. A checksum that does
+not match means the two halves come from different points in time. Postern will refuse to start
+rather than half-work.
 
 </Step>
 
-<Step title="Put the key in the volume before the first boot" titleSize="h2" id="restore-key">
+<Step title="Put the master key in place before the first boot" titleSize="h2" id="restore-key">
 
-The order matters, because boot is what opens the vault: the key has to be in the volume before the
-gateway starts for the first time. Bring up Postgres, then create the app container without starting
-it — creating the container is what materialises the `pci_master_key` volume, so there is somewhere
-to put the key:
+Skip this step if you hold the key. Put `PCI_MASTER_KEY`, and `PCI_MASTER_KEY_ID` if you used one,
+into `.env` instead.
+
+Boot is what opens the vault, so the master key must be in place before Postern's first start. In
+the folder that holds `docker-compose.yml`, run:
 
 ```bash
 docker compose up -d db
 docker compose create app
 ```
 
-Wait until `docker compose ps` reports the database healthy. Then resolve the volume's real name and
-pipe the key in:
+`docker compose create` makes the container but does not start it. That creates the `pci_master_key`
+storage area, so there is somewhere to put the key.
+
+Run `docker compose ps` and read the STATUS column of the `db` row. It says `health: starting`,
+then `healthy`. The check runs every 5 seconds and gives up after 10 tries. A `db` row that never
+reads `healthy` means Postgres did not start, and `docker compose logs db` says why.
+
+With the `db` row healthy, run:
 
 ```bash
 KEYVOL=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/.pci"}}{{.Name}}{{end}}{{end}}' \
@@ -221,19 +262,20 @@ docker run --rm -i -v "$KEYVOL":/k alpine \
   < ./restore/master.key
 ```
 
-`1000:1000` is the `node` user the image runs as, and the gateway cannot read a key it does not own.
-Piping through stdin keeps the key off any host bind-mount. Under self-managed custody skip this
-step entirely: set `PCI_MASTER_KEY`, and `PCI_MASTER_KEY_ID` if you used one, in `.env` instead.
+`1000:1000` is the `node` user Postern runs as. Postern cannot read a key it does not own.
 
 </Step>
 
 <Step title="Restore the database" titleSize="h2" id="restore-database">
 
 <Warning>
-  On a genuinely fresh machine the database is already empty and the `pg_restore` line alone is
-  enough. The two lines above it drop and recreate the database, so that the dump lands on an empty
-  schema — run them only when you are restoring **over** an existing Postern, and understand that
-  they destroy what is there. Nothing about that is recoverable except from another archive.
+  **The first two lines destroy data.** They drop and recreate the database. Run them only when you
+  restore **over** an existing Postern. Nothing they delete is recoverable except from another
+  backup file. On a fresh machine the database is already empty: run the third line alone.
+
+  **Every line ends in `</dev/null` on purpose.** `docker compose exec -T` reads standard input.
+  Without `</dev/null` it swallows the rest of what you pasted, and everything after it never runs.
+  Run a multi-step restore from a saved script file, not from one paste.
 </Warning>
 
 ```bash
@@ -242,134 +284,151 @@ docker compose exec -T db createdb -U pci pci </dev/null
 docker compose exec -T db pg_restore -U pci -d pci --no-owner < ./restore/pci.dump
 ```
 
-`pg_restore` finishes without naming a failed item, and the database now holds every sealed row the
-dump carried.
-
-<Note>
-  `docker compose exec -T` reads standard input, so a command in that form that does not need stdin
-  will swallow the rest of a script you piped in, silently truncating everything after it. Give
-  every such command an explicit `</dev/null`, exactly as above, and run a multi-step restore from a
-  saved script file rather than a heredoc.
-</Note>
+`pg_restore` finishes and names no failed item.
 
 </Step>
 
-<Step title="Start the gateway and open a real secret" titleSize="h2" id="restore-verify">
+<Step title="Start Postern and open a real credential" titleSize="h2" id="restore-verify">
 
-Start the app. Its migrations run inside boot and see an already-current schema, so they are a
-no-op, and the vault check runs before any edge serves:
+In the same folder, run:
 
 ```bash
 docker compose up -d app
+```
+
+Run `docker compose ps` until the STATUS column of the `app` row reads `healthy`. Then run:
+
+```bash
 docker compose logs app | grep -iE 'SecretAuth|MasterKey'
 curl -fsS http://localhost:8787/healthz
 ```
 
-Give it a moment before the curl: the migrations and the vault check both run inside boot, and the
-edge does not bind its port until they are done. The log grep then prints nothing and `/healthz`
-answers `{"status":"ok"}`. That says the gateway is up and its database is reachable. It does not
-say the key matches the vault. Force a real secret open:
-in the Console, pick a connection and sync it now. A sync opens that connection's sealed credential,
-and every connection returning to `ok` is the only end-to-end proof that the key and the dump belong
-together. Delete `./restore` once you have that; keep the archive.
+The grep prints nothing, and `/healthz` answers `{"status":"ok"}`. That says Postern is running and
+its database is reachable. It does not say the master key matches the vault. A
+`VAULT KEY IS NOT BACKED UP` line is not a restore failure: the marker sat in the old volume and
+the restore made a new one. [Write it again](/reference/security-model#the-backup-banner-and-how-to-stop-it).
+
+Now open a real credential:
+
+1. Open the Console at `http://localhost:8787`. If Postern runs on another computer,
+   [forward the port over SSH](/start/remote-access#ssh-tunnel) first.
+2. In the left rail, click **Sources**.
+3. Click any connection except Apple Health. Apple Health is push-only: it has no **Sync now**
+   button, and shows **Pause receiving** instead.
+4. On that connection's page, under **State**, click **Sync now**.
+5. Its status reads `ok`.
+
+A sync opens that connection's encrypted credential. Every connection back at `ok` is the only
+end-to-end proof that the master key and the database copy belong together. Delete `./restore`, and
+keep the backup file.
 
 <Note>
-  A `SecretAuthError` or `MasterKeyError` in the log — or a refusal to start naming a `key_id` it
-  cannot open — means the key and the dump are from different points in time. Check
-  `PCI_MASTER_KEY_ID` first: rows are looked up by that label, so the key can be perfectly fine and
-  only its label diverged, in which case nothing needs restoring. Otherwise re-capture the key from
-  the source machine's running container and restore again. If the source machine is gone and the
-  key went with it, the data is not recoverable, which is why the two travel in one archive.
+  `SecretAuthError` or `MasterKeyError` in the log means the master key and the database copy are
+  from different points in time. So does a refusal to start that names a `key_id` it cannot open.
+  Check `PCI_MASTER_KEY_ID` first: Postern looks rows up by that label, so the key can be right and
+  only its label wrong. Otherwise capture the master key again from the old machine and restore again. If
+  the old machine is gone and the key went with it, the data cannot be recovered.
 </Note>
 
 </Step>
 
 <Step title="Export everything as one JSON file" titleSize="h2" id="export">
 
-In the Console, Settings → Your data → **Export everything** → **Export** downloads one file named
-`postern-export-<date>.json`. The same bundle is a plain GET, which you can run on the box or
-through the same SSH tunnel that brings you the Console — the route answers on loopback only,
-because the bundle is the whole store and is not narrowed by any agent's grant:
+In the Console at `http://localhost:8787`, go to **Settings** → **Your data**. Find the
+**Export everything** row and click **Export**. It downloads one file named
+`postern-export-<date>.json`.
+
+The same bundle is a plain GET. Run it on the machine Postern runs on:
 
 ```bash
 curl -fsS http://localhost:8787/api/export -o postern-export.json
 ```
 
-The file holds a `manifest` and a `data` object. The manifest carries the export timestamp, the
-sectors that actually had rows, a per-object row count, and an inventory of your connections —
-connection id, provider, sector, status and last sync time. `data` is keyed by object —
-`finance.transaction`, `health.workout`, and for the sectors that hold a single object the sector's
-own name, `mail`, `calendar`, `contacts`, `home` — and holds every live row in full, including the
-`raw` payload the source returned. Rows the source itself has removed are not in it: they are gone
-at the source, not your data.
+Only this computer can reach that address. Nothing on your Wi-Fi, and nothing on the internet, can.
+From another computer, [forward the port over SSH](/start/remote-access#ssh-tunnel) first.
+[Why the export answers here only](/reference/security-model)
 
-What is **not** in it is as load-bearing as what is. No credentials, no tokens, no access URLs —
-those stay sealed in the database, which is why an export is not something you can restore from, and
-why there is no route that reads one back in. Restoring a gateway is the archive above; undoing an
-erase is reconnecting the source and syncing again.
+The file holds a `manifest` and a `data` object.
 
-Appending `?sector=finance` narrows the bundle to one sector's tables. A sector name the gateway
-does not know is a `400` answering `unknown sector: <name>`, and the six it knows are `finance`,
-`mail`, `calendar`, `contacts`, `health` and `home`. Either way one row lands in Console → The
-ledger under the tool `export`, carrying the sector if you narrowed it and the number of rows, never
-the rows themselves.
+- `manifest` — the export timestamp, the sectors that had rows, and a row count per object. It also
+  lists your connections: connection id, provider, sector, status, last sync time.
+- `data` — keyed by object: `finance.transaction`, `health.workout`, and for the sectors that hold
+  a single object the sector's own name, `mail`, `calendar`, `contacts`, `home`. It holds every live
+  row in full, including the `raw` payload the source returned.
+
+Rows the source itself has deleted are not in it. They are gone at the source, not your data.
+
+The export carries no credentials, no tokens and no access URLs. No route reads an export back in,
+so you cannot restore Postern from one. To undo an erase, reconnect the source and sync it again.
+
+Add `?sector=finance` to narrow the bundle to one sector's tables. The six sector names are
+`finance`, `mail`, `calendar`, `contacts`, `health` and `home`. Any other name answers `400` with
+`unknown sector: <name>`.
+
+Every export writes one row to Console → **The ledger** under the tool `export`. It carries the
+sector if you narrowed it, and the number of rows, never the rows themselves.
+[What one row holds](/reference/audit-log#what-one-row-holds)
 
 </Step>
 
-<Step title="Choose what to erase and take the export first" titleSize="h2" id="erase-scope">
+<Step title="Choose what to erase" titleSize="h2" id="erase-scope">
 
 <Warning>
-  Erase is a hard delete of the rows themselves, not a mark that the next sync undoes. There is no
-  undo and no import: the export you take here is a copy you can read, not a copy the gateway can
-  read back. The only thing that reverses an erase is reconnecting the source and syncing it again —
-  and for a Plaid connection not even that, because the erase removes the Item upstream and a new
-  Link has to be created.
+  Erase deletes the rows themselves. It is not a mark the next sync undoes. There is no undo and no
+  import: the export is a copy you can read, not a copy Postern can read back. One thing brings the
+  data back — reconnect the source and sync it again.
+
+  **On a Plaid connection, not even that.** Postern removes the Item at Plaid before it deletes a
+  row. A later sync cannot resume; it needs a brand-new Link. That also stops the paid
+  subscription those Items are billed under. The stop is best-effort, so check at Plaid afterwards
+  if the subscription matters to you. An Item is one bank connection at Plaid; Link is Plaid's
+  connect-your-bank window. [What Postern calls, and in what order](/reference/security-model)
 </Warning>
 
-In the Console, Settings → Your data → **Erase…** opens its own page. Pick a scope, and it states
-exactly what that scope reaches before anything happens:
+In the Console at `http://localhost:8787`, go to **Settings** → **Your data**. Find the
+**Erase data** row and click **Erase…**. It opens its own page.
 
-- **One connection** — that source's cached rows only. It stays connected and a re-sync repopulates
-  it.
-- **A sector** — everything in one sector across every provider. The connections stay connected.
-- **Everything** — every sector, every connection. The gateway keeps its identity and your agent
-  keys; the data is gone.
+Pick one of the three scope cards. Each states what it reaches before anything happens:
 
-The least destructive scope is selected first, and the export is enforced rather than offered: the
-confirm button stays disabled until the export has actually been taken, and you type `ERASE` to arm
-it. Changing the target after arming re-closes both guards, so escalating from one connection to
-everything makes you take the export and type the word again.
+- **One connection** — that source's cached rows only. It stays connected, and a sync fills it
+  again.
+- **A sector** — everything in one sector, across every provider. The connections stay connected.
+- **Everything** — every sector, every connection. Postern keeps its identity and your agent keys.
+  The data is gone.
 
-What survives an erase, whatever the scope: the connector and credential rows, so you can re-sync
-without reconnecting from scratch, and the audit ledger, which records that the erase happened and
-never held the row values. Erase is not disconnect and it is not revoke; the three are separate
-acts.
+**One connection** is selected first, as the least destructive. For **One connection** or
+**A sector**, pick the target from the list under the cards. Then arm the erase:
 
-<Note>
-  On a Plaid connection, Postern calls Plaid's `/item/remove` for every matching Item before any row
-  is deleted, which also stops the paid subscription those Items are billed under, and then marks
-  the kept credential dead. That is deliberate: `/item/remove` invalidates the access token
-  upstream, so a later re-sync cannot resume — it needs a brand-new Link rather than an update.
-  Every other provider's credential survives the erase and re-syncs as it is. The billing stop is
-  best-effort and never blocks the erase, so a hiccup there can leave an Item live at Plaid; check
-  it there if the subscription matters to you.
-</Note>
+1. Click **Export first**. The guard opens the moment you click, not when the download finishes —
+   so watch that the file arrives.
+2. Type `ERASE` into the **Type ERASE to confirm** box.
+3. Click **Erase this connection**, **Erase this sector** or **Erase everything**.
+
+If you change the target after that, both guards close again.
+
+At every scope the connector and credential rows survive, so you can sync again without a fresh
+connect. Plaid's credential is the exception: Postern marks it dead. The record of the erase
+survives too, and it never held the row values.
+[What one row holds](/reference/audit-log#what-one-row-holds)
+
+Erase is not disconnect, and it is not revoke.
+[The three are separate acts](/reference/grants-and-sectors)
 
 </Step>
 
-<Step title="Send the erase with the token the gateway expects" titleSize="h2" id="erase-send">
+<Step title="Send the erase with the token Postern expects" titleSize="h2" id="erase-send">
 
 <Note>
-  The word the Console asks you to type and the token the gateway checks are not the same string.
-  The Console types `ERASE` for every scope; the gateway checks the name of the thing being erased.
-  If an erase fails naming `confirmation token does not match the requested scope`, nothing was
-  deleted — the token is checked before any row is touched — and the erase below is the form that
-  goes through.
+  The Console sends `ERASE` for every scope. Postern checks the name of the thing you erase. So
+  an erase from the Console can fail with `confirmation token does not match the requested scope`.
+  Nothing was deleted when it does: Postern checks the token before it touches a row. The commands
+  below are the form that goes through.
 </Note>
 
-Run this on the box, or through the same tunnel you use for the Console. The token the gateway
-expects is the thing you named: for one connection it is that connection's id, for a sector it is
-the sector name, and for everything it is the literal `ERASE-ALL`.
+Run these on the machine Postern runs on, or through the
+[SSH tunnel](/start/remote-access#ssh-tunnel) you use for the Console. Take the body for your scope.
+
+One connection:
 
 ```bash
 curl -fsS -X POST http://localhost:8787/api/erase \
@@ -377,16 +436,33 @@ curl -fsS -X POST http://localhost:8787/api/erase \
   -d '{"scope":"connection","connectionId":"<connection-id>","confirm":"<connection-id>"}'
 ```
 
-It answers with the scope, a per-table count of the rows deleted, and the total. Tables that lost
-nothing are omitted, so a short answer on a machine holding a lot of data usually means you named a
-narrower scope than you meant. A connection id that is not yours, or is not a connection id at all,
-is a `404` and
-deletes nothing. `<connection-id>` comes from the picker on the Console's erase page, which shows
-each connection's first characters, or in full from `manifest.connections` in the export you just
-took.
+One sector:
 
-The deletes run as independent statements rather than one transaction, and a delete is idempotent —
-so an erase that fails partway through is fully recovered by running the same command again.
+```bash
+curl -fsS -X POST http://localhost:8787/api/erase \
+  -H 'content-type: application/json' \
+  -d '{"scope":"sector","sector":"finance","confirm":"finance"}'
+```
+
+Everything:
+
+```bash
+curl -fsS -X POST http://localhost:8787/api/erase \
+  -H 'content-type: application/json' \
+  -d '{"scope":"all","confirm":"ERASE-ALL"}'
+```
+
+For `<connection-id>`: the list on the Console's erase page shows only the first 8 characters. For
+the full value, open `postern-export-<date>.json` in a text editor, search for `connections`, and
+copy the `connectionId` value.
+
+It answers with the scope, a count of the rows deleted from each table, and the total. Tables that
+lost nothing are left out. So a short answer on a machine with a lot of data usually means you named
+a narrower scope than you meant. A connection id that is not yours answers `404` and deletes
+nothing.
+
+Running the same erase twice is safe. An erase that stops partway is fully recovered by running the
+same command again. [Why](/reference/security-model)
 
 </Step>
 
@@ -394,78 +470,40 @@ so an erase that fails partway through is fully recovered by running the same co
 
 ## Confirm it works
 
-These are the checks that catch the failures you cannot see: a key that is not the key, two halves
-from different points in time, and a restore that boots without being able to read anything. Run the
-first two while the staging directory still exists, before you pack the archive — or against
-`./restore/master.key` after unpacking on the other machine. Run the last two after a restore.
-
-```bash
-wc -c < ./backup-staging/master.key
-shasum -a 256 ./backup-staging/master.key
-docker compose logs app | grep -iE 'SecretAuth|MasterKey'
-curl -fsS http://localhost:8787/healthz
-```
-
-- `wc -c` prints exactly `32`. Anything else means you captured something other than the key, and
-  the archive is worth nothing until you capture it again.
-- The checksum you recorded at backup time equals the one you compute after unpacking. Restore a key
-  and a dump only from the same archive.
-- The archive holds both `master.key` and `pci.dump` — or, under self-managed custody, holds the
-  dump and you can produce the `PCI_MASTER_KEY` value from wherever you stored it.
-- After a restore, the log grep prints nothing and `curl -fsS http://localhost:8787/healthz` answers
-  `{"status":"ok"}`.
-- A connection synced from the Console returns to `ok`. This is the only check that proves the key
-  opens the vault; the two above it prove the gateway is running.
-- The exported file parses as JSON, and `manifest.connections` lists the connections you expect.
-- Console → The ledger carries a row under the tool `export`, and one under `erase` if you ran one,
-  each with the scope it was given.
+- `wc -c` on the captured `master.key` prints `32`.
+- The checksum you compute after you unpack the file equals the one in your password manager.
+- The backup file holds both `master.key` and `pci.dump`. When you hold the key it holds `pci.dump`
+  alone, and you can produce the `PCI_MASTER_KEY` value from where you stored it.
+- The backup file also exists somewhere other than the machine Postern runs on.
+- After a restore: a connection you clicked **Sync now** on reads `ok`.
 
 ## If something went wrong
 
-| What you see | Where it is answered |
+| What you see | What to do |
 |---|---|
-| `refusing a keyless backup` | [Check where your vault key lives](#check-where-your-vault-key-lives) |
-| `wc -c` prints anything other than `32` | [Copy the key out of the running container](#copy-the-key-out-of-the-running-container) |
-| `docker compose exec` cannot reach the app container, because it is not running | [Read the key from the volume when the app is stopped](#read-the-key-from-the-volume-when-the-app-is-stopped) |
-| `VAULT KEY IS NOT BACKED UP` still prints on every boot after you have taken a backup | [Pack both halves into one archive](#pack-both-halves-into-one-archive) |
-| The rest of a pasted restore script vanishes after one `docker compose exec -T` line | [Restore the database](#restore-the-database) |
-| The gateway refuses to start, naming a `key_id` it cannot open | [Start the gateway and open a real secret](#start-the-gateway-and-open-a-real-secret) |
-| `SecretAuthError` or `MasterKeyError` in the app log | [Start the gateway and open a real secret](#start-the-gateway-and-open-a-real-secret) |
-| The restore boots clean and a sync then fails | [Start the gateway and open a real secret](#start-the-gateway-and-open-a-real-secret) |
-| `unknown sector: <name>` | [Export everything as one JSON file](#export-everything-as-one-json-file) |
-| `confirmation token does not match the requested scope` | [Send the erase with the token the gateway expects](#send-the-erase-with-the-token-the-gateway-expects) |
-| A Plaid connection will not re-sync after an erase and asks to be linked again | [Choose what to erase and take the export first](#choose-what-to-erase-and-take-the-export-first) |
-| The Console's **Back up now** button is disabled | [Check where your vault key lives](#check-where-your-vault-key-lives) |
+| `refusing a keyless backup` from `scripts/backup.sh` | That script reads a host path; the key is inside a Docker storage area. Ignore the script and follow [step 2](#capture-key). |
+| `wc -c` prints anything other than `32` | Delete `./backup-staging/master.key` and redo [step 2](#capture-key) — or [step 3](#capture-key-stopped) if `docker compose exec` cannot reach the `app` container. |
+| `SecretAuthError`, `MasterKeyError`, or a refusal to start that names a `key_id` | Check `PCI_MASTER_KEY_ID` in `.env` first. If that is right, capture the master key again from the old machine, then redo [step 8](#restore-key) and step 9. |
+| `confirmation token does not match the requested scope` | Nothing was deleted. Postern wants the connection id, the sector name, or `ERASE-ALL` — not `ERASE`. Send the erase with the matching body: [step 13](#erase-send). |
 
 ## What you have now
 
-One archive, mode `0600`, holding a 32-byte key and a custom-format dump that only restore together
-— and a restore you have actually run, or at least a checksum that says the two halves match. The
-export is a separate thing: a readable JSON snapshot of the cached data, with no credentials in it,
-no route that reads it back, and a shelf life that ends at the next sync.
+One backup file at mode `0600`, with a 32-byte master key and a database copy that restore only
+together. A second copy of that file sits off this machine. An export is separate: a readable JSON
+snapshot of your cached data, with no credentials in it and no route that reads it back.
 
-What you are carrying from here. Scheduling and off-box copies are yours; the gateway ships neither,
-and a backup that lives only on the machine it protects is not one. A key rotation re-seals the
-whole vault, so every dump older than it needs the older key: take a fresh archive immediately
-before rotating, and keep the pre-rotation one until every connection is green again. The archive is
-as sensitive as the credentials it can open, because it
-carries the key that opens them. And `docker compose down -v` still deletes the volume that holds
-that key — with a current archive that is now a recoverable mistake instead of a permanent one,
-which is the whole reason the archive exists.
-
-If you erased, the rows are gone and the ledger says so. The connections and their credentials
-survived, so a sync brings each source back — except a Plaid connection, whose Item was removed
-upstream and needs a new Link.
+If you erased, the rows are gone and the record says so. A sync brings each source back — except a
+Plaid connection, which needs a new Link.
 
 ## Next
 
 <Columns cols={2}>
   <Card title="Set up remote access" href="/start/remote-access">
-    Tailscale, and Funnel only if a hosted client needs you · about 20 minutes, once · off by
+    Tailscale, and Funnel only if a hosted agent needs you · about 20 minutes, once · off by
     default, and both tiers can be taken back down.
   </Card>
   <Card title="Connect an agent" href="/start/connect-an-agent">
     A running Postern and the Console in front of you · a few minutes, plus a restart of whatever
-    client you are connecting · an agent key, shown once.
+    agent you connect · an agent key, shown once.
   </Card>
 </Columns>
