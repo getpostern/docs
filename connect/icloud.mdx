@@ -15,7 +15,7 @@ description: "One app-specific password from Apple gives Postern three read-only
     Console answers only on the machine Postern runs on. That machine must reach
     the internet; behind a strict firewall, allow `*.icloud.com` and
     `imap.mail.me.com:993` —
-    [the hosts iCloud needs](/reference/security-model). If Postern runs on another
+    [the hosts iCloud needs](/reference/ports#what-postern-connects-out-to). If Postern runs on another
     machine, open the Console from your own computer over SSH first:
     [Open the Console over SSH](/start/remote-access#ssh-tunnel).
   - **Three connections, or none.** One password creates mail, calendar and
@@ -120,7 +120,7 @@ In the Console at `http://127.0.0.1:8787`, go to **Sources** → **Add a source*
 <Warning>
   Paste the app-specific password, never your Apple ID password. Postern stores
   whatever you paste and does not check it, and Apple then refuses it —
-  [why Postern cannot tell the two passwords apart](/reference/security-model).
+  [why Postern cannot tell the two passwords apart](/reference/provider-sign-ins#three-credentials-that-behave-like-passwords).
 
   If you also plan to change your Apple ID password, change it **first**. An Apple
   ID password change revokes every app-specific password on the account, at once
@@ -177,7 +177,7 @@ the sync is still at work, not that the mailbox is empty.
 
 **Poll cadence**, on each connection's own page under **Controls**, sets how often
 Postern checks. The floor is 5 minutes —
-[why these intervals](/reference/mcp-primitives).
+[why these intervals](/reference/mcp-freshness#what-the-cache-holds-by-source).
 
 <Warning>
   **Recency window** sets mail to 3, 6 or 12 months. It appears on the mail
@@ -240,7 +240,7 @@ Any agent whose key carries mail, calendar or contacts can read them now, and ca
 pull the body of a single message on demand. None can write: all three connectors
 ship with no actions at all, so no agent can send mail, change an event or edit a
 contact. You choose what an agent can read when you create its key, not here —
-[a grant is one agent's permission for one area of your life](/reference/grants-and-sectors).
+[a grant is one agent's permission for one area of your life](/reference/grants-and-sectors#what-a-grant-covers).
 
 You now carry one app-specific password at Apple. Apple allows up to 25 active
 app-specific passwords. The **⊖** on a row takes that one password back. **Revoke

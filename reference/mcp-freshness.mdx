@@ -1,0 +1,207 @@
+---
+title: "Freshness and live reads: describe_context, fetch_live"
+description: "How old the data is, what to do about it, the one read that leaves the cache, and how often Postern checks each source."
+---
+
+<Info>
+  **Before you start**
+
+  - **Every other read is served from the cache.** `query` and `get_record` never leave
+    it. [Read data](/reference/mcp-reading).
+  - **`describe_context` answers first.** It reports what this key can reach and how
+    old each connection is, and it takes no parameters.
+  - **A push connection has nothing to pull.** Your phone sends data to Postern when it
+    decides to. Postern cannot ask for it, so there is no **Sync now** button.
+</Info>
+
+One question runs through this page: how old is this data, and what do I do about it.
+`describe_context` reports freshness. `fetch_live` is the only path that leaves the
+cache. The table at the end says how often Postern checks each source, and why.
+
+Nothing on this page was captured from a run. The shapes are the declared types, and
+the quoted strings are Postern's own.
+
+## describe_context
+
+What this key can reach: the sectors it was granted, and every connection the owner
+has in those sectors. Takes no parameters.
+
+```ts
+{
+  sectors: string[]
+  connections: {
+    connection_id: string
+    provider: string
+    sector: string
+    status: string
+    label: string | null
+    last_synced_at: unknown
+    mode: "poll" | "push" | "on_demand" | null
+    health: { status: string; consentExpiresAt: string | null } | null
+    freshness: {
+      state:
+        | "ok" | "syncing" | "stale" | "unreachable"
+        | "error" | "paused" | "disconnected" | "never_synced"
+      last_heard_at: string | null
+      next_expected_at: string | null
+      stream_state: "connected" | "retrying" | "down" | null
+      error: { message: string; since: string | null } | null
+    }
+  }[]
+}
+```
+
+`sectors` is the **granted** list, not the connected list. A granted sector can hold
+no connection at all, so read `connections` alongside it. Connections whose status is
+active, error, syncing or paused are all listed. Only revoked ones are left out.
+
+Postern derives `freshness` in one place, inside itself, and serves it identically to
+the Console and to `describe_context`. Trust it over any raw timestamp.
+
+| Field | What it holds |
+|---|---|
+| `last_heard_at` | The last-synced clock, as ISO-8601. |
+| `last_synced_at` | The same clock as the database holds it. Declared `unknown`, never promised as a string. |
+| `next_expected_at` | Computed for poll connections only. |
+| `mode` | `null` when no connector is registered for that provider. |
+| `health` | Filled in for Plaid connections. `null` for every other provider. |
+
+`mode` and `freshness` together decide whether a `fetch_live` is worth making:
+
+| State | What to do |
+|---|---|
+| A push connection reading `ok` | Already live. Skip the `fetch_live`. |
+| A poll or on-demand connection | Goes stale between syncs. |
+| `unreachable` | A push stream is down or retrying, and the cache is ageing behind a connection that still looks active. |
+| `health.status: "action_required"` | The bank link is broken and the cache is stale, even though the last-synced clock kept advancing. A reconnect for the owner, not something an agent can retry around. |
+
+<Note>
+  A connection listed with `freshness.state: "error"`, `mode: null`, `health: null` and
+  `error.message: "freshness derivation failed"` is a degraded row, not a dead source.
+  Its own facts — provider, sector, status, last-synced clock — are still true. Only
+  the derivation failed.
+</Note>
+
+## fetch_live
+
+The one read-time path to a source. `query` and `get_record` never leave the cache.
+This does, on request, and within a bound.
+
+<ParamField body="sector" type="string" required>
+  Without `id`, a bare sector name or a dotted key both cover the whole sector. With
+  `id`, a multi-object sector needs the dotted key.
+</ParamField>
+
+<ParamField body="id" type="string">
+  Present, this fetches that one record from its own source connection. Absent, it
+  syncs the sector.
+</ParamField>
+
+```ts
+// without id — sync the sector and wait
+{
+  sector: string
+  mode: "sync"
+  synced: boolean
+  timed_out: boolean
+  last_synced_at: string | null
+  errors?: string[]
+  connections: {
+    connection_id: string
+    provider: string
+    mode: "poll" | "push" | "on_demand" | null
+    freshness: Freshness   // the same shape describe_context serves
+  }[]
+}
+
+// with id — fetch that record from its source
+{
+  sector: string
+  mode: "record"
+  id: string
+  record: unknown   // the untouched provider payload; null = the source says it is gone
+}
+```
+
+Sync mode runs a sync-now across every active poll or on-demand connection in the
+sector, and waits at most 30 seconds. **`timed_out: true` means Postern stopped
+waiting, not that the sync stopped.** The syncs continue in the background. Re-read
+`describe_context` rather than call again. Running the same one twice is safe.
+Postern does not fold two overlapping calls into one, so two agents that ask at the
+same moment start two syncs.
+
+Push connections have no pull to run, and Postern does not quietly count them as fine.
+A push stream that is down or retrying contributes an attributed line to `errors[]` and
+forces `synced: false`. That is a reconnect for the owner, not a retry for the agent.
+Error text is stripped of anything sensitive before you see it.
+
+`connections[]` carries each connection's freshness re-read **after** the wait,
+including connections whose sync failed in it. A sector with no active connection at
+all is a not-found refusal rather than an empty success.
+
+Record mode resolves the connection from the row itself, so a sector holding two
+providers reaches the right one. Not every connector implements a live record fetch,
+and one without it refuses with `live record fetch not supported for <provider>`. This
+page carries no list of which do — Postern's own refusal is the authority. Live fetches
+for footprint-limited sectors, mail bodies among them, are returned to you and never
+stored.
+
+## What the cache holds, by source
+
+How often Postern checks a source, and what it keeps, changes what an agent can ask
+for.
+
+| Source | How often Postern checks | Floor |
+|---|---|---|
+| iCloud mail | every 10 minutes | 5 minutes |
+| iCloud calendar | every 15 minutes | 5 minutes |
+| iCloud contacts | every 15 minutes | 5 minutes |
+| SimpleFIN | every 6 hours | 2 hours |
+
+Apple publishes no rate limits for mail, calendar or contacts, so those intervals are
+deliberately conservative. A calendar or address book that has not changed since the
+last check costs one cheap probe rather than a full read. So a short interval buys
+little, and a long one loses little.
+
+SimpleFIN Bridge expects no more than 24 requests a day per token, and it disables a
+token that goes past its warning level. Four scheduled syncs a day leaves most of that
+budget for **Sync now** and for `fetch_live`. The Bridge refreshes what it holds roughly
+daily, so a shorter interval returns rows Postern already holds.
+
+**iCloud mail stores the envelope only** — sender, subject, dates and flags. Bodies and
+attachments are never stored. When an agent asks for one message, Postern fetches that
+body from Apple on demand and does not keep it. That survives a change to **Recency
+window**. Envelopes newer than the window stay cached. Older mail is still readable,
+one message at a time, live from Apple. Change the window and Postern clears the marker of
+how far the connection has read, so the next run re-reads the whole window from the start.
+On a large mailbox that is minutes of work, and **Envelopes cached** falls before it climbs.
+
+**SimpleFIN's first sync backfills 365 days.** Postern asks for it in windows of 90
+days or less, edge to edge with no gaps, because the Bridge silently caps a longer
+span. Nothing older than a year is ever fetched. Every later sync requests from the
+stored cursor minus a 3-day overlap, which catches a transaction the bank posts a couple
+of days late. A second read of the overlap changes nothing already stored.
+
+**Postern requests posted transactions only.** Pending charges are excluded by request,
+not lost. A card charge appears when the bank finalises it, not when it is authorised —
+usually a day or two after the spend. An agent asked "what did I spend today" will miss
+today's unsettled card activity. That is the source's behaviour, not a sync fault.
+
+### A SimpleFIN read can partly fail
+
+The Bridge reports a failed bank inside an otherwise normal answer, as a per-bank error
+string rather than as an error response. Postern keeps everything that did arrive and
+writes each string to its own log under the prefix `simplefin:`. It also skips the
+investment-position sweep for that round, so a bank that failed to answer does not have
+its holdings marked as gone.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Read data" href="/reference/mcp-reading">
+    `get_schema`, `query` and `get_record` — every parameter and every refusal.
+  </Card>
+  <Card title="Act on a source" href="/reference/mcp-actions">
+    `list_actions` and `invoke_action` — the write side.
+  </Card>
+</Columns>

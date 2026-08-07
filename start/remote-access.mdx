@@ -14,9 +14,19 @@ description: "Open two ports to your own devices, and one port to the internet o
 </Info>
 
 Your tailnet is the private network Tailscale builds between the devices signed
-into your account. Nothing else can reach it. Do the steps in order, and stop
-after step 3 unless claude.ai or ChatGPT must reach Postern. None of this is on
-until you turn it on, and step 7 turns it back off.
+into your account. Nothing else can reach it.
+
+Not every step here is for everyone. Read this first, then do the steps that
+apply to you, in order.
+
+| Steps | Who does them |
+|---|---|
+| **1** | Only you, if Postern runs on a computer you are not sitting at. |
+| **2 and 3** | Anyone who wants their own devices to reach Postern. **Most people stop here.** |
+| **4 to 6** | Only if claude.ai or ChatGPT must reach Postern. These open one port to the internet. |
+
+None of this is on until you turn it on. [Turn the public port
+off](#turn-the-public-port-off) shuts it again whenever you want.
 
 <Steps>
 
@@ -38,7 +48,7 @@ want to stop. [Open the Console](/start/install#open-console) carries the long
 version.
 
 A tunnel does not move the Console off that machine:
-[port 8787 has no password, and its address stands in for one](/reference/security-model#the-console-has-no-authentication).
+[port 8787 has no password, and its address stands in for one](/reference/ports#the-console-has-no-authentication).
 
 </Step>
 
@@ -96,7 +106,7 @@ command below needs it.
   Never open port 8787, the Console port, whole to any network. Anything that
   reaches it holds full control of Postern, and no password stands behind it.
   The first command below opens one address on that port and nothing else.
-  [Reachability is the authentication](/reference/security-model#the-console-has-no-authentication).
+  [Reachability is the authentication](/reference/ports#the-console-has-no-authentication).
 </Warning>
 
 Run both on the machine Postern runs on:
@@ -155,7 +165,7 @@ controls. Tailscale's own instructions cover the funnel permission:
 this machine's own tag, never to the whole tailnet. `serve` and `funnel` are
 last-command-wins per port. A mistyped command on any machine that holds the
 permission can open something to the internet
-([the whole argument](/reference/security-model#reaching-postern-from-another-network)).
+([the whole argument](/reference/ports#reaching-postern-from-another-network)).
 This page does not walk Tailscale's policy file. If the permission is not there,
 the command below refuses out loud and prints a link that turns it on. Open that
 link, then run the command again.
@@ -284,12 +294,17 @@ agent access**. Paste the agent key under **Paste an agent key from the Console*
 Press **Approve**. claude.ai holds a token that rotates from then on. ChatGPT
 takes a longer path: [Connect ChatGPT](/connect/chatgpt).
 
-[Revoke a key and every token made from it dies with it](/reference/grants-and-sectors#revoking-rotating-and-removing).
+[Revoke a key and every token made from it dies with it](/reference/agent-keys#revoking-rotating-and-removing).
 Postern denies the agent's next call.
 
 </Step>
 
-<Step title="Turn the public port back off" titleSize="h2" id="take-it-down">
+</Steps>
+
+## Turn the public port off
+
+This is not a step. It undoes [Open one port to the internet](#publish), whenever
+you want that port shut again. Nothing here touches your own devices.
 
 Three acts. Do all three. Any two leave you half-off — a funnel with no address,
 an address with no funnel, or Postern still on the old one.
@@ -326,11 +341,8 @@ Confirm no funnel remains. The output must contain no `AllowFunnel` anywhere:
 tailscale serve status --json
 ```
 
-Nothing about [step 3](#your-devices) changes. Your own devices still reach Postern.
-
-</Step>
-
-</Steps>
+Nothing about [Open two ports to your own devices](#your-devices) changes. Your own
+devices still reach Postern.
 
 ## Confirm it works
 
@@ -360,13 +372,13 @@ Nothing about [step 3](#your-devices) changes. Your own devices still reach Post
 |---|---|
 | [step 1](#ssh-tunnel) | Nothing is open. The Console reaches your computer through the SSH tunnel, and nowhere else. |
 | [step 3](#your-devices) | Your own devices reach two addresses on your tailnet. The internet reaches nothing. |
-| [step 6](#connect-agent) | The internet reaches eight addresses on one port. Seven are the sign-in machinery and hold no data of yours; the eighth is `/mcp`, which needs a key. The Console is not among them. [The full list](/reference/mcp-primitives#hosted-clients-and-the-oauth-bridge). |
+| [step 6](#connect-agent) | The internet reaches eight addresses on one port. Seven are the sign-in machinery and hold no data of yours; the eighth is `/mcp`, which needs a key. The Console is not among them. [The full list](/reference/oauth-bridge#what-the-internet-reaches). |
 
 Three costs stay with you:
 
 - a public hostname in a permanent certificate log
 - a Tailscale account to keep
-- an address that stays live until you [turn it off](#take-it-down)
+- an address that stays live until you [turn it off](#turn-the-public-port-off)
 
 ## Next
 

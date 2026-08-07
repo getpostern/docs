@@ -1,0 +1,181 @@
+---
+title: "Read the record"
+description: "The ledger screen and GET /api/audit — the columns, every filter, paging, and Export CSV."
+---
+
+<Info>
+  **Before you start**
+
+  - **You can read this only on the machine Postern runs on.** From your own
+    computer, forward the port first, then open `http://localhost:8787`:
+
+    ```bash
+    ssh -L 8787:localhost:8787 you@the-machine
+    ```
+  - **You need no agent key.** Whether you can reach this computer is the whole of
+    the authorization.
+</Info>
+
+Two surfaces read the same rows: **The ledger** in the Console, and
+`GET /api/audit` on the Console port. Both serve the same history, newest first.
+[What one row holds](/reference/audit-log#what-one-row-holds) names every column
+and what it means.
+
+## Read it in the Console
+
+Click **The ledger** in the left nav. The table has six columns: **Time**, **Who**,
+**Tool**, **Sector**, **Args**, **Decision**. Click any row to open the **Ledger
+entry** panel — Time, Agent, Tool, Sector, Decision, Deny reason, Outcome, Result
+count, Request id and **Args (redacted, verbatim)**. Press **Close** or `Esc` to
+dismiss it.
+
+The **Decision** column shows only refusals and errors. Open a row to see its
+state in full.
+
+| Control | Options |
+|---|---|
+| **Filter by agent** | **All agents**, then one per agent |
+| **Filter by tool** | **All tools**, then one per tool |
+| **Filter by sector** | **All sectors**, then one per sector |
+| **Since** | **Any date** · **Last 24 hours** · **Last 7 days** · **Last 30 days** |
+| The decision toggle | **All** · **Admitted** · **Denied** |
+
+There is no filter for errored calls. The API accepts no filter on `outcome`.
+
+<Warning>
+  **A sector filter is not a narrower view of the whole record.** It is an equality
+  match on the `sector` column, and SQL equality never matches null. Every call
+  that happened in no sector leaves the view — an agent that asks what Postern
+  holds, a refused handshake. Those calls are still recorded. The Console says so
+  under the control the moment you set one.
+</Warning>
+
+One page is 100 rows. **Load more ↓** walks older pages with the cursor Postern
+creates. The view can reach the true end of history, and it says so when it does.
+
+**Export CSV** takes the rows currently loaded and nothing else. Its column names
+match the API's field names, not the table headers. Values that look like
+spreadsheet formulas get a leading apostrophe, so they cannot run when you open
+the file.
+
+## Read it over HTTP
+
+`GET /api/audit` serves the same pages as JSON, on the Console port. Open a
+terminal **on the machine Postern runs on** and run:
+
+```bash
+curl -sD - "http://localhost:8787/api/audit?limit=5"
+```
+
+`-s` hides the progress meter; `-D -` prints the response headers, where the
+paging values live. A working call prints `HTTP/1.1 200 OK`, the headers, then a
+JSON array of up to 5 rows, newest first. There is no envelope and no total.
+
+`8787` is the Console port on a stock install. `REST_PORT` in `.env` moves it and
+this endpoint follows. `.env` sits beside `docker-compose.yml`; edit it there, not
+in the Console, then run `docker compose up -d`.
+
+From any other computer this call fails, and that is correct. Compose opens the
+port to this computer only. Postern also refuses any request whose `Host` header
+is not `localhost`, `127.0.0.1` or `::1`, with `403` and
+`{"error":"forbidden host"}`.
+
+### Filters
+
+Every filter is optional, and every value is a bind parameter.
+
+<ParamField query="agent" type="string">
+  Exact match on `agent_id`.
+</ParamField>
+
+<ParamField query="tool" type="string">
+  Exact match on `tool`.
+</ParamField>
+
+<ParamField query="decision" type="string">
+  `allow` or `deny`.
+</ParamField>
+
+<ParamField query="sector" type="string">
+  Exact match, verbatim. Postern never checks it against the registry, because the
+  record is history: a sector that no longer exists returns its rows rather than an
+  error. Excludes every row whose sector is null.
+</ParamField>
+
+<ParamField query="since" type="string">
+  An ISO timestamp. Returns rows at or after it. A value that does not parse is a
+  400.
+</ParamField>
+
+<ParamField query="before" type="string">
+  The cursor for the next page. Send back the previous response's
+  `x-postern-audit-next` header exactly as you received it. **Never build your own
+  from a row's `created_at`.** The wire timestamp has lost the microseconds the
+  cursor needs, so a rebuilt cursor silently skips rows. Batch inserts make those
+  neighbours common. A bad value is a 400:
+  `invalid 'before' cursor: echo the previous page's x-postern-audit-next header value unmodified`.
+</ParamField>
+
+<ParamField query="limit" type="number" default="100">
+  Capped at 1000 without complaint — a larger request returns the ceiling, not an
+  error. Anything that is not a positive whole number (`0`, `-1`, `abc`, `1.5`) is
+  a 400 with `invalid 'limit'`. This bounds one page, not what is reachable.
+</ParamField>
+
+### The served row
+
+Every column of the table, minus `user_id`: `id`, `agent_id`, `tool`, `sector`,
+`decision`, `deny_reason`, `args`, `result_count`, `outcome`, `request_id`,
+`created_at`. [What one row holds](/reference/audit-log#what-one-row-holds) gives
+each one its meaning.
+
+Two differences from the table. `id` is a `bigserial` in the database and a string
+on the wire. `created_at` is ISO text at millisecond precision, so the cursor's
+microseconds are not in it.
+
+`user_id` is never served. There is one user on a self-hosted Postern, and the
+route scopes every query to them.
+
+### Paging headers
+
+- `x-postern-audit-has-more` — `true` or `false` on every 200. `false` means this
+  is the last page. Postern fetches one row past your `limit` and trims it, so a
+  page that fills exactly still reports `false` truthfully.
+- `x-postern-audit-next` — the cursor for the next page, present when has-more is
+  `true`.
+
+<Note>
+  An **absent** has-more header is not `false`. Absent means Postern did not answer
+  the question. Treat it as unknown, never as the end of the record.
+</Note>
+
+## Confirm it works
+
+- Console → **The ledger** shows at least one row, or the empty state
+  `Nothing has come through the gate yet. Every read and action will be recorded here.`
+- Send a connected agent a message such as *"What can you see in Postern?"*. With
+  **Filter by sector** on **All sectors**, a row appears within about 2 seconds,
+  with the agent's name under **Who** and `describe_context` under **Tool**.
+- Pause a connection or run a sync. A row appears with `operator` under **Who**.
+- Point an agent at Postern with a key it does not know, then restart that agent.
+  The client fails to connect, and a row appears with **Denied** under **Decision**.
+
+## If something went wrong
+
+| What you see | What to do |
+|---|---|
+| The record is empty, or a row is missing or a second late | `created_at` is the insert time and Postern flushes every 1000 ms — wait 2 seconds and reload. If it never arrives, check the container log for `[audit] queue overflow — dropped` or `[audit] flush failed, dropped batch:`. Both mean rows were dropped and never retried. Reduce the call rate; there is nothing to recover. [How durable the record is](/reference/record-limits#how-durable-the-record-is). |
+| A sector filter hides calls you know happened | Set **Filter by sector** back to **All sectors**. It never matches a call that happened in no sector, which is exactly what `describe_context` and refused handshakes are. |
+| You read your own data in the Console and no row appeared | Correct, not a failure. Postern does not record reads you make yourself, nor any of the six Console acts that leave no row. [What does not get a row](/reference/audit-log#what-does-not-get-a-row). |
+| `invalid 'before' cursor: …` or `{"error":"forbidden host"}` | For the cursor, paste the previous response's `x-postern-audit-next` header exactly, with nothing rebuilt or trimmed. For the 403, run `curl` on the machine Postern runs on — the port is opened to that computer only. |
+
+## Next
+
+<Columns cols={2}>
+  <Card title="The audit log" href="/reference/audit-log">
+    what one row holds, what gets a row, and what does not
+  </Card>
+  <Card title="What the record cannot promise" href="/reference/record-limits">
+    what is dropped before it lands, and what nothing in the database prevents
+  </Card>
+</Columns>

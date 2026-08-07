@@ -22,7 +22,7 @@ description: "Recovery, sleep, strain, workouts and day-cycles, through a develo
     browser. No Postern yet? [Install Postern](/start/install). Postern on a computer with no screen?
     [Open the Console over SSH](/start/remote-access#ssh-tunnel) first.
   - **A password manager, open.** WHOOP gives your app two values: a client ID and a client secret.
-    Postern needs both — [WHOOP refuses the sign-in without the secret](/reference/security-model#what-each-provider-needs-and-why).
+    Postern needs both — [WHOOP refuses the sign-in without the secret](/reference/provider-sign-ins#what-each-provider-needs-and-why).
     WHOOP shows the secret when it creates the app, then masks it. Copy it there and then.
 </Info>
 
@@ -46,7 +46,7 @@ http://localhost:8787/api/oauth/whoop/callback
 ```
 
 Copy it from the screen, not from this page. It stays correct if you ever change the Console port —
-[the Console prints the address Postern will send, never one it worked out itself](/reference/security-model#the-redirect-address-is-pinned-inside-postern).
+[the Console prints the address Postern will send, never one it worked out itself](/reference/provider-sign-ins#the-redirect-address-is-pinned-inside-postern).
 
 The Console calls it a redirect URI. WHOOP's form heads that section **REDIRECT URLS**. One address,
 two names.
@@ -89,7 +89,7 @@ Fill the three sections at the top of that form:
 <Warning>
   Tick all five read scopes below. Postern turns on the health sector only if WHOOP grants
   `read:recovery`, `read:sleep` or `read:workout`. Grant none of those three and Postern creates no
-  connection at all — [the Console can only report the connection it made](/reference/grants-and-sectors#what-a-grant-covers).
+  connection at all — [the Console can only report the connection it made](/reference/grants-and-sectors#which-sectors-a-sign-in-turns-on).
 </Warning>
 
 {/* WITNESSED: gif-whoop.md — the four sections below CONTACTS, their helper text, the six scope checkboxes, and the submit button. Casing caveat from that witness: the ALL-CAPS headings and button labels are probably a CSS text-transform, so the render is certain and the source string is not. Describe what renders; never assert the underlying string. */}
@@ -133,7 +133,7 @@ WHOOP for `offline` on the sign-in request itself. The Console's own step reads 
 scope, and add this redirect URI:**. Postern makes that request. You register the address.
 
 `offline` is not data. It lets Postern renew the sign-in without you. Without it the connection dies
-the next day — [WHOOP will not renew a token without it](/reference/security-model#the-credential-vault).
+the next day — [WHOOP will not renew a token without it](/reference/provider-sign-ins#what-each-provider-needs-and-why).
 
 **WEBHOOKS** — leave this section alone. Postern uses no webhooks. WHOOP renders no field here until
 you press **ADD**, so there is nothing to fill in.
@@ -205,7 +205,7 @@ paste the client secret too, or the sign-in will be refused.**
 Press **Save & sign in with Whoop**. Postern stores both values encrypted, then sends you to WHOOP's
 consent page. Approve there. WHOOP returns you to the Console's Sources page, and a message reads
 **WHOOP connected — Health.** After this,
-[the secret leaves your machine only to renew the sign-in](/reference/security-model#the-credential-vault).
+[the secret leaves your machine only to renew the sign-in](/reference/provider-sign-ins#what-each-provider-needs-and-why).
 
 The new row reads **Awaiting first sync** until the first poll runs. It then reads **Syncing…**, with
 a count of the rows so far on that first sync only.
@@ -286,13 +286,13 @@ An agent asks for the samples by name:
 not scored yet produces no rows at all. It appears on a later sync.
 
 WHOOP is read-only. There is nothing here for an agent to act on —
-[WHOOP offers no actions, and Postern refuses to run one](/reference/grants-and-sectors#what-a-grant-covers).
+[WHOOP offers no actions, and Postern refuses to run one](/reference/grants-and-sectors#which-sectors-an-agent-can-act-in).
 
 What you carry from here: the WHOOP membership, and the app registration at WHOOP. Delete that app,
 or let the sign-in lapse, and the next sync stops.
 
 Disconnect in the Console. Postern then deletes the access token, the refresh token and the client
-secret from the vault. [It also marks the connection and its credential revoked](/reference/security-model#the-credential-vault).
+secret from the vault. [It also marks the connection and its credential revoked](/reference/vault#a-disconnect-removes-the-credential-not-the-data).
 The connection's page then reads **This connection was removed — its credential is gone from the
 vault. Syncing will not resume on its own; re-add the source to start a new connection.** Your synced
 rows stay. To reconnect, paste the client ID and secret again.

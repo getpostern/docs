@@ -193,7 +193,7 @@ Press **Continue to login ⧉**. Your bank's own sign-in page opens.
 
 Sign in there with your bank's own credentials. You never paste a bank password into Postern. Only a
 token for that one bank comes back.
-[Nothing outside your home has to reach your machine for this to work.](/reference/security-model)
+[Nothing outside your home has to reach your machine for this to work.](/reference/provider-sign-ins#plaid-never-shows-postern-your-bank-sign-in)
 
 Your bank then asks which accounts to share. Tick every account you want an agent to read, and
 approve. Your bank names its own screens and its own controls, so this page names none of them.
@@ -252,7 +252,7 @@ carries no cadence control for Plaid. You cannot change the rate from the Consol
 <Note>
   One trip through Plaid Link links one bank. The panel says `bank(s)` because that is Plaid's
   wording.
-  [A multi-bank trip needs a Plaid user token Postern cannot get.](/reference/security-model)
+  [A multi-bank trip needs a Plaid user token Postern cannot get.](/reference/provider-sign-ins#plaid-never-shows-postern-your-bank-sign-in)
 
   For the next bank, open **Sources**, find the **Plaid** group header, and press **Add a bank**.
   **Client ID** is already filled and the secret stays stored, so leave **Secret** blank.
@@ -400,13 +400,13 @@ that used the old app refreshes again until you save one.
 
 One connection for each bank you linked. Finance is read-only and carries no actions. No agent can
 move money, and Postern never held the bank sign-in.
-[Only Home Assistant carries actions today.](/reference/mcp-primitives)
+[Only Home Assistant carries actions today.](/reference/grants-and-sectors#which-sectors-an-agent-can-act-in)
 
 Postern caches accounts, transactions and holdings on your own machine. An agent with a **finance**
 grant answers from that cache. Where a bank also arrives through SimpleFIN, agents get one merged
 row, and both provider rows stay readable.
 [Plaid fixes the 2-year history window when you link the bank, and only a fresh trip through Plaid
-Link widens it.](/reference/mcp-primitives)
+Link widens it.](/reference/mcp-reading#four-properties-of-finance-data)
 
 What this costs you from here:
 

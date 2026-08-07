@@ -1,0 +1,156 @@
+---
+title: "Provider sign-ins"
+description: "The redirect address Postern pins, what each provider needs and why, why the failures say so little, and the credentials that behave like passwords."
+---
+
+<Info>
+  **Before you start**
+
+  - **Copy the redirect address from your own Console, never from a page.**
+    Postern composes it from its own port, and providers match it character for
+    character.
+  - **Postern encrypts every client secret on your machine.** A secret leaves it
+    for one purpose only: the request that renews the sign-in.
+  - **Three of the credentials you paste behave like passwords.** An Apple ID
+    password, a SimpleFIN access URL and a SimpleFIN setup token.
+  - **The failure messages are deliberately thin.** That is a decision about
+    where credentials can end up, not a bug.
+</Info>
+
+Every source page — [Google](/connect/google), [Microsoft](/connect/microsoft),
+[WHOOP](/connect/whoop), [iCloud](/connect/icloud), [Plaid](/connect/plaid),
+[SimpleFIN](/connect/simplefin) — carries the clicks for that provider. This page
+carries what is true across all of them.
+
+## The redirect address is pinned inside Postern
+
+Postern composes the redirect address from its own port, in one place. On a stock
+install it is `http://localhost:8787/api/oauth/<provider>/callback`. Postern never
+derives it from the address you reached the Console at, and never from the inbound
+`Host` header.
+
+The Console asks Postern which address Postern will send, and prints that answer
+exactly. So a Console that cannot reach Postern prints nothing rather than a
+guess. Providers match the string character for character, which is why you copy
+it from your own Console and never from this page. It stays true if you move the
+Console off port 8787.
+
+It says `localhost` rather than `127.0.0.1` on purpose.
+
+{/* UNWITNESSED: Microsoft's label on the redirect-address field beside the platform dropdown. The only capture crops it out, and every internal source that named it inferred the label. Needs one screenshot of that field. */}
+Microsoft's portal refuses an `http://` address with an IP number in the field
+beside the platform dropdown, and it accepts any port after `localhost`. Google
+accepts both forms. WHOOP is proven on `localhost`.
+
+Postern holds an unfinished sign-in in memory for 10 minutes and spends it on
+first use. It writes nothing about that sign-in to disk. If you wander off
+mid-consent, restart Postern, or reload the callback address, the sign-in ends and
+the browser shows `{"error":"invalid or expired state"}`. Postern stored nothing,
+and nothing is broken. Start again from the Console. The same hold governs Google,
+Microsoft and WHOOP.
+
+## What each provider needs, and why
+
+| Provider | Client secret | The security fact behind it |
+|---|---|---|
+| Google | required | Google issues a confidential client, and Postern sends the secret only to Google, only to ask for fresh access. Postern asks for no Gmail permission, ever: the Gmail API needs restricted scopes, and restricted scopes mean an annual third-party CASA assessment for every self-hosted install. Mail comes in over IMAP with an app password instead. Postern locks Google's scopes to `calendar.readonly` and `contacts.readonly`, and a product test asserts that no Gmail scope can appear in the sign-in address. |
+| WHOOP | required | WHOOP offers no app type that can prove itself without a secret, so the secret is the only proof the request is your app. WHOOP renews a sign-in only when the refresh request carries `scope=offline`. A consent without it works today and is dead tomorrow. |
+| Microsoft | never created, stored or sent | Microsoft lets Postern prove itself without a secret, so Postern never creates one. The Console disables its **Client secret** field, and that field reads `not required — public client (PKCE)`. Postern rejects a secret sent for such an app. Unlike Google there is also no API to switch on, and no permission to add in Entra ahead of time: Postern asks for its read permissions at sign-in, and Microsoft's consent screen is where you grant them. |
+| Plaid | a client ID and a Production secret | Postern pastes these into Plaid. There is no redirect address to register with Plaid at all. |
+| SimpleFIN | none | You claim a setup token once, for an access URL. |
+| iCloud | none | An app-specific password. |
+
+Postern encrypts every client secret into the vault on your machine. A secret
+leaves that machine for one purpose only: the request that renews the sign-in.
+Postern never sends it to a browser and never renders it back into the Console.
+[What else is in the vault](/reference/vault).
+
+## Two Microsoft registration choices Postern cannot work around
+
+- **Supported account types.** Postern starts every Microsoft sign-in at
+  Microsoft's `common` address, the one address that serves personal and
+  organisational accounts alike. An app registered for a single directory refuses
+  a sign-in that arrives there. The **Supported account types** dropdown opens on
+  **Single tenant only - Default Directory**, which cannot sign in a personal
+  Outlook or Hotmail address. **Any Entra ID Tenant + Personal Microsoft
+  accounts** is the one row that covers personal, work and school together.
+- **Platform type.** Entra's **Single-page application (SPA)** platform caps
+  refresh tokens at 24 hours. Postern refreshes the sign-in silently, but a
+  24-hour token runs out inside a day and Microsoft demands a new interactive
+  sign-in. No Postern setting changes it. **Public client/native (mobile &
+  desktop)** gets Microsoft's 90-day rolling refresh instead.
+
+## Why provider failures say so little
+
+| Source | What you see | Why |
+|---|---|---|
+| WHOOP | the provider's own error code, unchanged | It is the thing you match against your registration, so Postern never rewrites it. |
+| iCloud | `icloud-mail: sync failed`, `apple: DAV connect failed`, `apple: DAV account discovery failed` | These name the stage the run reached, never the cause. The app-specific password travels on every request to Apple, so any reply echoed into an error could carry it into a log. The cause is nearly always the credential. |
+| SimpleFIN | `SimpleFIN refused it.` with `simplefin setup-token claim failed` underneath | The same pair for every cause. Postern refuses to put any part of a credential into an error string, so a screenshot of a failed connect carries no secret. |
+
+### A refused source credential is not retried
+
+Home Assistant throttles repeated sign-in failures, so Postern treats
+`auth failed: invalid token` as final. Only a new token or a new address brings
+that connection back. No timer will.
+
+## Three credentials that behave like passwords
+
+| Credential | What to know |
+|---|---|
+| **An Apple ID password** | Postern does not check which iCloud credential you paste. It encrypts whatever you give it and stores it, so an Apple ID password ends up on the machine Postern runs on and then fails anyway. Apple refuses an Apple ID password for mail, calendar and contacts on an account with two-factor authentication on. Only an app-specific password works. The failure arrives at the first sync, not at the paste, because the paste never contacts Apple. |
+| **A SimpleFIN access URL** | It carries a username and a password inside its own text. Anyone who holds that line can read every bank linked at the Bridge, with no further sign-in. Postern encrypts it, never shows it back, never echoes it in an answer, and never writes it to a log. If you pasted an access URL rather than a setup token, delete the copy in your clipboard and in your notes. |
+| **A SimpleFIN setup token** | Not a credential Postern keeps — a one-time voucher. Postern base64-decodes it into the claim address the Bridge put inside it, requires `https://`, and posts to it once. The Bridge answers with an access URL, which Postern encrypts; Postern never writes the setup token to disk. You can use a setup token one time. Once Postern claims one it is spent everywhere, in Postern and in every other SimpleFIN client. The remedy is a fresh one: at the Bridge, open **My account**, press **New app connection**, then press **Create Setup Token**. A failed claim writes no row, because Postern claims before it inserts the connection — so you can paste again with nothing to clean up. |
+
+## Plaid never shows Postern your bank sign-in
+
+Plaid's hosted Link is why you can link a bank from a Postern that nothing on the
+internet can reach. You sign in to your bank on a page Plaid hosts, in a tab
+Postern opened but does not read. The Console picks the result up by a check on
+the session every few seconds. Postern never receives a call back from Plaid, so
+it opens no port to the internet and there is no redirect address to register.
+What returns is an access token for that one bank, which Postern encrypts and
+stores. Postern never held the bank password.
+
+One Link session carries one bank. A multi-bank session needs a Plaid user token,
+and Plaid issues one only to apps enrolled in products Postern does not use. The
+Console's panel still says *bank(s)* because that is Plaid's own wording, not a
+promise Postern can keep. For each further bank, open a new session from the
+**Plaid** group header's **Add a bank** link.
+
+## Confirm it works
+
+- The redirect address you registered with the provider is the string your own
+  Console printed, character for character.
+- Console → **Sources** shows the connection, and the connection reads `ok`
+  rather than an error naming a stage.
+- For Google, one sign-in has produced two connections; for Microsoft, three.
+- The **Client secret** field for Microsoft is disabled and reads
+  `not required — public client (PKCE)`.
+
+## If something went wrong
+
+| What you see | What to do |
+|---|---|
+| `{"error":"invalid or expired state"}` in the browser | The sign-in ran past its 10 minutes, or Postern restarted mid-consent. Nothing was stored and nothing is broken. Start again from the Console. |
+| An iCloud connection fails at the first sync, not at the paste | The paste never contacts Apple, so a wrong credential can only fail later. Only an app-specific password works on an account with two-factor authentication on. |
+| `SimpleFIN refused it.` with `simplefin setup-token claim failed` | The same pair covers every cause, and a spent token is the usual one. Get a fresh setup token at the Bridge: **My account** → **New app connection** → **Create Setup Token**. Nothing needs cleaning up first. |
+| A Home Assistant connection stays down after you fixed the token | Postern treats `auth failed: invalid token` as final and never retries it. Paste the new token, or the new address, on the connection itself. |
+
+## What you have now
+
+One redirect address, pinned inside Postern and copied out of your own Console.
+Each provider's client secret encrypted on your machine, leaving it only to renew
+its own sign-in. And a set of failure messages that tell you the stage rather than
+the cause, on purpose.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="The vault and the master key" href="/reference/vault">
+    what is encrypted, where the key lives, and what destroys it
+  </Card>
+  <Card title="Grants and sectors" href="/reference/grants-and-sectors">
+    which sectors a sign-in turns on, and what one grant covers
+  </Card>
+</Columns>

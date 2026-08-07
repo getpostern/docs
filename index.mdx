@@ -77,10 +77,19 @@ and it needs a public address first.
 
 ## Understand how it works
 
-- [Security model](/reference/security-model) — what Postern encrypts, and why the Console has no password
+- [Security model](/reference/security-model) — the premise the rest of this list follows from, and what has not been reviewed
+- [Which computers can reach Postern](/reference/ports) — the two ports, and why the Console has no password
+- [The vault and the master key](/reference/vault) — what Postern encrypts, what it does not, and the one command that destroys the key
+- [Provider sign-ins](/reference/provider-sign-ins) — the redirect address, what each provider needs, and the credentials that behave like passwords
 - [Grants and sectors](/reference/grants-and-sectors) — six sectors, nothing granted until you tick it, read and act together
-- [MCP tools](/reference/mcp-primitives) — every tool an agent can call, and what it returns
-- [The audit log](/reference/audit-log) — what a row holds, what gets no row, and the limits of the record
+- [MCP tools](/reference/mcp-primitives) — the address an agent connects to, and what every call returns
+- [The OAuth bridge](/reference/oauth-bridge) — how a hosted agent signs in, and the eight addresses the internet reaches
+- [Read data](/reference/mcp-reading) — `get_schema`, `query` and `get_record`
+- [Freshness and live reads](/reference/mcp-freshness) — `describe_context`, `fetch_live`, and how often Postern checks
+- [Act on a source](/reference/mcp-actions) — `list_actions` and `invoke_action`
+- [The audit log](/reference/audit-log) — what a row holds, and what gets no row
+- [Read the record](/reference/read-the-record) — the ledger screen and `GET /api/audit`
+- [What the record cannot promise](/reference/record-limits) — what is dropped before it lands, and what nothing in the database prevents
 
 ## Where things are
 

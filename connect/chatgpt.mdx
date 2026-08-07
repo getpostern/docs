@@ -168,7 +168,7 @@ start this from that app, close this page.` Postern prints both from what ChatGP
 <Warning>
   Read both lines before you approve. Anyone who can reach your address can ask to connect, so those
   two lines are your only check —
-  [why the bridge cannot refuse an unknown client](/reference/security-model#agent-keys). If the name
+  [why the bridge cannot refuse an unknown client](/reference/oauth-bridge#anyone-can-register-a-client). If the name
   is not the app you started this from, or the address does not belong to OpenAI, close the page.
 </Warning>
 
@@ -249,10 +249,10 @@ permission per call. A **Postern** entry in the **Sources** rail is the sign tha
 ChatGPT holds a temporary pass issued by your own machine, never the key itself. It sees exactly the
 sectors you ticked in step 1, and appears in the record under the name you gave it. Its access ends
 when the key expires —
-[hosted clients and the OAuth bridge](/reference/mcp-primitives#hosted-clients-and-the-oauth-bridge).
+[the OAuth bridge, for hosted agents](/reference/oauth-bridge).
 
 Revoke the key and Postern refuses ChatGPT's next call. Rotate it and its passes die at the same
-moment — [revoking and rotating a key](/reference/security-model#revoking-and-rotating-a-key).
+moment — [revoking and rotating a key](/reference/agent-keys#revoking-rotating-and-removing).
 
 Three standing costs come with this.
 

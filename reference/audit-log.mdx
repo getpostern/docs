@@ -1,6 +1,6 @@
 ---
 title: "The audit log"
-description: "What one row holds, what gets a row, what does not, and the limits of a record the database does not enforce."
+description: "What one row holds, what gets a row, and what does not."
 ---
 
 <Info>
@@ -28,6 +28,13 @@ your agents.** Six acts leave no row at all: create a key, rotate one, edit its
 sectors or its deadline, revoke it, delete it, and set a connection's sync window.
 Postern records everything else on this page. And nothing here stops anything:
 the record is a witness, never a guard.
+
+Two more pages carry the rest of the record.
+[Read the record](/reference/read-the-record) is the ledger screen and
+`GET /api/audit` — the filters, the paging and **Export CSV**.
+[What the record cannot promise](/reference/record-limits) is how far it can be
+trusted — what is dropped before it lands, what nothing in the database prevents,
+and the five questions it cannot answer.
 
 ## What one row holds
 
@@ -121,7 +128,7 @@ alarm itself.
   Four of those five end every live session that agent holds: a rotate, an edit to
   its sectors or its deadline, a revoke and a remove. So an agent can stop
   mid-work with nothing in the record to say why.
-  [What each verb does](/reference/grants-and-sectors#revoking-rotating-and-removing).
+  [What each verb does](/reference/agent-keys#revoking-rotating-and-removing).
 </Warning>
 
 Two traps in that list. The `revoke` verb above is **a source credential**, not an
@@ -133,7 +140,7 @@ is `POST /api/data/:sector` and `GET /api/data/:sector/:id`. It runs the same
 query engine an agent runs, as the operator with every sector granted, and writes
 nothing. Nor do `GET /api/operator/context`, `GET /api/operator/schema`, reads of
 the record itself, or **Export CSV**.
-[Why reachability here counts as operator trust](/reference/security-model#the-console-has-no-authentication).
+[Why reachability here counts as operator trust](/reference/ports#the-console-has-no-authentication).
 
 **On the REST read mirror, a refused key leaves no row.** That covers both
 refusals it can give: a missing or malformed key (`401`), and an unknown, revoked
@@ -145,7 +152,7 @@ second, so a key that never resolves fails before the write runs. An ungranted
 `initialize`, with the reason under `deny_reason`, no agent name, and no sector. A
 reason never travels in the sector column, so a sector filter never shows that
 row. One surface remembers a bad key and the other does not.
-[The two refusals](/reference/grants-and-sectors#the-two-refusals).
+[The two refusals](/reference/refusals#the-two-refusals).
 
 The line falls where a call touches a source or changes state, not where it only
 reads. Postern records an operator `fetch_live`, because it reaches a source and
@@ -182,219 +189,6 @@ The Console renders `args` two ways. The table drops fields whose value is null.
 The row detail panel prints them whole under **Args (redacted, verbatim)**, and
 **Export CSV** carries them exactly as recorded.
 
-## Read it in the Console
-
-Click **The ledger** in the left nav. The table has six columns: **Time**, **Who**,
-**Tool**, **Sector**, **Args**, **Decision**. Click any row to open the **Ledger
-entry** panel — Time, Agent, Tool, Sector, Decision, Deny reason, Outcome, Result
-count, Request id and **Args (redacted, verbatim)**. Press **Close** or `Esc` to
-dismiss it.
-
-The **Decision** column shows only refusals and errors. Open a row to see its
-state in full.
-
-| Control | Options |
-|---|---|
-| **Filter by agent** | **All agents**, then one per agent |
-| **Filter by tool** | **All tools**, then one per tool |
-| **Filter by sector** | **All sectors**, then one per sector |
-| **Since** | **Any date** · **Last 24 hours** · **Last 7 days** · **Last 30 days** |
-| The decision toggle | **All** · **Admitted** · **Denied** |
-
-There is no filter for errored calls. The API accepts no filter on `outcome`.
-
-<Warning>
-  **A sector filter is not a narrower view of the whole record.** It is an equality
-  match on the `sector` column, and SQL equality never matches null. Every call
-  that happened in no sector leaves the view — an agent that asks what Postern
-  holds, a refused handshake. Those calls are still recorded. The Console says so
-  under the control the moment you set one.
-</Warning>
-
-One page is 100 rows. **Load more ↓** walks older pages with the cursor Postern
-creates. The view can reach the true end of history, and it says so when it does.
-
-**Export CSV** takes the rows currently loaded and nothing else. Its column names
-match the API's field names, not the table headers. Values that look like
-spreadsheet formulas get a leading apostrophe, so they cannot run when you open
-the file.
-
-## Read it over HTTP
-
-`GET /api/audit` serves the same pages as JSON, on the Console port. Open a
-terminal **on the machine Postern runs on** and run:
-
-```bash
-curl -sD - "http://localhost:8787/api/audit?limit=5"
-```
-
-`-s` hides the progress meter; `-D -` prints the response headers, where the
-paging values live. A working call prints `HTTP/1.1 200 OK`, the headers, then a
-JSON array of up to 5 rows, newest first. There is no envelope and no total.
-
-`8787` is the Console port on a stock install. `REST_PORT` in `.env` moves it and
-this endpoint follows. `.env` sits beside `docker-compose.yml`; edit it there, not
-in the Console, then run `docker compose up -d`.
-
-From any other computer this call fails, and that is correct. Compose opens the
-port to this computer only. Postern also refuses any request whose `Host` header
-is not `localhost`, `127.0.0.1` or `::1`, with `403` and
-`{"error":"forbidden host"}`.
-
-### Filters
-
-Every filter is optional, and every value is a bind parameter.
-
-<ParamField query="agent" type="string">
-  Exact match on `agent_id`.
-</ParamField>
-
-<ParamField query="tool" type="string">
-  Exact match on `tool`.
-</ParamField>
-
-<ParamField query="decision" type="string">
-  `allow` or `deny`.
-</ParamField>
-
-<ParamField query="sector" type="string">
-  Exact match, verbatim. Postern never checks it against the registry, because the
-  record is history: a sector that no longer exists returns its rows rather than an
-  error. Excludes every row whose sector is null.
-</ParamField>
-
-<ParamField query="since" type="string">
-  An ISO timestamp. Returns rows at or after it. A value that does not parse is a
-  400.
-</ParamField>
-
-<ParamField query="before" type="string">
-  The cursor for the next page. Send back the previous response's
-  `x-postern-audit-next` header exactly as you received it. **Never build your own
-  from a row's `created_at`.** The wire timestamp has lost the microseconds the
-  cursor needs, so a rebuilt cursor silently skips rows. Batch inserts make those
-  neighbours common. A bad value is a 400:
-  `invalid 'before' cursor: echo the previous page's x-postern-audit-next header value unmodified`.
-</ParamField>
-
-<ParamField query="limit" type="number" default="100">
-  Capped at 1000 without complaint — a larger request returns the ceiling, not an
-  error. Anything that is not a positive whole number (`0`, `-1`, `abc`, `1.5`) is
-  a 400 with `invalid 'limit'`. This bounds one page, not what is reachable.
-</ParamField>
-
-### The served row
-
-The columns above, minus `user_id`: `id`, `agent_id`, `tool`, `sector`,
-`decision`, `deny_reason`, `args`, `result_count`, `outcome`, `request_id`,
-`created_at`.
-
-Two differences from the table. `id` is a `bigserial` in the database and a string
-on the wire. `created_at` is ISO text at millisecond precision, so the cursor's
-microseconds are not in it.
-
-`user_id` is never served. There is one user on a self-hosted Postern, and the
-route scopes every query to them.
-
-### Paging headers
-
-- `x-postern-audit-has-more` — `true` or `false` on every 200. `false` means this
-  is the last page. Postern fetches one row past your `limit` and trims it, so a
-  page that fills exactly still reports `false` truthfully.
-- `x-postern-audit-next` — the cursor for the next page, present when has-more is
-  `true`.
-
-<Note>
-  An **absent** has-more header is not `false`. Absent means Postern did not answer
-  the question. Treat it as unknown, never as the end of the record.
-</Note>
-
-## How durable the record is
-
-Postern writes the record in the background, so the write never slows an agent
-down and a dead database cannot break a read. The defaults: flush every 1000 ms or
-at 100 buffered entries; 100 entries per insert; a queue that holds 10,000; at most
-one insert in flight.
-
-Three things stop an entry before it reaches the table.
-
-| What happened | What you see | What it costs |
-|---|---|---|
-| The queue is full | `[audit] queue overflow — dropped` in the container log, with a running total | The **incoming** entry is refused, never the oldest, so a flood cannot erase history already queued |
-| An insert failed | `[audit] flush failed, dropped batch:` and the reason on stderr | The batch was already off the queue, so it is dropped rather than retried. Postern does not crash |
-| A hard crash | Nothing | Whatever was buffered goes with it. A clean shutdown drains the rest, best-effort |
-
-<Warning>
-  Every count you take off this record is a **lower bound**, and what it lost is
-  gone. There is no retry, no spool, and no marker to say something was dropped.
-  That direction is safe for *is this key quiet enough to revoke?*, where a dropped
-  line can only make a key look quieter. It is unsafe for the opposite question. An
-  empty result is not evidence that an agent never read a sector. Under a sustained
-  flood the record goes blind forward rather than loses its past. The refusal caps
-  are what keep that out of an anonymous caller's reach.
-</Warning>
-
-## Nothing enforces immutability
-
-Postern only ever adds to the record. Append-only in practice: the only statement
-the code runs against `audit_log` is an insert. Nothing updates or deletes a row.
-
-- **An erase keeps the record.** Erase is a real hard delete and touches
-  domain rows only. The record of the act survives the act, and never held the
-  values.
-- **A revoked agent keeps its rows.** `agent_id` is plain text with no foreign
-  key, so the history does not go with the grant.
-- **Nothing ages out.** There is no retention job in the repository.
-
-<Warning>
-  The database does not prevent a row from being changed or deleted. Postern
-  connects as the account that owns the table, and that account may change or
-  delete rows. Postern never does, but nothing stops it. Anyone who can reach
-  Postgres can rewrite the record, and the record cannot tell you that they did.
-
-  `db/schema.sql` carries a comment saying `UPDATE` and `DELETE` are revoked from
-  the app role. No such change exists in the schema or in any migration. Read it as
-  intent, not as a control.
-  [Where that sits in the trust boundary](/reference/security-model#the-trust-boundary).
-</Warning>
-
-Immutability here is yours to provide, with your Postgres roles, backups and disk.
-A writer role that does not own the table, an append-only replica, rows shipped off
-the machine as they land — Postern does none of that for you today.
-
-## What the record cannot tell you
-
-- **Whether it is complete.** Nothing in a row says an entry is missing.
-- **How many entries exist.** No total, no count endpoint. A filtered-empty view
-  can say whether older pages exist, and nothing more.
-- **Which key made a call, after a rotation.** `agent_id` is a name, not a key
-  identity. A new key under the same name inherits the earlier key's history.
-- **What a read returned.** Only how many rows.
-- **Anything about a call that was never made.** That cuts the useful way too.
-  An agent that claims work it never did leaves no row for it. Witnessed on
-  ChatGPT — 50 seconds of progress text, an answer that said it had no data, and 0
-  calls recorded. Trust the record over the answer.
-
-## Confirm it works
-
-- Console → **The ledger** shows at least one row, or the empty state
-  `Nothing has come through the gate yet. Every read and action will be recorded here.`
-- Send a connected agent a message such as *"What can you see in Postern?"*. With
-  **Filter by sector** on **All sectors**, a row appears within about 2 seconds,
-  with the agent's name under **Who** and `describe_context` under **Tool**.
-- Pause a connection or run a sync. A row appears with `operator` under **Who**.
-- Point an agent at Postern with a key it does not know, then restart that agent.
-  The client fails to connect, and a row appears with **Denied** under **Decision**.
-
-## If something went wrong
-
-| What you see | What to do |
-|---|---|
-| The record is empty, or a row is missing or a second late | `created_at` is the insert time and Postern flushes every 1000 ms — wait 2 seconds and reload. If it never arrives, check the container log for `[audit] queue overflow — dropped` or `[audit] flush failed, dropped batch:`. Both mean rows were dropped and never retried. Reduce the call rate; there is nothing to recover. |
-| A sector filter hides calls you know happened | Set **Filter by sector** back to **All sectors**. It never matches a call that happened in no sector, which is exactly what `describe_context` and refused handshakes are. |
-| You read your own data in the Console and no row appeared | Correct, not a failure. Postern does not record reads you make yourself, nor any of the six Console acts listed above. |
-| `invalid 'before' cursor: …` or `{"error":"forbidden host"}` | For the cursor, paste the previous response's `x-postern-audit-next` header exactly, with nothing rebuilt or trimmed. For the 403, run `curl` on the machine Postern runs on — the port is opened to that computer only. |
-
 ## What you have now
 
 A record of every agent call and of the Console verbs listed above. It does not
@@ -403,6 +197,12 @@ cover agent-key management, and it does not cover reads you make yourself.
 ## Next
 
 <Columns cols={2}>
+  <Card title="Read the record" href="/reference/read-the-record">
+    the ledger screen and `GET /api/audit` — filters, paging, and Export CSV
+  </Card>
+  <Card title="What the record cannot promise" href="/reference/record-limits">
+    what is dropped before it lands, and what nothing in the database prevents
+  </Card>
   <Card title="Connect an agent" href="/start/connect-an-agent">
     a running Postern and an agent key · a few minutes, plus a restart of your
     client · a key shown once

@@ -26,7 +26,7 @@ the list is empty, and that button sits inside the **No keys issued yet** card. 
   Give this agent a name no other agent has. One name holds one key. Type a name that already exists
   and Postern replaces that agent's key. Its sectors and its deadline become whatever this form now
   says, and Postern clears a revoke you had made. Every agent still on the old key stops at once.
-  [Postern deletes every token derived from the old key too](/reference/grants-and-sectors#revoking-rotating-and-removing).
+  [Postern deletes every token derived from the old key too](/reference/agent-keys#revoking-rotating-and-removing).
 </Warning>
 
 In **Name**, type the name. The field shows `my-agent` in grey — that is an example, not a value.
@@ -82,7 +82,7 @@ it starts on **Never**. If you have, it starts on **90 days** and adds the line
 `This gate is published. A key you paste into a hosted client should expire.`
 
 Choose by where the key will live. A key that never leaves this computer may sit at **Never**.
-[Postern refuses a key at the instant it expires, and refuses to move a lapsed key's deadline](/reference/grants-and-sectors#expiry).
+[Postern refuses a key at the instant it expires, and refuses to move a lapsed key's deadline](/reference/agent-keys#expiry).
 
 </Step>
 
@@ -154,7 +154,7 @@ connected no source to it yet.
 
 Treat the key as a password: every config file you paste it into now holds a secret. If it gets loose,
 revoke or rotate the agent.
-[That ends the key and every token derived from it at once, and cuts its live sessions](/reference/grants-and-sectors#revoking-rotating-and-removing).
+[That ends the key and every token derived from it at once, and cuts its live sessions](/reference/agent-keys#revoking-rotating-and-removing).
 Postern touches no source password, and nothing upstream changes.
 
 ## Next

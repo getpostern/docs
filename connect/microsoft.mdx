@@ -62,7 +62,7 @@ Any Entra ID Tenant + Personal Microsoft accounts
 
 The dropdown opens on **Single tenant only - Default Directory**. An app left on that row refuses a
 personal Outlook or Hotmail sign-in.
-[Why the default choice locks out personal accounts](/reference/security-model)
+[Why the default choice locks out personal accounts](/reference/provider-sign-ins#two-microsoft-registration-choices-postern-cannot-work-around)
 
 <Frame caption="The dropdown opens on Single tenant only - Default Directory. Take Any Entra ID Tenant + Personal Microsoft accounts.">
   <img src="/images/microsoft-account-types.png" alt="The Entra New registration form: a Name field that holds 'postern', and the Supported account types dropdown open — Single tenant only - Default Directory as the current value, then Multiple Entra ID tenants, then Any Entra ID Tenant + Personal Microsoft accounts." />
@@ -102,7 +102,7 @@ The Console prints `localhost` rather than `127.0.0.1` on purpose. Microsoft's p
 address written as an IP number over `http`. Both addresses mean the same machine. If you moved the
 Console's port, the Console prints the address that matches. Copy what the Console prints, never
 what this page prints.
-[Why the redirect URI must come from your own Console](/reference/security-model)
+[Why the redirect URI must come from your own Console](/reference/provider-sign-ins#the-redirect-address-is-pinned-inside-postern)
 
 Back in Entra, paste it into the field beside the platform. Never type it.
 
@@ -136,7 +136,7 @@ It is 5 groups of letters and digits, separated by dashes. These zeros stand in 
 
 Change nothing else at Entra. Microsoft needs no client secret. Add no permissions by hand, and
 switch on no API. The sign-in screen in the next step is where you grant the scopes.
-[Why Microsoft needs no client secret](/reference/security-model)
+[Why Microsoft needs no client secret](/reference/provider-sign-ins#what-each-provider-needs-and-why)
 
 </Step>
 
@@ -246,7 +246,8 @@ Three read-only connections out of one consent.
   Postern uses it once every 90 days.
 - **Postern never held a Microsoft password.** Revoke an agent, or disconnect Microsoft in the
   Console, and neither one can touch a password you never pasted.
-  [What a grant covers, and what you take back when you revoke one](/reference/grants-and-sectors)
+  [What a grant covers](/reference/grants-and-sectors#what-a-grant-covers), and
+  [what you take back when you revoke one](/reference/agent-keys#what-a-revoke-does-not-touch)
 
 ## Next
 

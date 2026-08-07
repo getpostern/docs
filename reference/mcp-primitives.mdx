@@ -1,6 +1,6 @@
 ---
 title: "MCP tools"
-description: "The seven tools an agent can call, their parameters and returns, the address it calls them on, and how it signs in."
+description: "How an agent connects: the address, the transport, the key it sends, what every tool call returns, and where each tool is documented."
 ---
 
 <Info>
@@ -21,6 +21,25 @@ so Claude, ChatGPT and Cursor connect the same way.
 
 Nothing on this page was captured from a run. The shapes are the declared types, and
 the quoted strings are Postern's own.
+
+## The seven tools
+
+Seven tools, three pages. Each page answers one question, so the traps that belong
+together stay together.
+
+| Tool | What it answers | Where it is written up |
+|---|---|---|
+| `get_schema` | The objects and fields you can ask for | [Read data](/reference/mcp-reading#get_schema) |
+| `query` | A structured read over one sector | [Read data](/reference/mcp-reading#query) |
+| `get_record` | One stored record by id | [Read data](/reference/mcp-reading#get_record) |
+| `describe_context` | What this key can reach, and how old each connection's data is | [Freshness and live reads](/reference/mcp-freshness#describe_context) |
+| `fetch_live` | The one read that leaves the cache | [Freshness and live reads](/reference/mcp-freshness#fetch_live) |
+| `list_actions` | What the connected sources let you do | [Act on a source](/reference/mcp-actions#list_actions) |
+| `invoke_action` | Perform one of those actions | [Act on a source](/reference/mcp-actions#invoke_action) |
+
+A hosted agent — claude.ai or ChatGPT, running on a company's servers — cannot send
+a fixed key at all, and signs in through a bridge instead.
+[The OAuth bridge](/reference/oauth-bridge).
 
 ## The endpoint
 
@@ -130,22 +149,18 @@ Postern matches the header name and the word `Bearer` without regard to case. A
 
 Postern compares the SHA-256 of the key you present against the hash stored with the
 grant. It never stores the key, never logs it, and never puts it in the record. A lost
-key is created again, not recovered. [Agent keys](/reference/security-model#agent-keys).
+key is created again, not recovered.
+[What an agent key is](/reference/agent-keys#what-an-agent-key-is).
 
 Postern checks the key once, when the agent connects, and remembers the answer for that
 session. Later tool calls do not re-read the database.
 
-Three things end a key, and Postern names which one in the refusal:
-
-| Refusal | What it means |
-|---|---|
-| `access denied: unknown agent` | No grant carries that hash. |
-| `access denied: revoked` | The grant was revoked. |
-| `access denied: expired` | The key is past its expiry. |
+Three states end a key — unknown, revoked and expired — and the refusal at connect
+names which one it was. [Why an agent was refused](/reference/refusals).
 
 A key is dead **at** its expiry instant, and Postern checks the deadline on every
 call. An open session stops answering the moment its key expires.
-[Expiry](/reference/grants-and-sectors#expiry).
+[Expiry](/reference/agent-keys#expiry).
 
 Four acts end every live session that agent holds, at once: an edit to its
 grants, an edit to its expiry, a rotation of its key, and a revoke or delete.
@@ -153,104 +168,16 @@ A session that was still starting up is refused too. Postern only has
 to sweep the agent port. The REST read mirror re-checks the key on every single
 request, so it never held a stale answer to sweep. The agent must connect again,
 and the new grants apply from that new session.
-[Revoking, rotating and removing](/reference/grants-and-sectors#revoking-rotating-and-removing).
+[Revoking, rotating and removing](/reference/agent-keys#revoking-rotating-and-removing).
 
-### What a grant does to a tool call
-
-Grants are per sector and default-deny: a new key can reach nothing until you switch on
-a sector. `*` expands to every sector; any other name is kept only if it is one of
-`finance`, `health`, `mail`, `contacts`, `calendar` or `home`. A granted sector covers
-reading **and** acting there. Nothing is narrower — there is no per-connector, per-tool
-or per-call gating underneath a grant. Only Home Assistant has an action catalogue
-today, so for five of the six sectors the acting half reaches nothing.
-[What a grant covers](/reference/grants-and-sectors#what-a-grant-covers).
-
-| Tool | An ungranted sector |
-|---|---|
-| `query`, `get_record`, `fetch_live`, `invoke_action` | Refused before any database work, naming the sector: `access denied: finance` |
-| `describe_context`, `get_schema` | Filtered — you get what you are granted, nothing else |
-| `list_actions` | Filtered, unless you name a sector; naming an ungranted one is a refusal |
-
-A name whose leading segment is not one of the six is refused the same way.
-
-<Warning>
-  A key granted no sectors connects successfully and is denied on every read. The
-  connection is fine and the answers are empty, so nothing in your agent looks wrong.
-  `describe_context` gives it away: it comes back with `sectors: []`. To fix it,
-  click **Agents & keys**, click that agent's row to open its own page, and look
-  under **Grants**. No sector switched on is the fault. Switch one on there.
-  Nothing about the agent's config changes.
-</Warning>
-
-### Hosted clients and the OAuth bridge
-
-An agent on the same machine as Postern sends its agent key on every call. A hosted
-agent — claude.ai or ChatGPT, running on a company's servers — cannot, because those
-services will not take a fixed key.
-
-So Postern ships a small OAuth 2.1 sign-in server on the agent port. Your agent signs
-in to Postern's own sign-in page, pastes the agent key there once, and holds a token
-that rotates from then on. That token resolves to the same grant row the key does: the
-same sectors, the same expiry ceiling, the same revocation, and the same name in the
-record. A chain of refreshes can never outlive the key's own expiry. Revoke the agent
-and every token made from it dies with it.
-
-The bridge is on exactly when Postern has a public address. There is no separate switch,
-and while it is off its paths answer 404 like any other path that is not `/mcp`.
-
-To turn it on:
-
-1. In the Console, click **Settings**.
-2. Find the **Remote access** band.
-3. Type your address into **Your gate’s public address**.
-4. Click **Publish this gate**.
-5. Restart Postern.
-
-[Set up remote access](/start/remote-access) is the whole procedure. Nothing is
-published by default.
-
-**Save the origin only.** Postern refuses an address carrying a path, a query, a
-fragment, or a username and password. It serves every address it publishes at the root,
-so a saved path would send agents to an address that answers nothing — while the boot
-log, both discovery documents and the Console's own indicator all still read correctly.
-That is why Postern refuses one, and the refusal names the origin to save instead. A
-port is fine: Postern drops a default port, so `https://host.ts.net:443` is stored as
-`https://host.ts.net`, and a non-default port such as `:10000` is legal.
-
-An agent needs that address **plus `/mcp`**. The Console appends the suffix itself, in
-one place, so its **Copy** button is the right source for the string.
-
-With the bridge on, the internet reaches exactly eight addresses on one port:
-
-| Address | What it holds |
-|---|---|
-| `GET /.well-known/oauth-protected-resource`<br />`GET /.well-known/oauth-protected-resource/mcp`<br />`GET /.well-known/oauth-authorization-server` | Three sign-in documents. No data of yours. |
-| `GET /authorize` | The sign-in page. |
-| `POST /authorize` | The sign-in itself. Your agent key gates it. |
-| `POST /token` | The token exchange. |
-| `POST /register` | Registers a **client application**, never an agent. Anyone who can reach the address may call it, the OAuth standard requires that, and a registration on its own reaches no data of yours. Rate-limited. |
-| `POST GET DELETE /mcp` | Your data. Needs a key. |
-
-**The Console is not among them.** Nothing else on the machine is reachable.
-
-| The sign-in document advertises | Value |
-|---|---|
-| Response types | `code` |
-| Grant types | `authorization_code`, `refresh_token` |
-| Challenge method | `S256` only — Postern refuses a sign-in that offers anything else, or none, with `code_challenge_method must be 'S256' (plain is not accepted)` |
-| Token endpoint auth | `none` — registration is dynamic, and there is no client secret |
-| Access token | prefix `pcgat_`, lives 3600 seconds |
-| Refresh token | rotates on use; reusing a rotated-out one revokes the whole chain |
-
-With the bridge on, a 401 also carries a `WWW-Authenticate` challenge pointing at the
-protected-resource document. With it off, a 401 carries no such header.
-
-Hosted agents connect out on port 443 only. Say a hosted agent reports it could not
-reach you, and nothing at all appears in your logs. It never arrived. That company's
-network resets an address on any other port before the request leaves it. The absent
-log line is evidence about the port, not about Postern. A hosted agent then remembers the
-failed check for a few minutes, so an immediate retry reads the cached failure rather
-than testing your fix. Wait five minutes, then try once.
+**A grant decides what every tool answers.** Grants are per sector and default-deny: a
+new key can reach nothing until you switch on a sector, and a granted sector covers
+reading **and** acting there. A key granted no sectors connects successfully and is
+then denied on every read, so nothing in your agent looks wrong; `describe_context`
+gives it away, coming back with `sectors: []`.
+[What the grant decides, tool by tool](/reference/grants-and-sectors#what-the-grant-decides-tool-by-tool)
+is the per-tool effect, and [why an agent was refused](/reference/refusals) is the
+shape of each refusal.
 
 ## What a tool call returns
 
@@ -267,7 +194,7 @@ is not a transport error and not a broken session. This page quotes only Postern
 of the string; how your agent wraps it is not recorded here.
 
 An action the source itself rejects is not an error. `invoke_action` returns `ok: false`
-as an ordinary result. See [invoke_action](#invoke_action).
+as an ordinary result. See [invoke_action](/reference/mcp-actions#invoke_action).
 
 There are no rate limits in the tool path. The bridge's own addresses are metered.
 
@@ -298,512 +225,6 @@ reading and acting. Never assume a field's meaning from its name.
 
 Each tool carries its own description on top of that, and those descriptions are where
 the per-tool traps live.
-
-## describe_context
-
-What this key can reach: the sectors it was granted, and every connection the owner
-has in those sectors. Takes no parameters.
-
-```ts
-{
-  sectors: string[]
-  connections: {
-    connection_id: string
-    provider: string
-    sector: string
-    status: string
-    label: string | null
-    last_synced_at: unknown
-    mode: "poll" | "push" | "on_demand" | null
-    health: { status: string; consentExpiresAt: string | null } | null
-    freshness: {
-      state:
-        | "ok" | "syncing" | "stale" | "unreachable"
-        | "error" | "paused" | "disconnected" | "never_synced"
-      last_heard_at: string | null
-      next_expected_at: string | null
-      stream_state: "connected" | "retrying" | "down" | null
-      error: { message: string; since: string | null } | null
-    }
-  }[]
-}
-```
-
-`sectors` is the **granted** list, not the connected list. A granted sector can hold
-no connection at all, so read `connections` alongside it. Connections whose status is
-active, error, syncing or paused are all listed. Only revoked ones are left out.
-
-Postern derives `freshness` in one place, inside itself, and serves it identically to
-the Console and to `describe_context`. Trust it over any raw timestamp.
-
-| Field | What it holds |
-|---|---|
-| `last_heard_at` | The last-synced clock, as ISO-8601. |
-| `last_synced_at` | The same clock as the database holds it. Declared `unknown`, never promised as a string. |
-| `next_expected_at` | Computed for poll connections only. |
-| `mode` | `null` when no connector is registered for that provider. |
-| `health` | Filled in for Plaid connections. `null` for every other provider. |
-
-`mode` and `freshness` together decide whether a `fetch_live` is worth making:
-
-| State | What to do |
-|---|---|
-| A push connection reading `ok` | Already live. Skip the `fetch_live`. |
-| A poll or on-demand connection | Goes stale between syncs. |
-| `unreachable` | A push stream is down or retrying, and the cache is ageing behind a connection that still looks active. |
-| `health.status: "action_required"` | The bank link is broken and the cache is stale, even though the last-synced clock kept advancing. A reconnect for the owner, not something an agent can retry around. |
-
-<Note>
-  A connection listed with `freshness.state: "error"`, `mode: null`, `health: null` and
-  `error.message: "freshness derivation failed"` is a degraded row, not a dead source.
-  Its own facts — provider, sector, status, last-synced clock — are still true. Only
-  the derivation failed.
-</Note>
-
-## get_schema
-
-The queryable objects and fields, per sector — the contract `query` validates against.
-
-<ParamField body="sector" type="string">
-  A full object key (`finance.transaction`) returns that object. A bare sector name
-  (`finance`) returns every object in it. Omitted, it returns everything the key is
-  granted.
-</ParamField>
-
-The answer is keyed by object key. Each entry is the object's declared shape:
-
-```ts
-Record<string, {
-  object: string
-  table: string
-  fields: Record<string, "text" | "numeric" | "bool" | "timestamptz" | "uuid">
-  fieldDocs?: Record<string, string>
-  notes?: string
-  primaryTime?: string
-  jsonb?: string[]
-  serveDeduped?: boolean
-}>
-```
-
-The ten object keys, and the sector each belongs to:
-
-```text
-finance.account          finance
-finance.transaction      finance
-finance.holding          finance
-health.sample            health
-health.workout           health
-health.sleep_session     health
-mail                     mail
-contacts                 contacts
-calendar                 calendar
-home                     home
-```
-
-A sector with more than one object takes the dotted key everywhere an object is named —
-`query`, `get_record`, and `fetch_live` with an id. A sector with one object takes the
-bare name.
-
-This page does not repeat the field lists. Call `get_schema`: it is the authority, and
-it is filtered to your own grants. Read `notes` and `fieldDocs` — they carry the sign
-conventions, enums and unit traps that a field's type and name cannot.
-
-These rules hold across every object:
-
-| Rule | Detail |
-|---|---|
-| `id` | Postern's own id for the row. `get_record` and `fetch_live` take this one. |
-| `source_object_id` | The provider's own id. Not interchangeable with `id`. |
-| Timestamps | ISO-8601 UTC. |
-| `sum`, `avg`, `min`, `max` | Return precision-safe decimal **strings**. |
-| `count` | Returns a number. |
-| Rows the source has deleted | Excluded from `query`, still readable through `get_record`. |
-| `raw` | The untouched copy of what the source sent. Its names, units and signs differ from the columns beside it. |
-
-<Note>
-  A sector the key was not granted comes back as an empty object, not a refusal.
-  `get_schema` filters to your grants after it resolves the name. So
-  `get_schema("finance")` on a key with no finance grant returns `{}`, which reads
-  like "this install has no finance data". An unknown name is different and does fail,
-  with `unknown sector: <name>`. Read `describe_context` before you conclude anything
-  from an empty schema.
-</Note>
-
-## query
-
-A structured read over one sector, served from the local cache. There are no
-cross-sector joins — fan out and correlate on your own side.
-
-<ParamField body="sector" type="string" required>
-  The object key. A sector with more than one object needs the dotted form.
-</ParamField>
-
-<ParamField body="where" type="object">
-  Field-keyed conditions. A bare scalar means equality; a bare `null` means `IS NULL`.
-  Operators: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `contains`.
-</ParamField>
-
-<ParamField body="select" type="string[]">
-  The projected columns. Omitted, it is every flat field. At most 50 entries.
-</ParamField>
-
-<ParamField body="limit" type="integer" default="100">
-  Capped at 500. In aggregate mode this caps groups instead of rows. Must be an integer
-  of 1 or more.
-</ParamField>
-
-<ParamField body="offset" type="integer">
-  Rows mode only, capped at 5000. Deep paging is not supported — narrow with `where`.
-</ParamField>
-
-<ParamField body="orderBy" type="{ field: string, dir?: 'asc' | 'desc' }[]">
-  Rows mode only. `dir` defaults to `asc`. At most 50 entries, no field twice.
-</ParamField>
-
-<ParamField body="aggregate" type="{ fn, field?, groupBy? }">
-  `fn` is one of `count`, `sum`, `avg`, `min`, `max`. `count` takes no field; the other
-  four require a numeric one. `groupBy` takes up to 50 flat fields.
-</ParamField>
-
-<ParamField body="includeShadowed" type="boolean">
-  Finance objects only. See **Two banks, one row**, below.
-</ParamField>
-
-```ts
-// rows mode
-{ sector: string, object: string, count: number, has_more: boolean, rows: Record<string, unknown>[] }
-
-// aggregate mode
-{
-  sector: string
-  object: string
-  aggregate: { fn: string, field?: string }
-  count: number
-  has_more: boolean
-  groups: { group: Record<string, unknown>, value: number | string | null }[]
-}
-```
-
-`count` is what **this response** holds. It is never a total, and never the answer to
-"how many are there" — that is `aggregate: { fn: "count" }`. `has_more` comes from a
-probe row rather than from `count === limit`, so a page that fills exactly reads
-`has_more: false` truthfully.
-
-Groups come back ordered by the aggregate value descending, then by the group columns
-ascending. `count` there is a JSON number. `sum`, `avg`, `min` and `max` are decimal
-strings, or `null` when the aggregated set was empty. Postern refuses `aggregate`
-alongside `select`, `orderBy` or `offset`, and the refusal names the field.
-
-Rows come back ordered by the object's `primaryTime` descending, with `id` ascending as
-the tiebreak, unless you order them yourself. The order is deterministic within one
-snapshot, but a later page can shift as a sync lands new rows.
-
-Two clauses are on every query and are not yours to set: the read is scoped to the
-owner's own rows, and rows the source has deleted are excluded. Those rows stay
-readable through [get_record](#get_record).
-
-Operator detail that changes answers:
-
-| Operator | Detail |
-|---|---|
-| `neq` | Null-inclusive — a row whose field is empty **does** match `neq: 'X'`. Ask for the field to be filled as well if you do not want those rows. `{neq: null}` means `IS NOT NULL`. |
-| `in` | Up to 200 scalars. An empty array matches nothing. |
-| `contains` | Substring match, text fields only, without regard to case. |
-| `gt` `gte` `lt` `lte` | Refused on boolean fields. Cannot take `null`. |
-
-**Project the untouched payload.** `select` may name a sector's raw columns as well
-as its flat fields: `raw` on every object, plus `attendees` on `calendar` and
-`attributes` on `home`. That reads a row and its untouched detail in one call, instead
-of a `get_record` follow-up. Projection only — those columns stay out of `where`,
-`orderBy`, `groupBy` and `aggregate`, which validate against the flat fields alone. It
-is opt-in because `raw` costs a fetch and a decompress per row.
-
-**Two banks, one row.** When the same account arrives through both SimpleFIN and Plaid,
-Postern serves one merged row and hides the copies. In the Console that bank's row
-carries *also arrives via SimpleFIN — served as one*. Both provider rows stay intact
-underneath. `includeShadowed: true` reveals them, with read-only linkage columns
-appended so a winner and its members can be tied together. Aggregates follow the same
-rule, so that total double-counts a merged pair by design. On any sector but the three
-finance objects the parameter is refused outright.
-
-<Warning>
-  Money is signed, and negative means money **out**. To total spending, filter
-  `amount < 0` and negate the sum. A plain `sum(amount)` nets income against spending.
-  It is the single most common wrong answer this surface produces: it succeeds, it
-  returns a number, and the number is wrong. The per-field rule is in `get_schema`'s
-  `fieldDocs`.
-</Warning>
-
-Four more properties of finance data decide whether an answer is right. None is visible
-from a field's type or name.
-
-| Property | What it means for an answer |
-|---|---|
-| SimpleFIN sends no categories | An absent category means *not categorised*. It never means *uncategorised spending*. |
-| Investment positions are a snapshot | What is held now, not a stream of trades. No agent can derive gains or trade dates from them. |
-| A cost basis of `0.00` | SimpleFIN saying it does not know, not saying the holding was free. Any return built on it is wrong, not approximate. |
-| Plaid's history window is fixed at link time | Postern asks for up to two years, and it never widens. A query for an earlier period returns nothing; the remedy is to link the bank again. |
-
-`query` refuses these by name:
-
-| Refusal | Cause |
-|---|---|
-| `query requires a full object key (finance.account or finance.transaction or finance.holding), got 'finance'` | A multi-object sector named bare. The message lists the keys you can use. |
-| `unknown sector: <name> (known: …)` | A name that matches nothing. The message lists every known sector. |
-| `unknown field in where: <field>` | A field that is not on that object. Call `get_schema` for the real list. |
-| `limit must be an integer >= 1 (capped at 500)` | A `limit` of 0, a negative, a fraction, or text. |
-| `includeShadowed is not valid on sector "<sector>"` | `includeShadowed` outside the three finance objects. |
-
-## get_record
-
-One stored record by id — the full row behind the tidy view.
-
-<ParamField body="sector" type="string" required>
-  The object key. A sector with more than one object needs the dotted form:
-  `finance.transaction`, not `finance`.
-</ParamField>
-
-<ParamField body="id" type="string" required>
-  Postern's own id for the row — the `id` field in a `query` result, not the provider's
-  `source_object_id`.
-</ParamField>
-
-Returns the stored row, or `null`.
-
-This is the whole row as the database holds it. So it carries columns `query` never
-projects, the untouched `raw` payload and the bookkeeping columns among them. It is
-also the one read **not** filtered by deletion. A row with a non-null `deleted_at`
-means the source has removed that object, and this is where you can still read it.
-
-An id that is not a uuid returns `null` rather than failing, and so does a uuid naming
-no row of the owner's. `null` is the absent answer here, not an error.
-
-A bare multi-object sector does fail, with `get_record requires a full object key
-(finance.account or finance.transaction or finance.holding), got 'finance'`.
-
-## fetch_live
-
-The one read-time path to a source. `query` and `get_record` never leave the cache.
-This does, on request, and within a bound.
-
-<ParamField body="sector" type="string" required>
-  Without `id`, a bare sector name or a dotted key both cover the whole sector. With
-  `id`, a multi-object sector needs the dotted key.
-</ParamField>
-
-<ParamField body="id" type="string">
-  Present, this fetches that one record from its own source connection. Absent, it
-  syncs the sector.
-</ParamField>
-
-```ts
-// without id — sync the sector and wait
-{
-  sector: string
-  mode: "sync"
-  synced: boolean
-  timed_out: boolean
-  last_synced_at: string | null
-  errors?: string[]
-  connections: {
-    connection_id: string
-    provider: string
-    mode: "poll" | "push" | "on_demand" | null
-    freshness: Freshness   // the same shape describe_context serves
-  }[]
-}
-
-// with id — fetch that record from its source
-{
-  sector: string
-  mode: "record"
-  id: string
-  record: unknown   // the untouched provider payload; null = the source says it is gone
-}
-```
-
-Sync mode runs a sync-now across every active poll or on-demand connection in the
-sector, and waits at most 30 seconds. **`timed_out: true` means Postern stopped
-waiting, not that the sync stopped.** The syncs continue in the background. Re-read
-`describe_context` rather than call again. Running the same one twice is safe.
-Postern does not fold two overlapping calls into one, so two agents that ask at the
-same moment start two syncs.
-
-Push connections have no pull to run, and Postern does not quietly count them as fine.
-A push stream that is down or retrying contributes an attributed line to `errors[]` and
-forces `synced: false`. That is a reconnect for the owner, not a retry for the agent.
-Error text is stripped of anything sensitive before you see it.
-
-`connections[]` carries each connection's freshness re-read **after** the wait,
-including connections whose sync failed in it. A sector with no active connection at
-all is a not-found refusal rather than an empty success.
-
-Record mode resolves the connection from the row itself, so a sector holding two
-providers reaches the right one. Not every connector implements a live record fetch,
-and one without it refuses with `live record fetch not supported for <provider>`. This
-page carries no list of which do — Postern's own refusal is the authority. Live fetches
-for footprint-limited sectors, mail bodies among them, are returned to you and never
-stored.
-
-## What the cache holds, by source
-
-How often Postern checks a source, and what it keeps, changes what an agent can ask
-for.
-
-| Source | How often Postern checks | Floor |
-|---|---|---|
-| iCloud mail | every 10 minutes | 5 minutes |
-| iCloud calendar | every 15 minutes | 5 minutes |
-| iCloud contacts | every 15 minutes | 5 minutes |
-| SimpleFIN | every 6 hours | 2 hours |
-
-Apple publishes no rate limits for mail, calendar or contacts, so those intervals are
-deliberately conservative. A calendar or address book that has not changed since the
-last check costs one cheap probe rather than a full read. So a short interval buys
-little, and a long one loses little.
-
-SimpleFIN Bridge expects no more than 24 requests a day per token, and it disables a
-token that goes past its warning level. Four scheduled syncs a day leaves most of that
-budget for **Sync now** and for `fetch_live`. The Bridge refreshes what it holds roughly
-daily, so a shorter interval returns rows Postern already holds.
-
-**iCloud mail stores the envelope only** — sender, subject, dates and flags. Bodies and
-attachments are never stored. When an agent asks for one message, Postern fetches that
-body from Apple on demand and does not keep it. That survives a change to **Recency
-window**. Envelopes newer than the window stay cached. Older mail is still readable,
-one message at a time, live from Apple. Change the window and Postern clears the marker of
-how far the connection has read, so the next run re-reads the whole window from the start.
-On a large mailbox that is minutes of work, and **Envelopes cached** falls before it climbs.
-
-**SimpleFIN's first sync backfills 365 days.** Postern asks for it in windows of 90
-days or less, edge to edge with no gaps, because the Bridge silently caps a longer
-span. Nothing older than a year is ever fetched. Every later sync requests from the
-stored cursor minus a 3-day overlap, which catches a transaction the bank posts a couple
-of days late. A second read of the overlap changes nothing already stored.
-
-**Postern requests posted transactions only.** Pending charges are excluded by request,
-not lost. A card charge appears when the bank finalises it, not when it is authorised —
-usually a day or two after the spend. An agent asked "what did I spend today" will miss
-today's unsettled card activity. That is the source's behaviour, not a sync fault.
-
-**A SimpleFIN read can partly fail.** The Bridge reports a failed bank inside an
-otherwise normal answer, as a per-bank error string rather than as an error response.
-Postern keeps everything that did arrive and writes each string to its own log under
-the prefix `simplefin:`. It also skips the investment-position sweep for that round,
-so a bank that failed to answer does not have its holdings marked as gone.
-
-## list_actions
-
-What the connected sources let you do — the write-side counterpart of `get_schema`.
-Served from the cache and a static catalog, not from a live poll.
-
-<ParamField body="sector" type="string">
-  One sector. Omitted, it enumerates every granted sector.
-</ParamField>
-
-<ParamField body="area" type="string">
-  Passed to the connector verbatim. The connector owns its meaning.
-</ParamField>
-
-<ParamField body="domain" type="string">
-  The cheapest filter. It matches the entity-class prefix — `light`, `lock`, `climate`.
-</ParamField>
-
-<ParamField body="entity_id" type="string">
-  One device. Note the wire name: `entity_id` here, `entityId` at the connector.
-</ParamField>
-
-<ParamField body="limit" type="integer" default="100">
-  Capped at 500. Must be an integer of 1 or more.
-</ParamField>
-
-```ts
-{
-  actions: {
-    id: string
-    description: string
-    params: { name: string, type: "string" | "number" | "boolean", required: boolean, description?: string }[]
-    domain?: string
-    service?: string
-    target?: { area?: boolean, entity?: boolean, domain?: string }
-  }[]
-  count: number
-  truncated: boolean
-}
-```
-
-Read-only sectors contribute nothing, so an empty catalog is a normal answer. Only Home
-Assistant has an action catalogue today. The other five sectors have none at all.
-
-`count` is what this response holds. `truncated: true` means the cap trimmed the
-catalog. Narrow with `domain`, `area` or `entity_id` rather than raise `limit`. Postern takes
-the cut off the end of the list it has built up, so it can drop a whole group of
-actions at once.
-
-`domain`, `service` and `target` are filled in by connectors that build their catalog
-from a live source's own entities. A connector with a fixed catalog leaves them
-undefined.
-
-**Where the Home Assistant catalogue comes from.** Home Assistant will not tell you
-which services apply to which entity. Postern works that out and serves the answer
-from cache, so discovery costs an agent no round trip to your house. The catalog
-comes from the live connection's cache and from nowhere else. An empty catalog for
-`home` therefore means the connection is not up.
-
-**The admin and system services Postern never runs.** The `hassio`, `update` and
-`backup` domains, `homeassistant.restart`, `homeassistant.stop`, and every `reload` are
-dropped from the catalog and refused again at dispatch. Name one directly and Postern
-still refuses it:
-`admin/system service not permitted (device/entity control only)`.
-
-## invoke_action
-
-Perform one declared action on a source. This is the only tool that changes anything
-outside Postern, and Home Assistant is the only source it can change today.
-
-<ParamField body="action_id" type="string" required>
-  Sector-namespaced, and taken from `list_actions` — `home.light.turn_on`,
-  `home.lock.lock`. Never guessed: the leading segment is what the grant is checked
-  against.
-</ParamField>
-
-<ParamField body="params" type="object">
-  The action's parameters, including its target. An explicit id, or a structured
-  selector — area, domain, name — which Postern resolves against its own cache, so
-  "the kitchen light" is one call.
-</ParamField>
-
-```ts
-{ ok: boolean, detail?: unknown }
-```
-
-`detail` carries the source's own response or its error summary. The record keeps the
-action id, the parameters you sent, and whether the outcome was ok or an error — not
-`detail` itself.
-
-Postern passes `params` to the connector as given, and does not check them against the
-action's declared `params` first. A malformed parameter surfaces as the source's own
-error inside `detail`. The types in `list_actions` are there for you to check against
-before you call.
-
-**Postern sends each dispatch once and never re-sends it.** If the connection breaks
-mid-call, Postern reports `unknown — not retried` rather than tries again. It cannot
-know whether the source acted before the wire went, and a second send could act twice
-on a real device. Check the device yourself.
-
-A sector with no active connection returns
-`{ ok: false, detail: "no active connection for sector '<sector>'" }`, and a provider
-with no registered connector returns
-`{ ok: false, detail: "no connector registered for <provider>" }`. Both are ordinary
-results.
-
-<Warning>
-  `ok: false` is a **successful tool call**. The call did not error and your agent will not
-  flag it. An agent that only checks for tool errors will report a light as switched
-  on when the source refused. Read the field. Postern records it too: the row for a
-  rejected action is allow with an error outcome. That tells the owner Postern
-  permitted the call and the source said no.
-</Warning>
 
 ## The REST read mirror
 
@@ -839,16 +260,23 @@ Every string below is Postern's own. Your agent may print more around it.
 |---|---|
 | The agent connects and every read is denied | No sector is switched on. Click **Agents & keys**, click that agent's row, switch on a sector under **Grants**, then reconnect the agent. |
 | 404, `Not found`, on a path you expected to exist | Postern serves `/mcp` and nothing else until it has a public address. Check that the `url` in your config ends in `/mcp`. |
-| A hosted agent says it could not reach you, and nothing appears in your logs | Nothing arrived. Hosted agents connect out on port 443 only. Move the address to 443, wait five minutes, then try once. |
+| A hosted agent says it could not reach you, and nothing appears in your logs | Nothing arrived. Hosted agents connect out on port 443 only. Move the address to 443, wait five minutes, then try once. [Hosted agents connect out on port 443 only](/reference/oauth-bridge#hosted-agents-connect-out-on-port-443-only). |
 | Your agent can only launch a command and will not take a web address | Postern offers no stdio. Put `mcp-remote` in front of the same URL, or use the **Remote · bearer** config block above. |
+| `access denied: unknown agent`, `access denied: revoked` or `access denied: expired` | The key is not one Postern will resolve. [Why an agent was refused](/reference/refusals). |
 
 ## Next
 
 <Columns cols={2}>
+  <Card title="Read data" href="/reference/mcp-reading">
+    `get_schema`, `query` and `get_record` — every parameter, every refusal.
+  </Card>
+  <Card title="Freshness and live reads" href="/reference/mcp-freshness">
+    `describe_context` and `fetch_live` — how old the data is, and how to refresh it.
+  </Card>
+  <Card title="Act on a source" href="/reference/mcp-actions">
+    `list_actions` and `invoke_action` — the write side.
+  </Card>
   <Card title="Connect an agent" href="/start/connect-an-agent">
     Create a key and paste it into your agent.
-  </Card>
-  <Card title="Set up remote access" href="/start/remote-access">
-    Give Postern a public address, so a hosted agent can reach it.
   </Card>
 </Columns>

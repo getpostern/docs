@@ -120,7 +120,7 @@ and the connection reads **Instant — connected**.
   Assistant that was not ready yet recovers by itself. A wrong address never does. **Error**, with
   *"auth failed: invalid token"*: Home Assistant refused the token, and Postern will not retry a
   refused token — [Home Assistant throttles repeated sign-in
-  failures](/reference/security-model#there-is-no-rate-limit-and-no-lockout). Neither state clears
+  failures](/reference/provider-sign-ins#a-refused-source-credential-is-not-retried). Neither state clears
   on a timer; a changed address or token is what clears it.
 </Note>
 
@@ -157,11 +157,11 @@ restarts the connection within a minute.
 The `home` sector, for reads and for actions. Any agent you grant `home` sees your devices' states,
 reads the action list, and runs the actions you would run yourself: lights, scenes, switches,
 scripts, automations and buttons. Postern works out which actions apply to which device, so the list
-arrives instantly. [Home Assistant does not offer that mapping itself](/reference/mcp-primitives).
+arrives instantly. [Home Assistant does not offer that mapping itself](/reference/mcp-actions#where-the-home-assistant-catalogue-comes-from).
 
 Postern never runs an admin or system service. An agent that names one gets `admin/system service
 not permitted (device/entity control only)` back — [the domains and services Postern
-drops](/reference/mcp-primitives).
+drops](/reference/mcp-actions#the-admin-and-system-services-postern-never-runs).
 
 Postern grants permission per sector only. A granted sector covers reads and actions together, with
 no narrower grant and no confirmation step — [what a grant
@@ -170,7 +170,7 @@ Console → **The ledger** holds a row for every call, `invoke_action` among the
 own name. Postern only ever adds to the record.
 
 Postern sends each action once and never repeats it. A break mid-action returns `unknown — not
-retried` — [Postern cannot know whether Home Assistant acted](/reference/mcp-primitives). Check the
+retried` — [Postern cannot know whether Home Assistant acted](/reference/mcp-actions#invoke_action). Check the
 device yourself.
 
 Postern stores the token encrypted on your own machine. It stays exactly as powerful as the Home

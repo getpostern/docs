@@ -63,7 +63,7 @@ To replace a key you have lost, rotate it:
 
 The old key dies at that moment, along with every token made from it. Postern
 disconnects any agent that holds it. [What revoke and rotate
-destroy](/reference/security-model#revoking-and-rotating-a-key).
+destroy](/reference/agent-keys#revoking-rotating-and-removing).
 
 <Warning>
   If this key will go into claude.ai or ChatGPT, set an expiry before you create it.
@@ -241,8 +241,8 @@ claude.ai then opens a page your own Postern serves, headed **Authorize agent
 access**. It names the app — `Claude`, for claude.ai — and the address your sign-in
 code goes to. Under **Paste an agent key from the Console**, paste your agent key.
 Press **Approve**. claude.ai holds a token that rotates from then on. That sign-in
-page turns on with the address; there is no separate switch. [Hosted agents and the
-OAuth bridge](/reference/mcp-primitives#hosted-clients-and-the-oauth-bridge).
+page turns on with the address; there is no separate switch. [The OAuth bridge, for
+hosted agents](/reference/oauth-bridge).
 
 **Connect ChatGPT.** ChatGPT's path is longer. It adds a developer-mode switch, a
 page that carries three different names, and an approval popup served by your own
@@ -286,7 +286,7 @@ deadline, revoke it or remove it. [What does not get a
 row](/reference/audit-log#what-does-not-get-a-row).
 
 Your config file now holds your agent key. Store it where your other passwords live.
-[Agent keys](/reference/security-model#agent-keys).
+[Agent keys](/reference/agent-keys#what-an-agent-key-is).
 
 With no sources connected, your agent connects fine and answers empty. The Console
 reads **Add your first source**. That is the next thing to do, not a repair.

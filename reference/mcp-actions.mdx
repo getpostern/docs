@@ -1,0 +1,149 @@
+---
+title: "Act on a source: list_actions, invoke_action"
+description: "The write side: what the sources let an agent do, how one action is dispatched, why `ok: false` is a successful call, and what Postern never runs."
+---
+
+<Info>
+  **Before you start**
+
+  - **Home Assistant is the only source Postern can change today.** The other five
+    sectors are read-only, so an empty action catalogue is a normal answer.
+  - **A granted sector covers reading and acting together.** There is no separate
+    action permission and no confirmation step.
+    [What a grant covers](/reference/grants-and-sectors#what-a-grant-covers).
+  - **Postern sends each dispatch once and never re-sends it.** A break mid-call is
+    reported as unknown, not retried.
+</Info>
+
+Nothing on this page was captured from a run. The shapes are the declared types, and
+the quoted strings are Postern's own.
+
+## list_actions
+
+What the connected sources let you do — the write-side counterpart of `get_schema`.
+Served from the cache and a static catalog, not from a live poll.
+
+<ParamField body="sector" type="string">
+  One sector. Omitted, it enumerates every granted sector.
+</ParamField>
+
+<ParamField body="area" type="string">
+  Passed to the connector verbatim. The connector owns its meaning.
+</ParamField>
+
+<ParamField body="domain" type="string">
+  The cheapest filter. It matches the entity-class prefix — `light`, `lock`, `climate`.
+</ParamField>
+
+<ParamField body="entity_id" type="string">
+  One device. Note the wire name: `entity_id` here, `entityId` at the connector.
+</ParamField>
+
+<ParamField body="limit" type="integer" default="100">
+  Capped at 500. Must be an integer of 1 or more.
+</ParamField>
+
+```ts
+{
+  actions: {
+    id: string
+    description: string
+    params: { name: string, type: "string" | "number" | "boolean", required: boolean, description?: string }[]
+    domain?: string
+    service?: string
+    target?: { area?: boolean, entity?: boolean, domain?: string }
+  }[]
+  count: number
+  truncated: boolean
+}
+```
+
+Read-only sectors contribute nothing, so an empty catalog is a normal answer. Only Home
+Assistant has an action catalogue today. The other five sectors have none at all.
+
+`count` is what this response holds. `truncated: true` means the cap trimmed the
+catalog. Narrow with `domain`, `area` or `entity_id` rather than raise `limit`. Postern takes
+the cut off the end of the list it has built up, so it can drop a whole group of
+actions at once.
+
+`domain`, `service` and `target` are filled in by connectors that build their catalog
+from a live source's own entities. A connector with a fixed catalog leaves them
+undefined.
+
+`list_actions` is filtered to your grants rather than refused, unless you name a
+sector — naming an ungranted one is a refusal.
+[Why an agent was refused](/reference/refusals).
+
+### Where the Home Assistant catalogue comes from
+
+Home Assistant will not tell you which services apply to which entity. Postern works
+that out and serves the answer from cache, so discovery costs an agent no round trip to
+your house. The catalog comes from the live connection's cache and from nowhere else.
+An empty catalog for `home` therefore means the connection is not up.
+
+### The admin and system services Postern never runs
+
+The `hassio`, `update` and `backup` domains, `homeassistant.restart`,
+`homeassistant.stop`, and every `reload` are dropped from the catalog and refused again
+at dispatch. Name one directly and Postern still refuses it:
+`admin/system service not permitted (device/entity control only)`.
+
+## invoke_action
+
+Perform one declared action on a source. This is the only tool that changes anything
+outside Postern, and Home Assistant is the only source it can change today.
+
+<ParamField body="action_id" type="string" required>
+  Sector-namespaced, and taken from `list_actions` — `home.light.turn_on`,
+  `home.lock.lock`. Never guessed: the leading segment is what the grant is checked
+  against.
+</ParamField>
+
+<ParamField body="params" type="object">
+  The action's parameters, including its target. An explicit id, or a structured
+  selector — area, domain, name — which Postern resolves against its own cache, so
+  "the kitchen light" is one call.
+</ParamField>
+
+```ts
+{ ok: boolean, detail?: unknown }
+```
+
+`detail` carries the source's own response or its error summary. The record keeps the
+action id, the parameters you sent, and whether the outcome was ok or an error — not
+`detail` itself.
+
+Postern passes `params` to the connector as given, and does not check them against the
+action's declared `params` first. A malformed parameter surfaces as the source's own
+error inside `detail`. The types in `list_actions` are there for you to check against
+before you call.
+
+**Postern sends each dispatch once and never re-sends it.** If the connection breaks
+mid-call, Postern reports `unknown — not retried` rather than tries again. It cannot
+know whether the source acted before the wire went, and a second send could act twice
+on a real device. Check the device yourself.
+
+A sector with no active connection returns
+`{ ok: false, detail: "no active connection for sector '<sector>'" }`, and a provider
+with no registered connector returns
+`{ ok: false, detail: "no connector registered for <provider>" }`. Both are ordinary
+results.
+
+<Warning>
+  `ok: false` is a **successful tool call**. The call did not error and your agent will not
+  flag it. An agent that only checks for tool errors will report a light as switched
+  on when the source refused. Read the field. Postern records it too: the row for a
+  rejected action is allow with an error outcome. That tells the owner Postern
+  permitted the call and the source said no.
+</Warning>
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Connect Home Assistant" href="/connect/home-assistant">
+    The one source an agent can act on today.
+  </Card>
+  <Card title="MCP tools" href="/reference/mcp-primitives">
+    The address, the transport, and what every tool call returns.
+  </Card>
+</Columns>

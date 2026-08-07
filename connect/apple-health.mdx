@@ -60,7 +60,7 @@ https://gateway.example-tailnet.ts.net:8443/api/ingest/<connection-id>
 Copy that address. It goes into your phone in step 3.
 
 Any address you put in front of the path works. The secret is what protects it.
-[The ingest route is the one route Postern serves without a host check](/reference/security-model#the-push-ingest-route).
+[The ingest route is the one route Postern serves without a host check](/reference/ports#the-push-ingest-route).
 The Console prints the same example with its own placeholder host,
 `your-mac.tailnet.ts.net:8443`. Both host names are fake. Use yours.
 
@@ -279,7 +279,7 @@ never calls a device **Unreachable**.
      stored still answers.
   4. The phone can reach the machine Postern runs on.
 
-  [Every failure answers identically on purpose](/reference/security-model#the-push-ingest-route).
+  [Every failure answers identically on purpose](/reference/ports#the-push-ingest-route).
   A request that never arrives leaves no trace. From the phone, a network problem and a
   wrong secret look the same. The two `curl` checks in
   [Open two ports to your own devices](/start/remote-access#your-devices) separate them.

@@ -114,7 +114,7 @@ The field hides what you paste. It shows dots, not text, so you cannot read it b
 
   In exchange the Bridge hands back an access URL, and that line is itself a password: whoever holds
   it can read every bank you linked. Postern encrypts it on your own machine and never shows it
-  again. [Postern stores the access URL, never the setup token](/reference/security-model)
+  again. [Postern stores the access URL, never the setup token](/reference/provider-sign-ins#three-credentials-that-behave-like-passwords)
 
   Postern does not use up an access URL. It stores that line as it stands, so delete the copy you
   pasted from.
@@ -138,7 +138,7 @@ with a SimpleFIN row on it.
   `SimpleFIN refused it.` over `simplefin setup-token claim failed` means the claim failed. Postern
   saved nothing and left no half-connected source behind. Every cause gives that one message,
   because Postern keeps credential fragments out of error text.
-  [Why one message covers every cause](/reference/security-model)
+  [Why one message covers every cause](/reference/provider-sign-ins#why-provider-failures-say-so-little)
 
   Go back to the Bridge and [create another setup token](#setup-token). Paste that one. If you kept
   an access URL, paste that instead.
@@ -170,7 +170,7 @@ The first sync collects 1 year of history, so nothing older arrives. Every later
 is new, plus the last 3 days again. Those 3 days catch a transaction that posts late. A second read
 of the same 3 days changes nothing already stored. Pending charges never arrive: a card charge lands
 once your bank finalises it.
-[Backfill windows, the 3-day overlap, and posted-only reads](/reference/mcp-primitives)
+[Backfill windows, the 3-day overlap, and posted-only reads](/reference/mcp-freshness#what-the-cache-holds-by-source)
 
 <Note>
   `SimpleFIN is connected, but its first sync failed.` — the card stays put, with Postern's own
@@ -183,7 +183,7 @@ once your bank finalises it.
   A bank you linked at the Bridge is missing from the list, and nothing looks broken. One bank can
   fail while the others succeed, and the Bridge reports that inside a normal answer. Postern keeps
   everything that did arrive and does not delete that bank's holdings.
-  [Postern logs the bank that failed and keeps its holdings](/reference/mcp-primitives)
+  [Postern logs the bank that failed and keeps its holdings](/reference/mcp-freshness#a-simplefin-read-can-partly-fail)
 
   To read the log, open a terminal on the machine Postern runs on. Go to the folder that holds
   `docker-compose.yml`. Run:
@@ -210,7 +210,7 @@ gloss under the chips reads
 2h is the floor, and the Console offers nothing faster. SimpleFIN caps how many times a day a token
 may ask, and disables a token that goes past that cap. Its own data refreshes about once a day, so a
 faster check returns rows you already hold.
-[The daily cap, and why 2h is the floor](/reference/mcp-primitives)
+[The daily cap, and why 2h is the floor](/reference/mcp-freshness#what-the-cache-holds-by-source)
 
 Your choice takes effect within about a minute. No restart. If the Console answers
 `Cadence rejected.`, the change did not take: press the chip again.
@@ -244,7 +244,7 @@ transactions, and investment positions where the bank reports them. Any agent yo
 reads it from your own machine.
 
 Postern can only read your finances. It can never move money.
-[Finance has no action catalogue; only Home Assistant can act](/reference/grants-and-sectors)
+[Finance has no action catalogue; only Home Assistant can act](/reference/grants-and-sectors#which-sectors-an-agent-can-act-in)
 
 Four things decide whether an agent's answer is right:
 
@@ -253,7 +253,7 @@ Four things decide whether an agent's answer is right:
 - Investment positions are a snapshot, not a list of trades.
 - A cost basis of `0.00` means *unknown*, not *free*.
 
-[What an agent must know about these fields](/reference/mcp-primitives)
+[What an agent must know about these fields](/reference/mcp-reading#four-properties-of-finance-data)
 
 Your subscription renews whether or not Postern runs, and SimpleFIN bills it. Which banks this
 connection covers stays your decision at the Bridge.
@@ -269,7 +269,7 @@ subscription and your linked banks stay as they are.
 Add [Plaid](/connect/plaid) later for a bank the Bridge cannot reach. Postern merges an account that
 arrives through both, but only when both report the last 4 digits. Otherwise it asks you to settle
 it on its own screen.
-[Postern never merges two accounts on a resemblance](/reference/grants-and-sectors)
+[Postern never merges two accounts on a resemblance](/reference/grants-and-sectors#two-sources-inside-one-sector)
 
 ## Next
 

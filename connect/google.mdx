@@ -21,7 +21,7 @@ description: "Gmail with an app password. Calendar and contacts with your own Go
 Gmail uses an app password. Calendar and contacts use a Google Cloud app you register yourself.
 Postern never asks Google for access to your mail, and the Cloud app you build below requests no
 Gmail permission. [Why Gmail uses a password instead of a Google
-sign-in](/reference/security-model)
+sign-in](/reference/provider-sign-ins#what-each-provider-needs-and-why)
 
 Part A is the first 2 steps below. Part B is the 8 steps after them.
 
@@ -267,7 +267,7 @@ Under **Test users**, press **+ Add users**. Add the Google address you will sig
 Google matches the redirect address character for character. Copy it from your own Console — do not
 type it, and do not copy it from this page. Postern builds that address from its own port, so the
 Console holds the only copy that stays true. [Why Postern pins the address, and never reads it off
-your browser](/reference/security-model)
+your browser](/reference/provider-sign-ins#the-redirect-address-is-pinned-inside-postern)
 
 Open the Console's Google screen in another tab: `http://localhost:8787/connect/google`. Its left
 column lists four numbered steps. The third reads *Create an OAuth client, type Web application —
@@ -399,7 +399,7 @@ Tick **Select all**, then press **Continue**. **Cancel** sits beside it and aban
 
 Google returns you to the Console's **Sources** screen. The one sign-in becomes two connections,
 **calendar** and **contacts**. [Why one sign-in creates two connections and not
-one](/reference/grants-and-sectors)
+one](/reference/grants-and-sectors#which-sectors-a-sign-in-turns-on)
 
 Open either connection and press **Sync now** to force a first read. Each then shows a **Last
 synced** time.
@@ -474,7 +474,7 @@ the message text — it fetches that when an agent asks for it. Gmail comes in o
 way mail apps read a mailbox, so your Gmail address is also the login.
 
 Calendar and contacts are read-only. Postern cannot change anything in them. [Why the Google
-connector can never act, whatever permission it holds](/reference/grants-and-sectors)
+connector can never act, whatever permission it holds](/reference/grants-and-sectors#which-sectors-an-agent-can-act-in)
 
 What this costs you from here on:
 
@@ -486,7 +486,7 @@ What this costs you from here on:
   First it makes you tick a box — **Yes — replace the stored credential.** on Gmail, **Yes —
   replace the stored app and re-run consent.** on Google.
 - Postern encrypts the client secret and keeps it on your own machine. [Postern sends it only to
-  Google, only to ask for fresh access](/reference/security-model)
+  Google, only to ask for fresh access](/reference/provider-sign-ins#what-each-provider-needs-and-why)
 
 ## Next
 

@@ -1,0 +1,226 @@
+---
+title: "Agent keys: create, expire, revoke, rotate"
+description: "What an agent key is, the deadline it can carry, and the four operator verbs that change or end one — with the exact Console clicks and what the agent sees."
+---
+
+<Info>
+  **Before you start**
+
+  - **Every control on this page is in one place.** Open the Console and click
+    **Agents & keys**.
+  - **A key and its grant are one row.** The key is the secret you paste into an
+    agent; the grant is the sector list on that same row. The sectors are on
+    [Grants and sectors](/reference/grants-and-sectors).
+  - **Postern cannot show you a key again.** It keeps a scrambled copy it can
+    check against, never the key itself.
+  - **Three of the four verbs end that agent's live sessions.** Expect to watch a
+    working agent stop.
+</Info>
+
+## What an agent key is
+
+A key is 32 random bytes from Node's cryptographic random source, encoded as
+base64url. Postern stores the SHA-256 of it, in `agent_grants.key_hash`. Postern
+cannot show you this key again. It keeps a scrambled copy it can check against,
+never the key itself. No route returns it, not even the route that lists your
+agents. A rotation is the only way to get a new one.
+
+Postern hashes a presented key the same way and looks the result up. It never
+compares the key as itself, never logs it, and never puts it in the record. A
+lost key is created again, not recovered.
+
+**To create one.** Click **Agents & keys**, then **Mint a key**. Type a name. Tap
+sectors under **Grant which sectors**. Pick a chip under **Expires**. Press
+**Mint the key**. One agent name holds one key, so **Mint a key** under a name
+that already exists is a rotate, not a second key.
+
+Three states refuse a key that resolves to no working grant: unknown key, revoked
+key, expired key. [Why an agent was refused](/reference/refusals) carries what the
+agent sees in each case, and which of them reaches the record.
+
+## Expiry
+
+A grant carries a deadline, and its default is none. Stored as null, the key
+never expires.
+
+The **Expires** row offers four chips: **Never**, **30 days**, **60 days** and
+**90 days**. It starts on **90 days** once you have set a public address at
+Console → **Settings** → **Remote access**, and on **Never** before that. Through
+`POST /api/agents`, `expiresInDays` is a whole number of days from now between 1
+and 3650; omit it and the key never expires.
+
+| Once a deadline exists | What that means |
+|---|---|
+| A key is dead **at** its expiry instant, not after it | The comparison is inclusive. A deadline one millisecond in the past refuses. |
+| Revocation wins over expiry | A key that is both revoked and lapsed reports `revoked`, because the revocation check runs first. |
+| Postern re-checks the deadline on every call | A key that lapses inside a live session stops there, at its deadline. |
+| A derived token cannot outlive the grant | A hosted agent holds a token from Postern's OAuth bridge. Its effective deadline is the earlier of its own and the grant's. |
+
+A change to a deadline cuts live sessions exactly as a change to the sectors
+does. Postern runs that sweep whether the change widens or narrows. The cost is
+one reconnection.
+
+<Warning>
+  Postern refuses to move the deadline of a dead key, and the refusal is in
+  Postern itself, not only in the Console. The Console explains it where it
+  happens: `This key is revoked, so its deadline is fixed where it stopped —
+  moving it would let the old key back in. Rotate to mint a fresh key with a new
+  deadline.` A lapsed key gets the sibling sentence: `This key has already
+  lapsed, and moving the deadline would let the old key back in — so Postern
+  refuses it. Rotate to mint a fresh key with a new deadline.`
+</Warning>
+
+Sectors on a dead key are a different case, and the two surfaces differ. Postern
+accepts a sectors-only edit on a revoked or lapsed grant, because the sectors of
+a key that cannot resolve do nothing. The Console disables the toggles once a key
+is revoked and says `This key is revoked; its grants can no longer change.` On a
+lapsed key it lets you toggle and says `Tap to toggle — but this key has lapsed,
+so nothing reaches your gate with it until you rotate it.` Either way there is no
+next session for new sectors to apply in. Rotation is the only route back.
+
+### A key used from a company's cloud must carry an expiry
+
+claude.ai and ChatGPT refuse an agent key that never expires, and Postern's own
+OAuth bridge refuses one too. So a key you will paste into a hosted agent needs a
+deadline before you use it: pick **30 days** or **90 days** on the **Expires**
+row. The Console never blocks a key that never expires; it only moves the default
+and states the reason.
+
+[The refusal, its exact wording, and why the bridge is the only place that checks
+it](/reference/oauth-bridge#a-hosted-agents-key-must-carry-an-expiry).
+
+## Revoking, rotating, and removing
+
+Four operator verbs act on a grant. All four are on the Console port, and no agent
+can call any of them.
+
+| Verb | The clicks | What changes in the row | What the agent gets |
+|---|---|---|---|
+| **Revoke** | **Agents & keys** → the agent → **Revoke** → **Revoke the key** | Postern writes a revocation stamp. Repeat it and nothing further changes. | The key stops working at once, on both the agent port and the REST read mirror, and its live sessions are cut. |
+| **Rotate** | **Agents & keys** → the agent → **Rotate** → **Rotate the key** | New key hash, new sectors, new deadline, revocation cleared. The agent's name stays. | The old secret stops at once, and derived tokens are deleted. |
+| **Edit grants** | **Agents & keys** → the agent → tap a sector under **Grants** | Postern replaces the sector list. | The current session ends; the next one carries the new sectors. |
+| **Remove** | Revoke first, then **Remove** → **Remove the agent** | Postern deletes the row. | Nothing further. Its rows in the record survive. |
+
+**Rotate** opens the same form as **Mint a key**, with the name locked and the
+sectors and deadline preloaded. On an already-revoked agent that button reads
+**Re-mint** instead. **Remove** appears only after a revoke, so nobody deletes a
+live agent out from under an in-flight session.
+
+A rotation is the answer to a leaked key, which is why the credentials derived
+from it die with it.
+
+The confirmation panel states the cost before you press: `The key stops working
+immediately, and every token a hosted client (claude.ai, ChatGPT) holds through
+it dies with it. Its entries in the ledger are kept. A session already under way
+has resolved its grants and may finish; the next one is denied.` When it is done
+the Console says `<agent> revoked — every token derived from it died too.`, and a
+remove says `<agent> removed — its entries in the ledger are kept.`
+
+<Note>
+  **That panel's last clause is out of date, and you will still see it on screen.**
+  `A session already under way has resolved its grants and may finish` was true
+  before Postern began to cut sessions on a revoke. Postern now ends that session
+  too. The wording is a leftover; the sweep described below is what runs.
+</Note>
+
+One thing the code does **not** settle: what becomes of a call that is already
+inside Postern at the instant the sweep lands. What it does settle is that the
+session is gone, and that no further call on it resolves. Nobody has established
+the rest, and this page will not guess at it.
+
+<Warning>
+  **Mint a key** under a name that already exists is a rotate, not a second key.
+  Postern replaces that agent's key hash, its sectors and its deadline, and
+  clears its revocation. The old secret stops at once. In the same transaction
+  Postern deletes every OAuth-bridge code and token derived from it, and ends its
+  live sessions. Postern stored only a hash of the old key, so no copy of it
+  exists anywhere. Every client that still holds the old secret has to be handed
+  the new one.
+</Warning>
+
+### Why a revoke reaches both surfaces
+
+The REST read mirror re-resolves the presented key on every single request, so a
+revoked key fails on the next call.
+
+The agent port does not. It resolves the key once, at session start, and caches
+the sector list in memory against the session id. A revocation written later
+would never reach a session already open, so Postern pushes it instead. The
+revoke route writes the row **first**. Then it evicts every cached session that
+belongs to that agent, across every mounted surface, and closes each session's
+transport. A sweep before the write would leave a window in which a fresh session
+binds to a not-yet-revoked row. A session halfway through its start at that
+instant is refused its binding, and the route reports how many it ended.
+
+A hosted agent never holds the agent key. It holds a token that Postern's OAuth
+bridge issues and refreshes, and Postern joins the grant row every time it
+resolves one. So a revoked or expired grant refuses the derived token whatever
+life the token has left of its own. A rotate goes further and deletes the derived
+codes and tokens outright, because a rotate answers a compromise.
+
+### What a revoke does not touch
+
+Erase, disconnect and revoke are three separate acts. Erase drops cached rows and
+leaves the connection connected and the credential in the vault. Disconnect
+removes that connection's credential from the vault. Revoke ends an agent's key,
+touches no source credential, and changes nothing upstream.
+
+Postern never receives a provider password for an OAuth source. For Microsoft you
+paste only an Application (client) ID, a public identifier, and Microsoft hands
+back a scoped, revocable token. So a revoke — or a disconnect of Microsoft in the
+Console — cannot touch your Microsoft account password; there is none here to
+touch. You revoke the consent at Microsoft, and the app registration at Entra
+stays yours.
+
+<Warning>
+  A key cannot be un-revoked. Postern writes the revocation stamp once and no
+  path clears it, except a fresh key under the same name. That fresh key is a
+  different secret, and every client has to be handed it. Revoke when a key may
+  be loose, and know before you press that nothing any client currently holds
+  survives it.
+</Warning>
+
+## What the record holds about the key itself
+
+Postern records nothing you do to a key. Create one, rotate one, edit its sectors
+or its deadline, revoke it or remove it — the record gets no row for any of it. So
+an agent can stop mid-work with nothing there to say why.
+[What the record holds about a grant](/reference/refusals#what-the-record-holds-about-a-grant)
+carries the rest, including why a **Remove** does not take the trail with it.
+
+## Confirm it works
+
+- Console → **Agents & keys** lists the agent, and its line reads `never expires`
+  or `expires in <n>d`.
+- On a revoked agent the buttons read **Re-mint** and **Remove**, and the toggles
+  under **Grants** will not move.
+- After a revoke or a rotate, the agent's next call fails and its open session is
+  gone. Restart the client and it reconnects only with the new key.
+
+## If something went wrong
+
+| What you see | What to do |
+|---|---|
+| The agent worked yesterday and is refused today, with nothing changed | The key met its deadline. The agent sees `Unauthorized` (`401`) from the agent port, or `403` and `{"error":"access denied"}` from the REST read mirror. The agent port records the refusal with reason `expired`; the mirror records nothing. A dead key's deadline cannot be moved: click the agent, press **Rotate**, press **Rotate the key**, then paste the new key into the agent. |
+| The Console refuses to move a deadline | The key is revoked or lapsed. Rotate it. A dead key's deadline is fixed where it stopped. |
+| A hosted agent is refused at sign-in, and the key works locally | The key never expires. Rotate it with **30 days** or **90 days**, then sign in again. [The bridge's rule](/reference/oauth-bridge#a-hosted-agents-key-must-carry-an-expiry). |
+| You revoked a key by mistake | Nothing un-revokes it. Press **Rotate** — on a revoked agent the button reads **Re-mint** — and hand every client the new key. |
+
+## What you have now
+
+What a key is, what a deadline does to it, and the four verbs that change or end
+one. A revoke or a rotate ends every token derived from that key at once, and
+cuts the sessions the agent is holding. Nothing at the source changes.
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Why an agent was refused" href="/reference/refusals">
+    the two refusal shapes, the three key reasons, and which of them reach the
+    record
+  </Card>
+  <Card title="Grants and sectors" href="/reference/grants-and-sectors">
+    the six sectors, what one grant covers, and where every control that changes
+    a grant lives
+  </Card>
+</Columns>

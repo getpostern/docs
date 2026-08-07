@@ -93,10 +93,41 @@
       {
         "group": "Reference",
         "pages": [
-          "reference/security-model",
-          "reference/grants-and-sectors",
-          "reference/mcp-primitives",
-          "reference/audit-log"
+          {
+            "group": "Security",
+            "pages": [
+              "reference/security-model",
+              "reference/ports",
+              "reference/vault",
+              "reference/provider-sign-ins"
+            ]
+          },
+          {
+            "group": "Agents, keys and grants",
+            "pages": [
+              "reference/grants-and-sectors",
+              "reference/agent-keys",
+              "reference/refusals"
+            ]
+          },
+          {
+            "group": "MCP tools",
+            "pages": [
+              "reference/mcp-primitives",
+              "reference/mcp-reading",
+              "reference/mcp-freshness",
+              "reference/mcp-actions",
+              "reference/oauth-bridge"
+            ]
+          },
+          {
+            "group": "The record",
+            "pages": [
+              "reference/audit-log",
+              "reference/read-the-record",
+              "reference/record-limits"
+            ]
+          }
         ]
       },
       {

@@ -61,7 +61,7 @@ boot there.
 
 `scripts/backup.sh` in the repository does not work on the shipped Docker layout. It exits with
 `refusing a keyless backup` and writes nothing.
-[Why, and what it does when you hold the key](/reference/security-model)
+[Why, and what it does when you hold the key](/reference/vault#behaviours-you-will-meet)
 
 </Step>
 
@@ -131,7 +131,7 @@ docker compose exec -T db pg_dump -U pci -d pci -Fc > ./backup-staging/pci.dump
 ```
 
 `-Fc` writes the compressed format that `pg_restore` reads back. No password is needed.
-[Why](/reference/security-model)
+[Why](/reference/vault#behaviours-you-will-meet)
 
 If you changed `POSTGRES_USER` or `POSTGRES_DB` in `.env`, use your own values in place of `pci`.
 
@@ -174,13 +174,13 @@ file, that is recoverable.
 Postern prints `VAULT KEY IS NOT BACKED UP` to its log on every boot — after a good backup, and
 after a restore. It is a reminder, not an error, and no Console control clears it. To stop it,
 write the marker file yourself or hold the key yourself:
-[the backup banner](/reference/security-model#the-backup-banner-and-how-to-stop-it)
+[the backup banner](/reference/vault#the-backup-banner-and-how-to-stop-it)
 
 <Warning>
   Never rotate the master key between step 2 and step 4. A database copy older than a rotation needs
   the older master key. Take a fresh backup immediately before any rotation, and keep the older
   backup file until every connection reads `ok` again.
-  [How a rotation and a backup drift apart](/reference/security-model)
+  [How a rotation and a backup drift apart](/reference/vault#rotating-the-master-key)
 </Warning>
 
 </Step>
@@ -309,7 +309,7 @@ curl -fsS http://localhost:8787/healthz
 The grep prints nothing, and `/healthz` answers `{"status":"ok"}`. That says Postern is running and
 its database is reachable. It does not say the master key matches the vault. A
 `VAULT KEY IS NOT BACKED UP` line is not a restore failure: the marker sat in the old volume and
-the restore made a new one. [Write it again](/reference/security-model#the-backup-banner-and-how-to-stop-it).
+the restore made a new one. [Write it again](/reference/vault#the-backup-banner-and-how-to-stop-it).
 
 Now open a real credential:
 
@@ -349,7 +349,7 @@ curl -fsS http://localhost:8787/api/export -o postern-export.json
 
 Only this computer can reach that address. Nothing on your Wi-Fi, and nothing on the internet, can.
 From another computer, [forward the port over SSH](/start/remote-access#ssh-tunnel) first.
-[Why the export answers here only](/reference/security-model)
+[Why the export answers here only](/reference/ports#the-console-has-no-authentication)
 
 The file holds a `manifest` and a `data` object.
 
@@ -385,7 +385,7 @@ sector if you narrowed it, and the number of rows, never the rows themselves.
   row. A later sync cannot resume; it needs a brand-new Link. That also stops the paid
   subscription those Items are billed under. The stop is best-effort, so check at Plaid afterwards
   if the subscription matters to you. An Item is one bank connection at Plaid; Link is Plaid's
-  connect-your-bank window. [What Postern calls, and in what order](/reference/security-model)
+  connect-your-bank window. [What Postern gets back from Plaid, and what it never sees](/reference/provider-sign-ins#plaid-never-shows-postern-your-bank-sign-in)
 </Warning>
 
 In the Console at `http://localhost:8787`, go to **Settings** → **Your data**. Find the
@@ -415,7 +415,7 @@ survives too, and it never held the row values.
 [What one row holds](/reference/audit-log#what-one-row-holds)
 
 Erase is not disconnect, and it is not revoke.
-[The three are separate acts](/reference/grants-and-sectors)
+[The three are separate acts](/reference/agent-keys#what-a-revoke-does-not-touch)
 
 </Step>
 
@@ -465,7 +465,7 @@ a narrower scope than you meant. A connection id that is not yours answers `404`
 nothing.
 
 Running the same erase twice is safe. If an erase stops partway, run the same command again
-to finish it. [Why](/reference/security-model)
+to finish it. [Why](/reference/vault#behaviours-you-will-meet)
 
 </Step>
 
