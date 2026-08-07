@@ -87,7 +87,7 @@ row. The Console never blocks a key that never expires; it only moves the defaul
 and states the reason.
 
 [The refusal, its exact wording, and why the bridge is the only place that checks
-it](/reference/oauth-bridge#a-hosted-agents-key-must-carry-an-expiry).
+it](/reference/oauth-bridge#a-hosted-agent-key-must-carry-an-expiry).
 
 ## Revoking, rotating, and removing
 
@@ -203,7 +203,7 @@ carries the rest, including why a **Remove** does not take the trail with it.
 |---|---|
 | The agent worked yesterday and is refused today, with nothing changed | The key met its deadline. The agent sees `Unauthorized` (`401`) from the agent port, or `403` and `{"error":"access denied"}` from the REST read mirror. The agent port records the refusal with reason `expired`; the mirror records nothing. A dead key's deadline cannot be moved: click the agent, press **Rotate**, press **Rotate the key**, then paste the new key into the agent. |
 | The Console refuses to move a deadline | The key is revoked or lapsed. Rotate it. A dead key's deadline is fixed where it stopped. |
-| A hosted agent is refused at sign-in, and the key works locally | The key never expires. Rotate it with **30 days** or **90 days**, then sign in again. [The bridge's rule](/reference/oauth-bridge#a-hosted-agents-key-must-carry-an-expiry). |
+| A hosted agent is refused at sign-in, and the key works locally | The key never expires. Rotate it with **30 days** or **90 days**, then sign in again. [The bridge's rule](/reference/oauth-bridge#a-hosted-agent-key-must-carry-an-expiry). |
 | You revoked a key by mistake | Nothing un-revokes it. Press **Rotate** — on a revoked agent the button reads **Re-mint** — and hand every client the new key. |
 
 ## What you have now
