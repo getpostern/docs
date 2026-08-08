@@ -15,9 +15,14 @@ request.
 
 ### Is Postern open source?
 
-Yes, AGPL-3.0. The open core is all of Postern: every connector, reads and actions,
-MCP and REST access, the Console, grants and the record. We hold nothing back to sell
-you.
+Yes — Apache-2.0, and it's the complete gateway: every connector, reads and actions,
+MCP and REST access, the Console, permissions and audit. You can build on it and ship
+what you build on any terms you like. Nothing here is a crippled tier: the open core is
+the product, not a demo of it.
+
+Apache rather than a copyleft licence for one reason: a connector or an agent written
+against this gateway should be publishable by anyone, on any terms they like, including
+inside a closed product.
 
 ## Your data
 
@@ -39,7 +44,7 @@ Never. Each agent gets its own key, and Postern keeps only a scrambled copy of t
 key.
 [What the vault does and does not cover](/reference/vault)
 
-### Isn't one machine with everything on it a bigger target?
+### Isn't one machine with everything on it a bigger target? {#one-machine-target}
 
 You already have that exposure, spread out. Every agent holds its own copy of your
 source passwords, plus whatever you pasted in. Postern puts that in one place built
