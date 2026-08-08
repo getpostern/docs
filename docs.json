@@ -155,5 +155,11 @@
       "website": "https://getpostern.com",
       "github": "https://github.com/getpostern/postern"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/connect/gmail",
+      "destination": "/connect/google"
+    }
+  ]
 }
