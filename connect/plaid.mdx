@@ -79,21 +79,44 @@ carries 3 numbered lines:
 2. `Copy your client_id and the Production secret.`
 3. `Request Production access if you haven’t — Plaid approves it.`
 
-Nobody has captured Plaid's dashboard, so this page names no control on it. The address that has
-been walked is
-[dashboard.plaid.com/developers/keys](https://dashboard.plaid.com/developers/keys). Postern's own
-runbook names that path; the card above names a different one. Nobody has checked which one Plaid
-shows today. Use the address, and trust your screen.
+<Note>
+  The card's first line is out of date. Plaid's dashboard has no Team Settings item. Follow this
+  page instead, and expect the card to be corrected.
+</Note>
 
-Copy the `client_id`. Then copy the Production secret, not the Sandbox one.
+In Plaid's dashboard, the left rail groups its items. Under **PLATFORM**, open **Developers** and
+select **Keys**. The address is
+[dashboard.plaid.com/developers/keys](https://dashboard.plaid.com/developers/keys), which you can
+also open directly.
 
-The `client_id` is the same string in every Plaid environment. Each environment has its own secret.
+The page is headed **Keys** and carries 3 cards, one under the next:
+
+| card | what it holds |
+|---|---|
+| **Client ID** | Readable on the page. One copy control beside it. |
+| **Production secret** | Hidden behind dots. A control reveals it, a second copies it, and **Rotate** replaces it. |
+| **Sandbox secret** | The same 3 controls, over a different value. |
+
+Copy the **Client ID**. Then copy the **Production secret** — the second card, not the third.
+
+Both secrets sit on this one page, a card apart, and they look identical once revealed. This is the
+step where the wrong one gets copied. A Sandbox secret is not refused loudly: Postern saves it,
+Plaid's production host rejects the call, and no bank ever links.
+
+The Client ID is the same string in every Plaid environment. Each environment has its own secret.
 Postern saves what you paste here as a Production app, and the card's own note says so:
-`Console defaults to Production.` A Sandbox secret sent to Plaid's production host fails.
+`Console defaults to Production.`
 
-{/* UNWITNESSED: the Plaid dashboard's nav, and its Keys page. 2 Postern surfaces disagree about the
-    path — the Console card says Team Settings → Keys, the runbook says Developers → Keys — and no
-    Plaid capture settles it. 2 screenshots of the signed-in dashboard would. */}
+{/* WITNESSED 2026-08-07 — evidence/witness/plaid-dashboard.md, the founder's own live dashboard,
+    1 capture (shots/plaid-dashboard-keys-2026-08-07.png). It settles the nav (Developers → Keys,
+    under a PLATFORM group heading), the page heading, all 3 card labels, the per-card controls and
+    the Rotate button. It supersedes MERGED-plaid.md Step 0's "NO LABEL IS WITNESSED" ruling for
+    THIS page only — the rest of the dashboard is still uncaptured. It also settles the dispute
+    against the Console: there is no Team Settings item in that rail, so the runbook was right and
+    the Console card is wrong. That is a PRODUCT defect; do not fix it by bending this page back. */}
+
+{/* UNWITNESSED, still: everything else in the dashboard — the sign-up flow, the Trial-vs-Production
+    plan page and any pricing, the Production access request form, Application Display Info. */}
 
 {/* REMOVED 2026-08-07 and NOT to be re-added without a capture: an "Application Display Info"
     step, and the troubleshooting row that told a reader to fill in an app display name or a logo.
